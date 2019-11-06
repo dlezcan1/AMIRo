@@ -185,7 +185,7 @@ def fit_polynomial_skeleton(img_skeleton: np.ndarray, order: int):
 def get_curvature(filename: str, poly_deg: int, active_areas):
     seg_needle = segment_needle(filename,'canny')
     thresh_needle = np.copy(seg_needle)
-    thresh_neede[thresh_needle > 0] = 1
+    thresh_needle[thresh_needle > 0] = 1
 
     x, y, p = fit_polynomial_skeleton(thresh_needle,10)
 
