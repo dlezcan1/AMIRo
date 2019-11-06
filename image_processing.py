@@ -88,10 +88,64 @@ def get_centerline(edge_image):
 	return centerline_img
 
 
-def find_active_areas(centerline_image):
-	area1 = 5
-	area2 = 20
-	area3 = 64
+def fit_polynomial(centerline_image, order):
+    assert(np.max(img_skeleton) <= 1)
+
+    N_rows, N_cols = np.shape(img_skeleton)
+
+    x = np.arange(N_cols)         # x-coords
+    y = N_rows*np.ones(N_cols)    # y-coords
+    y = np.argmax(img_skeleton,0)
+
+    x = x[y > 0]
+    y = y[y > 0]
+
+    if len(x) == 0:
+        x = np.zeros(N_cols)
+        y = np.zeros(N_cols)
+        p = np.poly1d([0])
+    else:
+        p = np.poly1d(np.polyfit(x,y,order))
+
+    return x, y, p
+
+# fit_polynomial
+
+def find_active_areas(centerline_image, pix_per_mm): 
+	area1 = 5 * pix_per_mm
+	area2 = 20 * pix_per_mm
+	area3 = 64 * pix_per_mm
+	x1, x2, x3 = 0, 0, 0 # x-positions of the areas of interest
+	d1, d2, d3 = np.inf * np.ones(3)
+
+
+	centerline_image[centerline_image > 0] = 1 # convert to ones
+	x, y, f = fit_polynomial(centerline_image)
+
+        f_p = np.polyder(f) # df/dx
+
+        l_prev, l_curr = 0, 0
+        x_prev, y_prev = x[-1], f(x[-1])
+        x_curr, y_curr = x_prev, y_prev
+        while l_prev <= area3:
+            x_curr += ds
+            y_curr = f(x_curr)
+            l_curr = l_prev + np.linalg.norm([x_curr - x_prev, y_curr - y_prev])
+
+            if (l_prev <= area1 and area1 <= l_curr and np.abs(l_curr - area1) < d1:
+                x1 = x_curr
+
+            if (l_prev <= area2 and area2 <= l_curr and np.abs(l_curr - area2) < d2:
+                x2 = x_curr
+
+            if (l_prev <= area3 and area3 <= l_curr and np.abs(l_curr - area3) < d3:
+                x3 = x_curr
+                break
+        # while
+
+        return x1, x2, x3
+                
+# find_active_areas
 
 def find_curvature(centerline_img):
 	circles = cv2.HoughCircles(centerline_img, cv2.HOUGH_GRADIENT, 1, 20,

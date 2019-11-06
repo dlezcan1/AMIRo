@@ -157,7 +157,7 @@ def segment_needle(filename,seg_method, bool_show: bool = False):
 
 #segment_needle
 
-def fit_polynomial_skeleton(img_skeleton: np.ndarray, deg: int):
+def fit_polynomial_skeleton(img_skeleton: np.ndarray, order: int):
 
     assert(np.max(img_skeleton) <= 1)
 
@@ -167,18 +167,15 @@ def fit_polynomial_skeleton(img_skeleton: np.ndarray, deg: int):
     y = N_rows*np.ones(N_cols)    # y-coords
     y = np.argmax(img_skeleton,0)
 
-##    x = x[y < N_rows]
-##    y = y[y < N_rows]
     x = x[y > 0]
     y = y[y > 0]
 
-##    print(len(x))
     if len(x) == 0:
         x = np.zeros(N_cols)
         y = np.zeros(N_cols)
         p = np.poly1d([0])
     else:
-        p = np.poly1d(np.polyfit(x,y,deg))
+        p = np.poly1d(np.polyfit(x,y,order))
 
     return x, y, p
 

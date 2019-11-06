@@ -51,12 +51,11 @@ for file in os.listdir():
 
 # pick out a particular file
 if False:
-    file = directory + 'image2.png'
+    file = directory + 'image5.png'
     img = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
     img = img[ROI[2]:ROI[3],ROI[0]:ROI[1]]
-    segment_needle(file,'canny', True)
-    find_coordinate_image(img)
-        
+    seg_needle, _ = segment_needle(file,'canny', True)
+
 
 plt.show()
 cv2.waitKey(0)
