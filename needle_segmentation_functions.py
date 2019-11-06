@@ -237,6 +237,24 @@ def measure_distances( center_points ):
 
 
 def main():
+    directory = "C:/Users/dlezcan1/Documents/Needle Shape Model/Needle Calibration/"
+    
+    ################   SQUARE FITITNG   ##########################
+    file = "Test Images/5x30_squares_l-2mm_space-4mm.png"
+    img = cv2.imread( directory + file )
+    ROI = [120, 400, 1150, 585]  # x_t-left, y_t-left, x_b-right, y_b-right
+    img = img[ROI[1]:ROI[3], ROI[0]: ROI[2]]
+    center_points = find_squares( img, 330, 375 )
+    distances = measure_distances( center_points )
+    
+    # supposed distances
+    center_idx = np.argmin( distances )  # 0 point
+    exp_distances = np.arange( 0 - center_idx, 30 - center_idx )
+    exp_distances = np.vstack( ( exp_distances, exp_distances, exp_distances,
+                               exp_distances, exp_distances ) ) # concatenante 5 rows
+    
+    
+    
     pass
 
 # main
