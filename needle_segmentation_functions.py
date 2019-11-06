@@ -1,4 +1,4 @@
-import cv2
+import cv2, sys
 import numpy as np
 from skimage.morphology import skeletonize
 from os.path import exists
@@ -234,3 +234,15 @@ def measure_distances( center_points ):
     return distances
 
 # measure_distances
+
+
+def main():
+    pass
+
+# main
+
+
+if __name__ == "__main__":
+    main( sys.argv[1:] )
+    
+# if
