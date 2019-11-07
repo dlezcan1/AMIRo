@@ -3,6 +3,7 @@ import numpy as np
 from skimage.morphology import skeletonize
 from os.path import exists
 import matplotlib.pyplot as plt
+import itertools
 
 ROI = [40, 975, 420, 540]  # xleft, xright, ytop, ybottom #Region of Interest
 top_bor = 35  # x  0:top_bor      -> 0
@@ -25,16 +26,6 @@ def gen_kernel( shape ):
     return np.ones( shape, np.uint8 )
 
 # gen_kernel
-
-
-def generate_functions( bool_print: bool ):
-    """Determines if we want the image processig functions to display step-by-step or not"""
-    if bool_print:
-        pass
-    else:
-        pass
-
-# generate_functions
 
 
 def find_coordinate_image( img ):
@@ -205,17 +196,17 @@ def get_curvature( filename: str, poly_deg: int, active_areas ):
 
 def find_squares( img, area_low, area_high ):
     """Function to find squares in the plot"""
-    contours, hierarchy = cv2.findContours( img )
+    contours, hierarchy = cv2.findContours( img, 1, 2 )
     
     contours = [cnt for cnt in contours if cv2.contourArea( cnt ) > area_low and 
                 cv2.contourArea( cnt ) < area_high]
 
-    points = np.zeros( 0, 2 )
+    points = np.zeros( ( 0, 2 ) )
     for cnt in contours:
         rect = cv2.minAreaRect( cnt )  # get the rectangle around the contour
         box = np.int0( cv2.boxPoints( rect ) )  # get box points of the rectangle
         centroid = np.mean( box, axis = 0 )  # get the centroid of the box
-        points = np.vstack( points, centroid )
+        points = np.vstack( ( points, centroid ) )
         
     # for
     
@@ -230,6 +221,7 @@ def measure_distances( center_points ):
     centroid = center_points[ np.argmin( np.linalg.norm( center_points - centroid, axis = 1 ) ), : ]
     
     distances = np.linalg.norm( center_points - centroid, axis = 1 )
+    distances.reshape( 5, 30 )
     
     return distances
 
@@ -241,26 +233,28 @@ def main():
     
     ################   SQUARE FITITNG   ##########################
     file = "Test Images/5x30_squares_l-2mm_space-4mm.png"
-    img = cv2.imread( directory + file )
+    img = cv2.imread( directory + file , cv2.IMREAD_GRAYSCALE )
     ROI = [120, 400, 1150, 585]  # x_t-left, y_t-left, x_b-right, y_b-right
     img = img[ROI[1]:ROI[3], ROI[0]: ROI[2]]
-    center_points = find_squares( img, 330, 375 )
+    
+    canny = cv2.Canny( img, 25, 255 )
+    cv2.imshow('canny', canny)
+    center_points = find_squares( canny, 330, 375 )
     distances = measure_distances( center_points )
     
     # supposed distances
-    center_idx = np.argmin( distances )  # 0 point
-    exp_distances = np.arange( 0 - center_idx, 30 - center_idx )
-    exp_distances = np.vstack( ( exp_distances, exp_distances, exp_distances,
-                               exp_distances, exp_distances ) ) # concatenante 5 rows
+    x_center_idx, y_center_idx = np.unravel_index( np.argmin( center_points ),
+                                                   center_points.shape )
+    v_distances = np.arange( -x_center_idx, 30 - x_center_idx )
+    h_distances = np.arange( -y_center_idx, 5 - y_center_idx )
     
+    exp_distances = np.array( [np.linalg.norm( d ) for d in
+                                itertools.product( v_distances, h_distances )] )
     
-    
-    pass
-
 # main
 
 
 if __name__ == "__main__":
-    main( sys.argv[1:] )
+    main()
     
 # if
