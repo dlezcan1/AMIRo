@@ -194,23 +194,19 @@ def get_curvature( filename: str, poly_deg: int, active_areas ):
 # get_curvature
 
 
-def find_squares( img, area_low, area_high ):
+def find_squares( grey_img, template, thresh_low ):
     """Function to find squares in the plot"""
-    contours, hierarchy = cv2.findContours( img, 1, 2 )
+    res = cv2.matchTemplate( grey_img, template, cv2.TM_CCOEFF_NORMED )
     
-    contours = [cnt for cnt in contours if cv2.contourArea( cnt ) > area_low and 
-                cv2.contourArea( cnt ) < area_high]
-
-    points = np.zeros( ( 0, 2 ) )
-    for cnt in contours:
-        rect = cv2.minAreaRect( cnt )  # get the rectangle around the contour
-        box = np.int0( cv2.boxPoints( rect ) )  # get box points of the rectangle
-        centroid = np.mean( box, axis = 0 )  # get the centroid of the box
-        points = np.vstack( ( points, centroid ) )
-        
-    # for
+    # binarize top-left corner of images
+    res_thresh = res.copy()
+    res_thresh[res_thresh <= thresh_low] = 0;
+    res_thresh[res_thresh > thresh_low] = 1;
     
-    return points
+    
+    w, h = np.shape(template) # width and height of our template
+    
+    
     
 # find_squares
 
@@ -234,11 +230,11 @@ def main():
     ################   SQUARE FITITNG   ##########################
     file = "Test Images/5x30_squares_l-2mm_space-4mm.png"
     img = cv2.imread( directory + file , cv2.IMREAD_GRAYSCALE )
-    ROI = [120, 400, 1150, 585]  # x_t-left, y_t-left, x_b-right, y_b-right
+#     ROI = [120, 400, 1150, 585]  # x_t-left, y_t-left, x_b-right, y_b-right
     img = img[ROI[1]:ROI[3], ROI[0]: ROI[2]]
     
     canny = cv2.Canny( img, 25, 255 )
-    cv2.imshow('canny', canny)
+    cv2.imshow( 'canny', canny )
     center_points = find_squares( canny, 330, 375 )
     distances = measure_distances( center_points )
     
