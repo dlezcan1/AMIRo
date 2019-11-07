@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from skimage.morphology import skeletonize
 import sys
+# import scipy
 
 def load_image(filename):
 	img = cv2.imread(filename, cv2.IMREAD_COLOR)
@@ -67,29 +68,29 @@ def canny_edge_detection(image):
 	## I plan to make this part of the algorithm to be incorproated into GUI
 	canny1[bor1[2]:bor1[3],bor1[0]:bor1[1]] = 0
 	canny1[bor2[2]:bor2[3],bor2[0]:bor2[1]] = 0
-	cv2.imshow('canny1 after',canny1)
+	# cv2.imshow('canny1 after',canny1)
 	# cv2.waitKey(0)
 
 	# worked for black background
 	kernel = gen_kernel((7,7))
 	canny1_fixed = cv2.morphologyEx(canny1,cv2.MORPH_CLOSE,kernel)
-	cv2.imshow('canny1 morph_close',canny1_fixed)
+	# cv2.imshow('canny1 morph_close',canny1_fixed)
 
 	kernel = gen_kernel((9,9))
 	canny1_fixed = cv2.dilate(canny1_fixed,kernel,iterations=2)
-	cv2.imshow('canny1 dilate',canny1_fixed)
+	# cv2.imshow('canny1 dilate',canny1_fixed)
 
 	kernel = gen_kernel((11,31))
 	canny1_fixed = cv2.erode(canny1_fixed,kernel,iterations=1)
-	cv2.imshow('canny1 erode',canny1_fixed)
+	# cv2.imshow('canny1 erode',canny1_fixed)
 
 	kernel = gen_kernel((7,7))
 	canny1_fixed = cv2.morphologyEx(canny1_fixed,cv2.MORPH_OPEN,kernel)
-	cv2.imshow('canny1 morph_open',canny1_fixed)
+	# cv2.imshow('canny1 morph_open',canny1_fixed)
 
 	canny1_fixed = cv2.erode(canny1_fixed,kernel,iterations=1)
-	cv2.imshow('canny1 erode2',canny1_fixed)
-	cv2.waitKey(0)
+	# cv2.imshow('canny1 erode2',canny1_fixed)
+	# cv2.waitKey(0)
 
 	retval = canny1_fixed
 
@@ -135,12 +136,11 @@ def stitch(canny_img, binary_img):
 	return stitch_img
 
 
-def find_active_areas(centerline_image):
+def find_active_areas(centerline_image, pix_per_mm):
 	''' Starting with the tip and working backwards
 	Using L2 norm between pixels to determine incremental distance'''
 	img = np.copy(centerline_image)
 
-	pix_per_mm = 6.79#4541056950886
 	dist1 = 5*pix_per_mm
 	dist2 = 20*pix_per_mm
 	dist3 = 64*pix_per_mm
@@ -179,28 +179,57 @@ def fit_polynomial(centerline_img, deg):
 	nonzero = np.argwhere(centerline_img)
 	x_coord = nonzero[:,1]
 	y_coord = nonzero[:,0]
-	poly = np.poly1d(np.polyfit(x_cord, y_coord, deg))
+	poly = np.poly1d(np.polyfit(x_coord, y_coord, deg))
 
 	return poly
 
-def find_active_areas_poly(centerline_img, poly):
+def find_active_areas_poly(centerline_img, poly, pix_per_mm):
 	''' Starting with the tip and working backwards
-	Using L2 norm between pixels to determine incremental distance'''
+	Using curvature calculation between pixels to determine incremental distance'''
 
-	pix_per_mm = 6.794541#056950886
 	dist1 = 5*pix_per_mm
 	dist2 = 20*pix_per_mm
 	dist3 = 64*pix_per_mm
 
-	x_tip = np.argmax(np.argwhere(centerline_img)[:,1])
+	nonzero = np.argwhere(centerline_img)
+	nonzero = sorted(nonzero, key=lambda element: element[1])
+	# import pdb; pdb.set_trace()
 
-	y_pix = np.polyval()
+	x_tip = nonzero[-1][1]
+	# print(x_tip)
+	integrand = (np.poly1d([1]) + np.poly1d.deriv(poly)**2)**0.5
+	print(type(integrand))
+	integral = np.poly1d.integ(integrand)
+	print(type(integral))
+	tip_dist = np.polyval(integral, x_tip)
+	print(tip_dist)
 
+	current_idx = -1 # start at the tip
+	prev_dist = 0
+	while True:
+		current_idx -= 1
+		print(current_idx)
+		lower_bound = nonzero[current_idx][1]
 
-def find_curvature(centerline_img, fbg1, fbg2, fbg3):
-	''' Use least squares fit to find the radius and curvature at each active area'''
-	window = 5
+		current_dist = tip_dist - np.polyval(np.poly1d.integ(integrand), lower_bound)
+		print(current_dist)
 
+		if prev_dist < dist1 and current_dist >= dist1:
+			fbg1 = nonzero[current_idx]
+			print('fbg1: %s' % fbg1)
+
+		if prev_dist < dist2 and current_dist >= dist2:
+			fbg2 = nonzero[current_idx]
+			print('fbg2: %s' % fbg2)
+
+		if prev_dist < dist3 and current_dist >= dist3:
+			fbg3 = nonzero[current_idx]
+			print('fbg3: %s' % fbg3)
+			break
+
+		prev_dist = current_dist
+
+	return fbg1, fbg2, fbg3
 
 
 
@@ -208,6 +237,7 @@ def main():
 	# filename = argv[0]
 	filename = '10mm_60mm_3mm.png'
 	directory = 'Test Images/Curvature_experiment_10-28/'
+	pix_per_mm = 8.498439#767625596
 
 	img, gray_image = load_image(directory + filename)
 	crop_img = set_ROI(gray_image)
@@ -215,19 +245,22 @@ def main():
 	canny_edges = canny_edge_detection(crop_img)
 	skeleton = get_centerline(canny_edges)
 	stitch_img = stitch(skeleton, binary_img)
-	fbg1, fbg2, fbg3 = find_active_areas(stitch_img)
-	print('fbg1: %s' % fbg1)
-	print('fbg2: %s' % fbg2)
-	print('fbg3: %s' % fbg3)
+	# fbg1, fbg2, fbg3 = find_active_areas(stitch_img, pix_per_mm)
+	# print('fbg1: %s' % fbg1)
+	# print('fbg2: %s' % fbg2)
+	# print('fbg3: %s' % fbg3)
+	print('fitting the polynomial')
+	poly = fit_polynomial(stitch_img, 10)
+	fbg1_poly, fbg2_poly, fbg3_poly = find_active_areas_poly(stitch_img, poly, pix_per_mm)
 
-	## overlay FBG locations on cropped color image
-	fbg_img = set_ROI(img)
-	cv2.circle(fbg_img, (fbg1[1], fbg1[0]), 3, (0,255,0), 2)
-	cv2.circle(fbg_img, (fbg2[1], fbg2[0]), 3, (0,255,0), 2)
-	cv2.circle(fbg_img, (fbg3[1], fbg3[0]), 3, (0,255,0), 2)
+	# ## overlay FBG locations on cropped color image
+	# fbg_img = set_ROI(img)
+	# cv2.circle(fbg_img, (fbg1[1], fbg1[0]), 3, (0,255,0), 2)
+	# cv2.circle(fbg_img, (fbg2[1], fbg2[0]), 3, (0,255,0), 2)
+	# cv2.circle(fbg_img, (fbg3[1], fbg3[0]), 3, (0,255,0), 2)
 
-	## overlay skeleton centerline over cropped color image
-	fbg_img[stitch_img != 0] = (0,0,255)
+	# ## overlay skeleton centerline over cropped color image
+	# fbg_img[stitch_img != 0] = (0,0,255)
 
 	
 
