@@ -2,16 +2,43 @@ import numpy as np
 import cv2
 import image_processing as img_proc
 import matplotlib.pyplot as plt
+import p1_object_attributes as p1
 
 def set_ROI(image):
 	''' Note that origin of images is typically top lefthand corner'''
-	startX = 60
-	endX = image.shape[1] - 65
-	startY = 360
-	endY = image.shape[0] - 300
+	## circle grid
+	# startX = 60
+	# endX = image.shape[1] - 65
+	# startY = 360
+	# endY = image.shape[0] - 300
+
+	## square grid
+	startX = 120
+	endX = image.shape[1] - 135
+	startY = 405
+	endY = image.shape[0] - 370
 
 	cropped = image[startY:endY, startX:endX]
+	# cv2.imshow('cropped', cropped)
+	# cv2.waitKey(0)
 	return cropped
+
+def invert_binary(cropped_img):
+	thresh = 100
+	binary_img = np.copy(cropped_img)
+	cv2.imshow('original', binary_img)
+	binary_img = cv2.bilateralFilter(binary_img, 3, sigmaColor=100, sigmaSpace=100)
+	cv2.imshow('bilateralFilter', binary_img)
+
+	binary_img[binary_img < thresh] = 0
+	binary_img[binary_img != 0] = 255
+
+	cv2.imshow('binary_img', binary_img)
+	cv2.waitKey(0)
+
+	invert_img = 255 - binary_img
+
+	return invert_img
 
 def baseline_distances(num_cols, num_rows, space):
 	''' Inputs: num_cols = number of columns of circles
@@ -48,6 +75,54 @@ def get_centers(cropped_img, num_cols, num_rows):
 	# 	plt.show()
 	
 	return radius, sorted_circles
+
+def get_centers_segment(invert_img, num_cols, num_rows):
+	labeled_image = p1.label(invert_img)
+	cv2.imwrite('output/image_processing_binary_image_squares_labeled.png', labeled_image)
+	center_list = np.empty((0,2))
+
+	## compute centroids
+	labels, counts = np.unique(labeled_image, return_counts=True)
+	labels = labels[1:] #remove the 0 for background
+	counts = counts[1:]
+
+	for obj in range(len(labels)):
+		area = counts[obj]
+
+		#calculate position
+		idx = np.argwhere(labeled_image == labels[obj])
+		x_sum = np.sum(idx[:,1])
+		y_sum = np.sum(idx[:,0])
+
+		x_pos = x_sum/area
+		y_pos = y_sum/area
+
+		# print([y_pos,x_pos])
+
+		center_list = np.vstack([center_list, [y_pos,x_pos]])
+
+	# attribute_list = p1.get_attribute(labeled_image)
+
+	# center_list = np.empty((0,2))
+	# for d in attribute_list:
+	# 	center = d["position"]
+	# 	x = center["x"]
+	# 	y = invert_img.shape[0] - center["y"]
+	# 	center_list = np.vstack([center_list, [y,x]])
+
+	sorted_centers = sorted(center_list, key=lambda element: element[0])
+	sorted_centers = np.asarray(sorted_centers).reshape((num_rows,num_cols,2))
+	# sorted_centers = np.asarray(center_list).reshape((num_rows,num_cols,2))
+	for r in range(num_rows):
+		row_list = sorted_centers[r,:,:].tolist()
+		row_list = sorted(row_list, key=lambda element: element[1])
+		row_array = np.asarray(row_list)
+		sorted_centers[r,:,:] = row_array
+	# print(sorted_centers)
+	# print(invert_img.shape)
+	
+	return sorted_centers
+
 
 def plot_error(dist_baseline, sorted_circles):
 	dist_measured = np.zeros(dist_baseline.shape)
@@ -113,35 +188,59 @@ def plot_error(dist_baseline, sorted_circles):
 
 def main():
 	# filename = argv[0]
-	filename = '5x25_circles_D-2.5mm_space-5mm.png'
+	# filename = '5x25_circles_D-2.5mm_space-5mm.png'
+	filename = 'image_processing_binary_image_squares'
 	directory = 'Test Images/'
 
-	img, gray_image = img_proc.load_image(directory + filename)
-	crop_img = set_ROI(gray_image)
-	dist_baseline = baseline_distances(25, 5, 5)
-	radius, circles = get_centers(crop_img, 25, 5)
+	num_cols = 30
+	num_rows = 5
+	center_separation = 4
 
-	## marked circle image
-	circle_img = set_ROI(img)
-	for c in circles:
-		for r in range(25):
-			center = (c[r,0], c[r,1])
-			cv2.circle(circle_img, center, radius, (0,255,0), 1)
-			cv2.circle(circle_img, center, 1, (0,255,0), 2)
-	origin = circles[0,0,:]
-	cv2.circle(circle_img, (origin[0], origin[1]), 2, (125,125,0), 2)
-	# cv2.imshow('test', test_img)
+	img, gray_image = img_proc.load_image(directory + filename + '.png')
+	# crop_img = set_ROI(gray_image)
+	# invert_img = invert_binary(crop_img)
+	dist_baseline = baseline_distances(num_cols, num_rows, center_separation)
+	# radius, circles = get_centers(crop_img, 25, 5)
+
+	sorted_centers = get_centers_segment(gray_image, num_cols, num_rows)
+
+	# ## marked circle image
+	# circle_img = set_ROI(img)
+	# for c in circles:
+	# 	for r in range(25):
+	# 		center = (c[r,0], c[r,1])
+	# 		cv2.circle(circle_img, center, radius, (0,255,0), 1)
+	# 		cv2.circle(circle_img, center, 1, (0,255,0), 2)
+	# origin = circles[0,0,:]
+	# cv2.circle(circle_img, (origin[0], origin[1]), 2, (125,125,0), 2)
+	# # cv2.imshow('test', test_img)
+	# # cv2.waitKey(0)
+
+	## marked square image
+	square_img = np.copy(img)
+	colors = [(255,0,0), (0,255,0), (0,0,255), (125,125,0), (0,125,125)]
+	count = 0
+	for c in sorted_centers:
+		for r in range(num_cols):
+			square_img[int(np.round(c[r,0])), int(np.round(c[r,1]))] = colors[count]
+			# center = (int(c[r,1]), int(c[r,0]))
+			# cv2.circle(square_img, center, 2, colors[count], 2)
+		count += 1
+	# cv2.imshow('square_img', square_img)
 	# cv2.waitKey(0)
+	cv2.imwrite('output/' + filename + '_square.png', square_img)
 
-	error = plot_error(dist_baseline, circles)
+	error = plot_error(dist_baseline, sorted_centers)
 	# print(error)
-	outliers = np.argwhere(np.abs(error) > 3)
-	# print(outliers.shape)
-	for out in outliers:
-		center = circles[out[0], out[1], :]
-		cv2.circle(circle_img, (center[0], center[1]), 1, (0,0,255), 2)
+	# outliers = np.argwhere(np.abs(error) > 3)
+	# # print(outliers.shape)
+	# for out in outliers:
+	# 	center = circles[out[0], out[1], :]
+	# 	cv2.circle(circle_img, (center[0], center[1]), 1, (0,0,255), 2)
 
-	cv2.imwrite('output/' + filename + '_circles.png', circle_img)
+	# cv2.imwrite('output/' + filename + '_circles.png', circle_img)
+	# cv2.imwrite('output/' + filename + '_cropped.png', crop_img)
+	# cv2.imwrite('output/' + filename + '_invertbinary.png', invert_img)
 
 
 
