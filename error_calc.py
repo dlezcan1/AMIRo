@@ -3,6 +3,7 @@ import cv2
 import image_processing as img_proc
 import matplotlib.pyplot as plt
 import p1_object_attributes as p1
+import itertools
 
 def set_ROI(image):
 	''' Note that origin of images is typically top lefthand corner'''
@@ -55,6 +56,36 @@ def baseline_distances(num_cols, num_rows, space):
 	# print(dist_baseline)
 
 	return dist_baseline
+
+def measure_distances( center_points ):
+    """ returns the distance from the center of all of the points """
+    # print(center_points)
+    centroid = np.mean( center_points, axis = 0 )
+    centroid = center_points[ np.argmin( np.linalg.norm( center_points - centroid, axis = 1 ) ), : ]
+    
+    distances = np.linalg.norm( center_points - centroid, axis = 1 )
+    distances = distances.reshape( 5, 30 )
+
+    
+    x_center_idx, y_center_idx = np.unravel_index( np.argmin( center_points ),
+                                                   center_points.shape )
+    print(x_center_idx)
+    print(y_center_idx)
+    
+    return distances, x_center_idx, y_center_idx
+
+# measure_distances
+
+def expected_distances(center_indices: tuple):
+    x_center_idx, y_center_idx = center_indices
+    v_distances = np.arange( -x_center_idx, 30 - x_center_idx )
+    h_distances = np.arange( -y_center_idx, 5 - y_center_idx )
+    
+    exp_distances = np.array( [np.linalg.norm( d ) for d in
+                                itertools.product( h_distances, v_distances )] )
+    
+    return (exp_distances)
+
 
 def get_centers(cropped_img, num_cols, num_rows):
 	measured_centers = np.zeros((num_rows, num_cols))
@@ -185,6 +216,52 @@ def plot_error(dist_baseline, sorted_circles):
 
 	return error
 
+def plot_error_center(num_rows, num_cols, measured_distances, expected_distances):
+	# error = dist_measured - dist_baseline
+	pix_to_mm = 8.498439767625596
+	dist_baseline = expected_distances.reshape((num_rows,num_cols))
+	error = (measured_distances - dist_baseline)/pix_to_mm
+
+	## plot error vs. distance
+	rows = dist_baseline.shape[0]
+	cols = dist_baseline.shape[1]
+
+	# # plot with all points together
+	# error_flat = error.reshape((rows*cols,))
+	# dist_flat = dist_baseline.reshape((rows*cols,))
+
+	# fig = plt.figure()
+	# plt.title('Error vs. Distance (mm)')
+	# plt.plot(dist_flat, error_flat, 'b.')
+	# plt.xlabel('Distance (mm)')
+	# plt.ylabel('Error (measured - baseline) (mm)')
+
+	# plot by row
+	color_list = ['b', 'c', 'g', 'm', 'r']
+	fig = plt.figure()
+	plt.title('Error vs. Distance (mm)')
+	plt.xlabel('Distance (mm)')
+	plt.ylabel('Error (measured - baseline) (mm)')
+	text = 'mean error: %s \n max error: %s \n min error: %s' % (np.mean(error), np.amax(error), np.amin(error))
+	# print(text)
+	plt.text(0,-0.55,text)
+
+	for r in range(rows):
+		marker = color_list[r] + '.'
+		label = 'row ' + str(r)
+		plt.plot(dist_baseline[r,:], error[r,:], marker, label=label)
+
+	plt.legend()
+
+	# plot a zero line
+	x = [0, dist_baseline[-1,-1]]
+	y = [0, 0]
+	plt.plot(x, y, color='r')
+
+	plt.show()
+
+	return error
+
 
 def main():
 	# filename = argv[0]
@@ -203,6 +280,9 @@ def main():
 	# radius, circles = get_centers(crop_img, 25, 5)
 
 	sorted_centers = get_centers_segment(gray_image, num_cols, num_rows)
+
+	measured_distances, x_center_idx, y_center_idx = measure_distances(sorted_centers.reshape((-1,2)))
+	expected_dist = expected_distances((x_center_idx, y_center_idx))
 
 	# ## marked circle image
 	# circle_img = set_ROI(img)
@@ -230,7 +310,8 @@ def main():
 	# cv2.waitKey(0)
 	cv2.imwrite('output/' + filename + '_square.png', square_img)
 
-	error = plot_error(dist_baseline, sorted_centers)
+	# error = plot_error(dist_baseline, sorted_centers)
+	# error = plot_error_center(num_rows, num_cols, measured_distances, expected_dist)
 	# print(error)
 	# outliers = np.argwhere(np.abs(error) > 3)
 	# # print(outliers.shape)
