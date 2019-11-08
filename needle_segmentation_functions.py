@@ -219,9 +219,24 @@ def measure_distances( center_points ):
     distances = np.linalg.norm( center_points - centroid, axis = 1 )
     distances.reshape( 5, 30 )
     
-    return distances
+    x_center_idx, y_center_idx = np.unravel_index( np.argmin( center_points ),
+                                                   center_points.shape )
+    
+    return distances, x_center_idx, y_center_idx
 
 # measure_distances
+
+def expected_distances(center_indices: tuple):
+    x_center_idx, y_center_idx = center_indices
+    v_distances = np.arange( -x_center_idx, 30 - x_center_idx )
+    h_distances = np.arange( -y_center_idx, 5 - y_center_idx )
+    
+    exp_distances = np.array( [np.linalg.norm( d ) for d in
+                                itertools.product( v_distances, h_distances )] )
+    
+    return (exp_distances)
+
+# expected_distances
 
 
 def main():
