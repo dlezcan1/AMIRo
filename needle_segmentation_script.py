@@ -22,7 +22,7 @@ cv2.destroyAllWindows()
 # iterate through file directory
 for file in os.listdir():
     if (file.endswith('.png') and not '_ROI' in file
-        and not '_processed' in file and True):
+        and not '_processed' in file and False):
         print("Processing file {}...".format(file))
         roi_image, seg_needle = segment_needle(file,"canny",False)
         cv2.imshow("Skeletonized canny:"+file,seg_needle)
@@ -50,11 +50,10 @@ for file in os.listdir():
 ##        break
 
 # pick out a particular file
-if False:
-    file = directory + 'image2.png'
+if True:
+    file = "C:\\Users\\dlezcan1\\Documents\\Needle Shape Model\\Needle Calibration\\Output\\5x25_circles_D-2.5mm_space-5mm_circles.png"
     img = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
-    img = img[ROI[2]:ROI[3],ROI[0]:ROI[1]]
-    segment_needle(file,'canny', True)
+#     segment_needle(file,'canny', True)
     find_coordinate_image(img)
         
 
