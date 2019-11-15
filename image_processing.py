@@ -4,6 +4,7 @@ from skimage.morphology import skeletonize
 import sys
 from scipy.integrate import quad
 from scipy.optimize import fsolve
+from matplotlib.pyplot import draw
 # import scipy
 
 
@@ -25,6 +26,23 @@ def set_ROI( image, crop_area ):
 	cropped = image[startY:endY, startX:endX]
 
 	return cropped
+
+# set_ROI
+
+
+def set_ROI_box( image, crop_area ):
+	""" Sets a box around the region of interest and returns what is
+		in the box
+		
+		crop = (top_leftX, top_leftY, bottom_rightX, bottom_rightY)
+	"""
+	tlx, tly, brx, bry = crop_area
+
+	cropped_image = image[tly:bry, tlx:brx]
+	
+	return cropped_image
+
+# set_ROI_box
 
 
 def binary( image ):
@@ -162,6 +180,15 @@ def find_param_along_poly ( poly: np.poly1d, x0: float, target_length: float ):
 # find_param_along_poly
 
 
+def arclength( poly: np.poly1d, a: float, b: float ):
+	deriv_1 = np.polyder( poly, 1 )
+	integrand = lambda x: np.sqrt( 1 + ( deriv_1( x ) ) ** 2 )
+	
+	return quad( integrand, a, b )[0]
+
+# arclength
+
+
 def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm ):
 	''' Determines the active area x parameters for the fit polynomial given
 		a desired arclength(s).
@@ -185,6 +212,17 @@ def fit_polynomial( centerline_img, deg ):
 	poly = np.poly1d( np.polyfit( x_coord, y_coord, deg ) )
 
 	return poly, x_coord
+
+# fit_polynomial
+
+
+def find_curvature( p: np.poly1d, x ):
+	p1 = np.polyder( p, 1 )
+	p2 = np.polyder( p, 2 )
+	
+	return p2( x ) / ( 1 + ( p1( x ) ) ** 2 )
+
+# find_curvature
 
 
 def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
@@ -238,41 +276,58 @@ def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 
 def main():
 	# filename = argv[0]
-	filename = '10mm_60mm_3mm.png'
-	directory = 'Test Images/Curvature_experiment_10-28/'
+	filename = '60mm_70mm.png'
+	directory = 'Test Images/Curvature_experiment_11-15-19/'
 	pix_per_mm = 8.498439  # 767625596
-	crop_area = ( 50, 40, 420, 210 )
+	crop_area = ( 84, 250, 1280, 715 )
 
 	img, gray_image = load_image( directory + filename )
-	crop_img = set_ROI( gray_image, crop_area )
-	binary_img = binary( crop_img )
-	canny_edges = canny_edge_detection( crop_img )
-	skeleton = get_centerline( canny_edges )
+	
+	crop_img = set_ROI_box( gray_image, crop_area )
+	cv2.imshow( "Cropped Image", crop_img )
+	
+	binary_img = cv2.threshold( crop_img, 100, 255, cv2.THRESH_BINARY_INV )[1]
+	cv2.imshow( "Binarized Image", binary_img )
+	
+# 	canny_edges = canny_edge_detection( crop_img )
+	skeleton = get_centerline( binary_img )
+	cv2.imshow( "Skeletonized image", skeleton )
+	
 	stitch_img = stitch( skeleton, binary_img )
-	# fbg1, fbg2, fbg3 = find_active_areas(stitch_img, pix_per_mm)
-	# print('fbg1: %s' % fbg1)
-	# print('fbg2: %s' % fbg2)
-	# print('fbg3: %s' % fbg3)
+	
 	print( 'fitting the polynomial' )
-	poly = fit_polynomial( stitch_img, 10 )
-	fbg1_poly, fbg2_poly, fbg3_poly = find_active_areas_poly( stitch_img, poly, pix_per_mm )
-
-	# ## overlay FBG locations on cropped color image
-	# fbg_img = set_ROI(img)
-	# cv2.circle(fbg_img, (fbg1[1], fbg1[0]), 3, (0,255,0), 2)
-	# cv2.circle(fbg_img, (fbg2[1], fbg2[0]), 3, (0,255,0), 2)
-	# cv2.circle(fbg_img, (fbg3[1], fbg3[0]), 3, (0,255,0), 2)
-
-	# ## overlay skeleton centerline over cropped color image
-	# fbg_img[stitch_img != 0] = (0,0,255)
-
-	# cv2.imwrite('output/' + filename + '_gray.png', gray_image)
-	# cv2.imwrite('output/' + filename + '_cropped.png', crop_img)
-	# cv2.imwrite('output/' + filename + '_binary.png', binary_img)
-	# cv2.imwrite('output/' + filename + '_canny.png', canny_edges)
-	# cv2.imwrite('output/' + filename + '_skeleton.png', skeleton)
-	# cv2.imwrite('output/' + filename + '_fbg.png', fbg_img)
-	# cv2.imwrite('output/' + filename + '_stitch.png', stitch_img)
+	poly, x = fit_polynomial( skeleton, 10 )
+	
+	total_length = arclength( poly, np.min( x ), np.max( x ) )
+	
+	lengths = ( np.arange( 1, 16 ) / 15 ) * total_length
+	x_sol = find_active_areas( np.min( x ), poly, lengths, 1 )
+	
+	curvatures = find_curvature( poly, x_sol )
+	
+	for i, lk in enumerate( zip( lengths, curvatures ) ):
+		l, k = lk
+		print( "{:2d}: l = {:.3f}, k = {:.3f} 1/mm, r = {:.3f} mm".format( i + 1, 
+													l, k * pix_per_mm,
+													abs( 1 / k / pix_per_mm ) ) )
+	
+	y_sol = poly( x_sol )
+	
+	draw_img = cv2.cvtColor( crop_img, cv2.COLOR_GRAY2BGR )
+	font = cv2.FONT_HERSHEY_SIMPLEX
+	for i, pt in enumerate( zip( x_sol, y_sol ) ):
+		pt = tuple( np.round( pt ).astype( int ) )
+		draw_img = cv2.circle( draw_img, pt, 5, [0, 0, 255], -1 )
+		
+		pt_text = ( pt[0] - 20, pt[1] - 10 )
+		draw_img = cv2.putText( draw_img, str( i + 1 ), pt_text, font, 1, [0, 0, 255],
+							2, cv2.LINE_AA )
+		
+	cv2.imshow( "Active Areas", draw_img )
+	
+	cv2.waitKey( 0 )
+	cv2.destroyAllWindows()
+# poly
 
 
 def main_error():
@@ -304,21 +359,6 @@ def main_error():
 
 if __name__ == '__main__':
 # 	main(sys.argv[1:])
-# 	main()
+	main()
 # 	main_error()
-	poly = np.poly1d( np.random.randn( 2 ) )
-	
-	xf = np.random.randn( 10 )
-	x0 = np.min(xf);
-	x = np.max( xf ) * np.arange( 100 ) / 100 + x0
-	y0, *yf = poly( [x0, xf] )
-	yf = yf[0]
-	
-	length = np.sqrt( ( yf - y0 ) ** 2 + ( xf - x0 ) ** 2 )
-	
-	solution = find_active_areas( x0, poly, length, 1 )
-	
-	print( "Initial x_f's:", np.round( xf, 2 ) )
-	print( "Solution x_f's:", np.round( solution, 2 ) )
-
 	
