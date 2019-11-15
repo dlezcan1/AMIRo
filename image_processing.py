@@ -320,5 +320,5 @@ if __name__ == '__main__':
 	
 	print( "Initial x_f's:", np.round( xf, 2 ) )
 	print( "Solution x_f's:", np.round( solution, 2 ) )
-	print
+
 	
