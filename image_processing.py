@@ -11,12 +11,13 @@ def load_image(filename):
 	return img, gray_image
 
 
-def set_ROI(image):
-	''' Note that origin of images is typically top lefthand corner'''
-	startX = 50
-	endX = image.shape[1] - 40
-	startY = 420
-	endY = image.shape[0] - 210
+def set_ROI(image, crop_area):
+	''' Note that origin of images is typically top lefthand corner
+	crop = (leftX buffer, rightX buffer, topY buffer, bottomY buffer)'''
+	startX = crop_area[0]
+	endX = image.shape[1] - crop_area[1]
+	startY = crop_area[2]
+	endY = image.shape[0] - crop_area[3]
 
 	cropped = image[startY:endY, startX:endX]
 
@@ -238,9 +239,10 @@ def main():
 	filename = '10mm_60mm_3mm.png'
 	directory = 'Test Images/Curvature_experiment_10-28/'
 	pix_per_mm = 8.498439#767625596
+	crop_area = (50, 40, 420, 210)
 
 	img, gray_image = load_image(directory + filename)
-	crop_img = set_ROI(gray_image)
+	crop_img = set_ROI(gray_image, crop_area)
 	binary_img = binary(crop_img)
 	canny_edges = canny_edge_detection(crop_img)
 	skeleton = get_centerline(canny_edges)
@@ -262,8 +264,6 @@ def main():
 	# ## overlay skeleton centerline over cropped color image
 	# fbg_img[stitch_img != 0] = (0,0,255)
 
-	
-
 	# cv2.imwrite('output/' + filename + '_gray.png', gray_image)
 	# cv2.imwrite('output/' + filename + '_cropped.png', crop_img)
 	# cv2.imwrite('output/' + filename + '_binary.png', binary_img)
@@ -272,6 +272,34 @@ def main():
 	# cv2.imwrite('output/' + filename + '_fbg.png', fbg_img)
 	# cv2.imwrite('output/' + filename + '_stitch.png', stitch_img)
 
+def main_error():
+	filename = 'S-shape_90mm_100mm.PNG'
+	directory = 'Test Images/Solidworks_generated/'
+	crop_area = (200, 200, 250, 250)
+
+	img, gray_image = load_image(directory + filename)
+	crop_img = set_ROI(gray_image, crop_area)
+	
+	# binarize and invert
+	thresh = 50
+	crop_img[crop_img < thresh] = 0
+	crop_img[crop_img != 0] = 255
+	inverted_img = 255-crop_img
+
+	skeleton = get_centerline(inverted_img)
+	nonzero = np.argwhere(skeleton)
+	adj = np.amin(nonzero[:,1])
+	skeleton_crop = set_ROI(skeleton, (adj, 0, 0, 0))
+	print(np.amax(nonzero[:,1]))
+	cv2.imshow('skeleton', skeleton_crop)
+	cv2.waitKey(0)
+
+	poly_coeff = fit_polynomial(skeleton_crop, 7).c
+	np.set_printoptions(precision=10, suppress=True)
+	print(poly_coeff)
+
+
 if __name__ == '__main__':
 	# main(sys.argv[1:])
-	main()
+	# main()
+	main_error()
