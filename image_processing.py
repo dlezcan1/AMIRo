@@ -1,11 +1,15 @@
 import cv2
 import numpy as np
 from skimage.morphology import skeletonize
-import sys
+import sys, os
+from scipy.interpolate import splrep, splev, CubicSpline
 from scipy.integrate import quad
 from scipy.optimize import fsolve
 from matplotlib.pyplot import draw
+import matplotlib.pyplot as plt
 # import scipy
+
+sys.excepthook = sys.__excepthook__
 
 
 def load_image( filename ):
@@ -180,6 +184,17 @@ def find_param_along_poly ( poly: np.poly1d, x0: float, target_length: float ):
 # find_param_along_poly
 
 
+def find_param_along_spline ( s, x0: float, target_length: float ):
+	costfn = lambda x: np.abs( target_length - arclength_spline( s, x0, x ) )
+	ret_x = fsolve ( costfn, x0 ) [0]
+	
+	err = target_length - arclength_spline( s, x0, ret_x )
+
+	return ret_x, err
+
+# find_param_along_spline
+
+
 def arclength( poly: np.poly1d, a: float, b: float ):
 	deriv_1 = np.polyder( poly, 1 )
 	integrand = lambda x: np.sqrt( 1 + ( deriv_1( x ) ) ** 2 )
@@ -187,6 +202,17 @@ def arclength( poly: np.poly1d, a: float, b: float ):
 	return quad( integrand, a, b )[0]
 
 # arclength
+
+
+def arclength_spline ( s, a: float, b: float ):
+	"""
+	@bug: 'quad' does not converge well with this function
+	"""
+	integrand = lambda x: np.sqrt( 1 + splev( x, s, 1 ) ** 2 )
+	
+	return quad( integrand, a, b , limit = 100 )[0]
+
+# arclength_spline
 
 
 def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm ):
@@ -205,24 +231,84 @@ def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm ):
 # find_active_areas
 
 
+def find_active_areas_spline ( x0, s, lengths, pix_per_mm ):
+	lengths = pix_per_mm * np.array( lengths )
+
+	ret_x = []
+	for l in lengths:
+		ret_x.append( find_param_along_spline( s, x0, l )[0] )
+
+	return ret_x
+
+# find_active_areas_spline
+
+
 def fit_polynomial( centerline_img, deg ):
 	nonzero = np.argwhere( centerline_img )
-	x_coord = nonzero[:, 1]
-	y_coord = nonzero[:, 0]
-	poly = np.poly1d( np.polyfit( x_coord, y_coord, deg ) )
+# 	x_coord = nonzero[:, 1]
+# 	y_coord = nonzero[:, 0]
+# 	poly = np.poly1d( np.polyfit( x_coord, y_coord, deg ) )
+	
+	N_rows, N_cols = np.shape( centerline_img )
+	
+	x = np.arange( N_cols )  # x-coords
+	y = N_rows * np.ones( N_cols )  # y-coords
+	y = np.argmax( centerline_img, 0 )
 
-	return poly, x_coord
+	x = x[y > 0]
+	y = y[y > 0]
+	poly = np.poly1d( np.polyfit( x, y, deg ) )
+
+	return poly, x
 
 # fit_polynomial
+
+
+def fit_spline( centerline_img ):
+	N_rows, N_cols = np.shape( centerline_img )
+	
+	x = np.arange( N_cols )  # x-coords
+	y = N_rows * np.ones( N_cols )  # y-coords
+	y = np.argmax( centerline_img, 0 )
+
+	x = x[y > 0]
+	y = y[y > 0]
+	
+# 	spline = splrep( x, y  )
+	spline = CubicSpline( x, y, bc_type = "natural" )
+	
+	return spline, x
+	
+# fit_spline
 
 
 def find_curvature( p: np.poly1d, x ):
 	p1 = np.polyder( p, 1 )
 	p2 = np.polyder( p, 2 )
 	
-	return p2( x ) / ( 1 + ( p1( x ) ) ** 2 )
+	return p2( x ) / ( 1 + ( p1( x ) ) ** 2 ) ** ( 3 / 2 )
 
 # find_curvature
+
+
+def find_spline_curvature ( s, x ):
+	if isinstance( s, tuple ):
+		num = splev( x, s, 2 )
+		denom = ( 1 + splev( x, s, 1 ) ** 2 ) ** ( 3 / 2 )
+		retval = num / denom
+		
+	# if
+	
+	else:
+		s1 = s.derivative( 1 )
+		s2 = s.derivative( 2 )
+		retval = s2( x ) / ( 1 + ( s1( x ) ) ** 2 ) ** ( 3 / 2 )
+		
+	# else
+	
+	return retval
+
+# find_spline_curvature
 
 
 def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
@@ -273,6 +359,52 @@ def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 
 	return fbg1, fbg2, fbg3
 
+# find_active_areas_poly
+
+
+def plot_func_image( img, func, x ):
+	y = func( x )
+	tempfile = "Output/temporary_img.png"
+	result = cv2.imwrite( tempfile, img )
+	
+	if not result:
+		raise OSError( "Image file was not written." )
+	
+	img = plt.imread( tempfile )
+	os.remove( tempfile )
+	
+	plt.imshow( img , cmap = "gray" )
+	plt.plot( x, y , 'r-' )
+	plt.title( "Plot of function on image" )
+	plt.show()
+	
+# plot_func_image
+
+
+def plot_spline_image( img, s, x ):
+	
+	if isinstance( s, tuple ):
+		y = splev( x, s )
+
+	else:
+		y = s( x )
+
+	tempfile = "Output/temporary_img.png"
+	result = cv2.imwrite( tempfile, img )
+	
+	if not result:
+		raise OSError( "Image file was not written." )
+	
+	img = plt.imread( tempfile )
+	os.remove( tempfile )
+	
+	plt.imshow( img , cmap = "gray" )
+	plt.plot( x, y , 'r-' )
+	plt.title( "Plot of function on image" )
+	plt.show()
+	
+# plot_spline_image
+	
 
 def main():
 	# filename = argv[0]
@@ -284,34 +416,35 @@ def main():
 	img, gray_image = load_image( directory + filename )
 	
 	crop_img = set_ROI_box( gray_image, crop_area )
-	cv2.imshow( "Cropped Image", crop_img )
+# 	cv2.imshow( "Cropped Image", crop_img )
 	
 	binary_img = cv2.threshold( crop_img, 100, 255, cv2.THRESH_BINARY_INV )[1]
-	cv2.imshow( "Binarized Image", binary_img )
+# 	cv2.imshow( "Binarized Image", binary_img )
 	
 # 	canny_edges = canny_edge_detection( crop_img )
 	skeleton = get_centerline( binary_img )
-	cv2.imshow( "Skeletonized image", skeleton )
+# 	cv2.imshow( "Skeletonized image", skeleton )
 	
 	stitch_img = stitch( skeleton, binary_img )
 	
 	print( 'fitting the polynomial' )
-	poly, x = fit_polynomial( skeleton, 10 )
+	poly, x = fit_polynomial( skeleton, 15 )
+	s, _ = fit_spline( skeleton )
 	
 	total_length = arclength( poly, np.min( x ), np.max( x ) )
 	
-	lengths = ( np.arange( 1, 16 ) / 15 ) * total_length
+	lengths = ( np.arange( 1, 25 ) / 25 ) * total_length
 	x_sol = find_active_areas( np.min( x ), poly, lengths, 1 )
 	
-	curvatures = find_curvature( poly, x_sol )
+	curvatures = find_spline_curvature( s, x_sol )
 	
 	for i, lk in enumerate( zip( lengths, curvatures ) ):
 		l, k = lk
-		print( "{:2d}: l = {:.3f}, k = {:.3f} 1/mm, r = {:.3f} mm".format( i + 1, 
+		print( "{:2d}: l = {:.3f}, k = {:.3f} 1/mm, r = {:.3f} mm".format( i + 1,
 													l, k * pix_per_mm,
 													abs( 1 / k / pix_per_mm ) ) )
 	
-	y_sol = poly( x_sol )
+	y_sol = poly( x_sol )	
 	
 	draw_img = cv2.cvtColor( crop_img, cv2.COLOR_GRAY2BGR )
 	font = cv2.FONT_HERSHEY_SIMPLEX
@@ -325,9 +458,44 @@ def main():
 		
 	cv2.imshow( "Active Areas", draw_img )
 	
-	cv2.waitKey( 0 )
+	cv2.waitKey( 50 )
+	
+	plt.plot( x, 1 / find_spline_curvature( s, x ) / pix_per_mm )
+	plt.ylim( -100, 100 )
+	plt.title( "Radius of Curvature vs. x" )
+	plt.figure()
+# 	plt.show()
+# 	plot_func_image( crop_img, poly, x )
+	plot_spline_image( crop_img, s, x )
+	
+# 	cv2.waitKey( 0 )
+	
 	cv2.destroyAllWindows()
-# poly
+	
+# main
+
+
+def main_test_spline():
+	x = np.arange( 201 ) / 100 - 1
+	f = lambda x: np.sqrt( 1 - x ** 2 )
+	
+	s = splrep( x, f( x ) )
+	
+	k = find_spline_curvature( s, x )
+	
+	plt.figure( 1 )
+	plt.plot( x, f( x ), 'k.', x, splev( x, s ), 'r-' )
+	plt.title( "hemi circle plot" )
+	
+	plt.figure( 2 )
+	plt.plot( x, 1 / k )
+	plt.title( "Curvature Plot" )
+	plt.ylabel( "Radius of Curvature" )
+	plt.xlabel( "X" )
+	
+	plt.show()
+
+# main_test_spline
 
 
 def main_error():
@@ -355,10 +523,13 @@ def main_error():
 	poly_coeff = fit_polynomial( skeleton_crop, 7 ).c
 	np.set_printoptions( precision = 10, suppress = True )
 	print( poly_coeff )
+	
+# main_error
 
 
 if __name__ == '__main__':
 # 	main(sys.argv[1:])
 	main()
 # 	main_error()
+# 	main_test_spline()
 	
