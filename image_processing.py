@@ -10,6 +10,26 @@ import matplotlib.pyplot as plt
 # import scipy
 
 
+def smooth_data ( Y, window ):
+	retval = []
+	for i in range( len( Y ) ):
+		lidx = i - window
+		uidx = i + window + 1
+		if lidx < 0:
+			lidx = 0
+			
+		if uidx > len( Y ):
+			uidx = len( Y )
+			
+		retval.append( np.mean( Y[lidx: uidx] ) )
+		
+	# for
+	
+	return retval
+
+# smooth_data
+
+
 def load_image( filename ):
 	img = cv2.imread( filename, cv2.IMREAD_COLOR )
 	gray_image = cv2.cvtColor( img, cv2.COLOR_BGR2GRAY )
@@ -298,28 +318,30 @@ def find_spline_curvature ( s, x ):
 
 
 def fit_circle_curvature( p, x, x_int, width: float ):
-    k = []
-    for xi in x_int:
-        x_window = x[np.abs( x - xi) <= width]
-        y_window = p( x_window )
-        
-        xm = np.mean( x_window )
-        ym = np.mean( y_window )
-        Ri = np.sqrt( ( x_window - xm ) ** 2 + ( y_window - ym ) ** 2 )  # distances
-        
-        calcdist = lambda xc, yc: np.sqrt( ( x_window - xc ) ** 2 + ( y_window - yc ) ** 2 )
-        costfn = lambda c: np.abs( calcdist( *c ) - np.mean( calcdist( *c ) ) )
-        
-        c2, ier = leastsq( costfn , ( xm, ym ) )
-        R = np.mean( calcdist( *c2 ) )
-        
-        k.append( 1/R )
-        
-    # for
-    
-    return np.array( k )
+	k = []
+	for xi in x_int:
+		x_window = x[np.abs( x - xi ) <= width]
+		y_window = p( x_window )
+		
+		xm = np.mean( x_window )
+		ym = np.mean( y_window )
+		
+		calcdist = lambda xc, yc: np.sqrt( ( x_window - xc ) ** 2 + ( y_window - yc ) ** 2 )
+		costfn = lambda c: np.abs( calcdist( *c ) - np.mean( calcdist( *c ) ) )
+		
+		c2, ier = leastsq( costfn , ( xm, ym ) )
+		R = np.mean( calcdist( *c2 ) )
+		if c2[1] - ym < 0:
+			R *= -1
+		
+		k.append( 1 / R )
+
+	# for
+	
+	return np.array( k )
 
 # fit_circle_curvature
+
 
 def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 	''' Starting with the tip and working backwards
@@ -386,7 +408,7 @@ def plot_func_image( img, func, x ):
 	plt.imshow( img , cmap = "gray" )
 	plt.plot( x, y , 'r-' )
 	plt.title( "Plot of function on image" )
-	plt.show()
+# 	plt.show()
 	
 # plot_func_image
 
@@ -410,8 +432,8 @@ def plot_spline_image( img, s, x ):
 	
 	plt.imshow( img , cmap = "gray" )
 	plt.plot( x, y , 'r-' )
-	plt.title( "Plot of function on image" )
-	plt.show()
+	plt.title( "Plot of spline on image" )
+# 	plt.show()
 	
 # plot_spline_image
 	
@@ -446,40 +468,66 @@ def main():
 	lengths = ( np.arange( 1, 25 ) / 25 ) * total_length
 	x_sol = find_active_areas( np.min( x ), poly, lengths, 1 )
 	
-	curvatures = find_spline_curvature( s, x_sol )
+# 	curvatures = find_spline_curvature( s, x_sol )
+# 	curvatures = fit_circle_curvature( poly, x, x_sol, pix_per_mm )
+# 	
+# 	for i, lk in enumerate( zip( lengths, curvatures ) ):
+# 		l, k = lk
+# 		print( "{:2d}: l = {:.3f}, k = {:.3f} 1/mm, r = {:.3f} mm".format( i + 1,
+# 													l, k * pix_per_mm,
+# 													abs( 1 / k / pix_per_mm ) ) )
+# 	
+# 	y_sol = poly( x_sol )	
+# 	
+# 	draw_img = cv2.cvtColor( crop_img, cv2.COLOR_GRAY2BGR )
+# 	font = cv2.FONT_HERSHEY_SIMPLEX
+# 	for i, pt in enumerate( zip( x_sol, y_sol ) ):
+# 		pt = tuple( np.round( pt ).astype( int ) )
+# 		draw_img = cv2.circle( draw_img, pt, 5, [0, 0, 255], -1 )
+# 		
+# 		pt_text = ( pt[0] - 20, pt[1] - 10 )
+# 		draw_img = cv2.putText( draw_img, str( i + 1 ), pt_text, font, 1, [0, 0, 255],
+# 							2, cv2.LINE_AA )
+# 		
+# 	cv2.imshow( "Active Areas", draw_img )
+# 	
+# 	cv2.waitKey( 50 )
 	
-	for i, lk in enumerate( zip( lengths, curvatures ) ):
-		l, k = lk
-		print( "{:2d}: l = {:.3f}, k = {:.3f} 1/mm, r = {:.3f} mm".format( i + 1,
-													l, k * pix_per_mm,
-													abs( 1 / k / pix_per_mm ) ) )
+	plt.plot( x, poly( x ), label = "Polynomial Fit" )
+	plt.plot( x, s( x ), label = "Spline Fit" )
+	plt.title("Shape plots")
+	plt.legend()
 	
-	y_sol = poly( x_sol )	
+	R_poly = 1 / find_curvature( poly, x ) / pix_per_mm
+	R_pcirc = 1 / fit_circle_curvature( poly, x, x, pix_per_mm ) / pix_per_mm
+	R_scirc = 1 / fit_circle_curvature( s, x, x, pix_per_mm / 2 ) / pix_per_mm
 	
-	draw_img = cv2.cvtColor( crop_img, cv2.COLOR_GRAY2BGR )
-	font = cv2.FONT_HERSHEY_SIMPLEX
-	for i, pt in enumerate( zip( x_sol, y_sol ) ):
-		pt = tuple( np.round( pt ).astype( int ) )
-		draw_img = cv2.circle( draw_img, pt, 5, [0, 0, 255], -1 )
-		
-		pt_text = ( pt[0] - 20, pt[1] - 10 )
-		draw_img = cv2.putText( draw_img, str( i + 1 ), pt_text, font, 1, [0, 0, 255],
-							2, cv2.LINE_AA )
-		
-	cv2.imshow( "Active Areas", draw_img )
+	window = 75
+	Rpc_mean = smooth_data( R_pcirc, window )
+	Rp_mean = smooth_data ( R_poly, window )
+	Rsc_mean = smooth_data( R_scirc, window )
 	
-	cv2.waitKey( 50 )
+	plt.figure()
+	plt.plot( x, R_pcirc , label = "Circle-poly, no smooth" )
+	plt.plot( x, Rpc_mean , label = "Circle-poly, {}px smooth".format( window ) )
 	
-	plt.plot( x, 1 / find_spline_curvature( s, x ) / pix_per_mm )
+	plt.plot( x, R_poly, label = "Polynomial, no smooth" )
+	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth".format( window ) )
+	
+# 	plt.plot( x, R_scirc, label = "Circle-spline, no smooth" )
+# 	plt.plot( x, Rsc_mean , label = "Circle-spline, {}px smooth".format( window ) )
+	
 	plt.ylim( -100, 100 )
 	plt.title( "Radius of Curvature vs. x" )
-	plt.figure()
-# 	plt.show()
+	plt.legend()	
+# 	plt.figure()
 # 	plot_func_image( crop_img, poly, x )
-	plot_spline_image( crop_img, s, x )
+# 	
+# 	plt.figure()
+# 	plot_spline_image( crop_img, s, x )
 	
 # 	cv2.waitKey( 0 )
-	
+	plt.show()	
 	cv2.destroyAllWindows()
 	
 # main
@@ -507,12 +555,6 @@ def main_test_spline():
 
 # main_test_spline
 	
-	radii = 1/fit_circle_curvature( poly, x, x, pix_per_mm)/pix_per_mm
-	plt.plot(x, radii)
-	plt.show()
-
-# main
-
 
 def main_error():
 	filename = 'S-shape_90mm_100mm.PNG'
