@@ -240,6 +240,21 @@ def arclength_spline ( s, a: float, b: float ):
 # arclength_spline
 
 
+def xycenterline( centerline_img ):
+	N_rows, N_cols = np.shape( centerline_img )
+	
+	x = np.arange( N_cols )  # x-coords
+	y = N_rows * np.ones( N_cols )  # y-coords
+	y = np.argmax( centerline_img, 0 )
+
+	x = x[y > 0]
+	y = y[y > 0]
+	
+	return x, y
+
+# xycenterline
+
+
 def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm ):
 	''' Determines the active area x parameters for the fit polynomial given
 		a desired arclength(s).
@@ -323,6 +338,33 @@ def find_spline_curvature ( s, x ):
 
 # find_spline_curvature
 
+
+def fit_circle_raw_curvature( y, x, x_int, width: float ):
+	k = []
+	for xi in x_int:
+		idxs = np.abs( x - xi ) <= width
+		x_window = x[idxs]
+		y_window = y[idxs]
+		
+		xm = np.mean( x_window )
+		ym = np.mean( y_window )
+		
+		calcdist = lambda xc, yc: np.sqrt( ( x_window - xc ) ** 2 + ( y_window - yc ) ** 2 )
+		costfn = lambda c: np.abs( calcdist( *c ) - np.mean( calcdist( *c ) ) )
+		
+		c2, ier = leastsq( costfn , ( xm, ym ) )
+		R = np.mean( calcdist( *c2 ) )
+		if c2[1] - ym < 0:
+			R *= -1
+		
+		k.append( 1 / R )
+
+	# for
+	
+	return np.array( k )
+	
+# fit_circle_raw_curvature
+	
 
 def fit_circle_curvature( p, x, x_int, width: float ):
 	k = []
@@ -447,7 +489,7 @@ def plot_spline_image( img, s, x ):
 
 def main():
 	# filename = argv[0]
-	filename = '60mm_70mm.png'
+	filename = '50mm_60mm.png'
 	directory = 'Test Images/Curvature_experiment_11-15-19/'
 	pix_per_mm = 8.498439  # 767625596
 	crop_area = ( 84, 250, 1280, 715 )
@@ -468,6 +510,7 @@ def main():
 	
 	print( 'fitting the polynomial' )
 	poly, x = fit_polynomial( skeleton, 15 )
+	xc, yc = xycenterline( skeleton )
 	s, _ = fit_spline( skeleton )
 	
 	total_length = arclength( poly, np.min( x ), np.max( x ) )
@@ -506,14 +549,17 @@ def main():
 	plt.legend()
 	
 	R_poly = 1 / find_curvature( poly, x ) / pix_per_mm
-	R_pcirc = 1 / fit_circle_curvature( poly, x, x, 2 * pix_per_mm ) / pix_per_mm
-	R_scirc = 1 / fit_circle_curvature( s, x, x, 2 * pix_per_mm / 2 ) / pix_per_mm
+	circle_curv_win = 20 * pix_per_mm
+	R_pcirc = 1 / fit_circle_curvature( poly, x, x, circle_curv_win ) / pix_per_mm
+	R_scirc = 1 / fit_circle_curvature( s, x, x, circle_curv_win ) / pix_per_mm
+	R_raw = 1 / fit_circle_raw_curvature( yc, xc, xc, circle_curv_win ) / pix_per_mm
 	
 	window = 100
-	iterations = 3
+	iterations = 2
 	Rpc_mean = smooth_data( R_pcirc, window , iterations = iterations )
 	Rp_mean = smooth_data ( R_poly, window , iterations = iterations )
 	Rsc_mean = smooth_data( R_scirc, window , iterations = iterations )
+	Rraw_mean = smooth_data ( R_raw, window, iterations = iterations )
 	
 	plt.figure()
 	plt.plot( x, R_pcirc , label = "Circle-poly, no smooth" )
@@ -522,18 +568,21 @@ def main():
 	plt.plot( x, R_poly, label = "Polynomial, no smooth" )
 	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth, {} iters.".format( window, iterations ) )
 	
+	plt.plot( x, R_raw, label = "Circle-raw, no smooth" )
+	plt.plot( x, Rraw_mean, label = "Circle-raw, {}px smooth, {} iters.".format( window, iterations ) )
+	
 # 	plt.plot( x, R_scirc, label = "Circle-spline, no smooth" )
 # 	plt.plot( x, Rsc_mean , label = "Circle-spline, {}px smooth, {} iters.".format( window, iterations ) )
 	
-	plt.ylim( -100, 100 )
+	plt.ylim( -120, 120 )
 	plt.title( "Radius of Curvature vs. x" )
 	plt.legend()
 		
-	plt.figure()
-	plot_func_image( crop_img, poly, x )
- 	
-	plt.figure()
-	plot_spline_image( crop_img, s, x )
+# 	plt.figure()
+# 	plot_func_image( crop_img, poly, x )
+#  	
+# 	plt.figure()
+# 	plot_spline_image( crop_img, s, x )
 	
 # 	cv2.waitKey( 0 )
 	plt.show()	
