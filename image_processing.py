@@ -4,12 +4,10 @@ from skimage.morphology import skeletonize
 import sys, os
 from scipy.interpolate import splrep, splev, CubicSpline
 from scipy.integrate import quad
-from scipy.optimize import fsolve
+from scipy.optimize import fsolve, leastsq
 from matplotlib.pyplot import draw
 import matplotlib.pyplot as plt
 # import scipy
-
-sys.excepthook = sys.__excepthook__
 
 
 def load_image( filename ):
@@ -231,18 +229,6 @@ def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm ):
 # find_active_areas
 
 
-def find_active_areas_spline ( x0, s, lengths, pix_per_mm ):
-	lengths = pix_per_mm * np.array( lengths )
-
-	ret_x = []
-	for l in lengths:
-		ret_x.append( find_param_along_spline( s, x0, l )[0] )
-
-	return ret_x
-
-# find_active_areas_spline
-
-
 def fit_polynomial( centerline_img, deg ):
 	nonzero = np.argwhere( centerline_img )
 # 	x_coord = nonzero[:, 1]
@@ -310,6 +296,30 @@ def find_spline_curvature ( s, x ):
 
 # find_spline_curvature
 
+
+def fit_circle_curvature( p, x, x_int, width: float ):
+    k = []
+    for xi in x_int:
+        x_window = x[np.abs( x - xi) <= width]
+        y_window = p( x_window )
+        
+        xm = np.mean( x_window )
+        ym = np.mean( y_window )
+        Ri = np.sqrt( ( x_window - xm ) ** 2 + ( y_window - ym ) ** 2 )  # distances
+        
+        calcdist = lambda xc, yc: np.sqrt( ( x_window - xc ) ** 2 + ( y_window - yc ) ** 2 )
+        costfn = lambda c: np.abs( calcdist( *c ) - np.mean( calcdist( *c ) ) )
+        
+        c2, ier = leastsq( costfn , ( xm, ym ) )
+        R = np.mean( calcdist( *c2 ) )
+        
+        k.append( 1/R )
+        
+    # for
+    
+    return np.array( k )
+
+# fit_circle_curvature
 
 def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 	''' Starting with the tip and working backwards
@@ -496,6 +506,12 @@ def main_test_spline():
 	plt.show()
 
 # main_test_spline
+	
+	radii = 1/fit_circle_curvature( poly, x, x, pix_per_mm)/pix_per_mm
+	plt.plot(x, radii)
+	plt.show()
+
+# main
 
 
 def main_error():
@@ -531,5 +547,4 @@ if __name__ == '__main__':
 # 	main(sys.argv[1:])
 	main()
 # 	main_error()
-# 	main_test_spline()
 	
