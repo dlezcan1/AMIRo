@@ -17,9 +17,9 @@ cv2.waitKey( 0 )
 cv2.destroyAllWindows()
 
 # iterate through file directory
-for file in os.listdir(directory):
+for file in os.listdir( directory ):
     if ( file.endswith( '.png' ) and not '_ROI' in file
-        and not '_processed' in file and True ):
+        and not '_processed' in file and False ):
         full_name = directory + file
         print( "Processing file {}...".format( full_name ) )
         
@@ -49,13 +49,12 @@ for file in os.listdir(directory):
 # #        break
 
 # pick out a particular file
-if False:
-    file = directory + '60mm_70mm.png'
+if True:
+    file = directory + '50mm_60mm.png'
     img = cv2.imread( file, cv2.IMREAD_GRAYSCALE )
-    print( img )
-    find_coordinate_image( img )
     ROI = [84, 250, 1280, 715]  # x_t-left, y_t-left, x_b-right, y_b-right
-#     img = img[ROI[2]:ROI[3],ROI[0]:ROI[1]]
+    img = img[ROI[1]:ROI[3], ROI[0]:ROI[2]]
+    find_coordinate_image( img )
 #     seg_needle, _ = segment_needle(file,'canny', True)
 
 plt.show()

@@ -489,10 +489,12 @@ def plot_spline_image( img, s, x ):
 
 def main():
 	# filename = argv[0]
-	filename = '50mm_60mm.png'
+	filename = '90mm_100mm.png'
 	directory = 'Test Images/Curvature_experiment_11-15-19/'
 	pix_per_mm = 8.498439  # 767625596
 	crop_area = ( 84, 250, 1280, 715 )
+	
+	x_ignore = ( 525, 900 )
 
 	img, gray_image = load_image( directory + filename )
 	
@@ -587,6 +589,46 @@ def main():
 # 	cv2.waitKey( 0 )
 	plt.show()	
 	cv2.destroyAllWindows()
+	
+	print( filename )
+	
+	# poly statistics
+	mean_Rp1 = np.mean( R_poly[x < x_ignore[0]] )
+	max_Rp1 = np.max( R_poly[x < x_ignore[0]] )
+	min_Rp1 = np.min( R_poly[x < x_ignore[0]] )
+	
+	mean_Rp2 = np.mean( R_poly[x > x_ignore[1]] )
+	max_Rp2 = np.max( R_poly[x > x_ignore[1]] )
+	min_Rp2 = np.min( R_poly[x > x_ignore[1]] )
+	
+	# circle-poly statistics
+	mean_Rpc1 = np.mean( R_pcirc[x < x_ignore[0]] )
+	max_Rpc1 = np.max( R_pcirc[x < x_ignore[0]] )
+	min_Rpc1 = np.min( R_pcirc[x < x_ignore[0]] )
+	
+	mean_Rpc2 = np.mean( R_pcirc[x > x_ignore[1]] )
+	max_Rpc2 = np.max( R_pcirc[x > x_ignore[1]] )
+	min_Rpc2 = np.min( R_pcirc[x > x_ignore[1]] )
+	
+	print( "Polynomial Statistics" )
+	print( "Region 1" )
+	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+					mean_Rp1, max_Rp1, min_Rp1 ) )
+	print()
+	print( "Region 2" )
+	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+					mean_Rp2, max_Rp2, min_Rp2 ) )
+	print()
+	
+	print( "Circle-Polynomial Statistics" )
+	print( "Region 1" )
+	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+					mean_Rpc1, max_Rpc1, min_Rpc1 ) )
+	print()
+	print( "Region 2" )
+	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+					mean_Rpc2, max_Rpc2, min_Rpc2 ) )
+	print()
 	
 # main
 
