@@ -10,19 +10,26 @@ import matplotlib.pyplot as plt
 # import scipy
 
 
-def smooth_data ( Y, window ):
-	retval = []
-	for i in range( len( Y ) ):
-		lidx = i - window
-		uidx = i + window + 1
-		if lidx < 0:
-			lidx = 0
+def smooth_data ( Y, window, iterations = 1 ):
+	retval = Y.copy()
+	
+	for k in range( iterations ):
+		tmp = []
+		for i in range( len( Y ) ):
+			lidx = i - window
+			uidx = i + window + 1
+			if lidx < 0:
+				lidx = 0
+				
+			if uidx > len( retval ):
+				uidx = len( retval )
+				
+			tmp.append( np.mean( retval[lidx: uidx] ) )
 			
-		if uidx > len( Y ):
-			uidx = len( Y )
-			
-		retval.append( np.mean( Y[lidx: uidx] ) )
+		# for
 		
+		retval = np.array( tmp )
+	
 	# for
 	
 	return retval
@@ -495,36 +502,38 @@ def main():
 	
 	plt.plot( x, poly( x ), label = "Polynomial Fit" )
 	plt.plot( x, s( x ), label = "Spline Fit" )
-	plt.title("Shape plots")
+	plt.title( "Shape plots" )
 	plt.legend()
 	
 	R_poly = 1 / find_curvature( poly, x ) / pix_per_mm
-	R_pcirc = 1 / fit_circle_curvature( poly, x, x, pix_per_mm ) / pix_per_mm
-	R_scirc = 1 / fit_circle_curvature( s, x, x, pix_per_mm / 2 ) / pix_per_mm
+	R_pcirc = 1 / fit_circle_curvature( poly, x, x, 2 * pix_per_mm ) / pix_per_mm
+	R_scirc = 1 / fit_circle_curvature( s, x, x, 2 * pix_per_mm / 2 ) / pix_per_mm
 	
-	window = 75
-	Rpc_mean = smooth_data( R_pcirc, window )
-	Rp_mean = smooth_data ( R_poly, window )
-	Rsc_mean = smooth_data( R_scirc, window )
+	window = 100
+	iterations = 3
+	Rpc_mean = smooth_data( R_pcirc, window , iterations = iterations )
+	Rp_mean = smooth_data ( R_poly, window , iterations = iterations )
+	Rsc_mean = smooth_data( R_scirc, window , iterations = iterations )
 	
 	plt.figure()
 	plt.plot( x, R_pcirc , label = "Circle-poly, no smooth" )
-	plt.plot( x, Rpc_mean , label = "Circle-poly, {}px smooth".format( window ) )
+	plt.plot( x, Rpc_mean , label = "Circle-poly, {}px smooth, {} iters.".format( window, iterations ) )
 	
 	plt.plot( x, R_poly, label = "Polynomial, no smooth" )
-	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth".format( window ) )
+	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth, {} iters.".format( window, iterations ) )
 	
 # 	plt.plot( x, R_scirc, label = "Circle-spline, no smooth" )
-# 	plt.plot( x, Rsc_mean , label = "Circle-spline, {}px smooth".format( window ) )
+# 	plt.plot( x, Rsc_mean , label = "Circle-spline, {}px smooth, {} iters.".format( window, iterations ) )
 	
 	plt.ylim( -100, 100 )
 	plt.title( "Radius of Curvature vs. x" )
-	plt.legend()	
-# 	plt.figure()
-# 	plot_func_image( crop_img, poly, x )
-# 	
-# 	plt.figure()
-# 	plot_spline_image( crop_img, s, x )
+	plt.legend()
+		
+	plt.figure()
+	plot_func_image( crop_img, poly, x )
+ 	
+	plt.figure()
+	plot_spline_image( crop_img, s, x )
 	
 # 	cv2.waitKey( 0 )
 	plt.show()	
