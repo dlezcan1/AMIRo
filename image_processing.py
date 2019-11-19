@@ -7,6 +7,7 @@ from scipy.integrate import quad
 from scipy.optimize import fsolve, leastsq
 from matplotlib.pyplot import draw
 import matplotlib.pyplot as plt
+import re
 # import scipy
 
 
@@ -488,11 +489,18 @@ def plot_spline_image( img, s, x ):
 	
 
 def main():
-	# filename = argv[0]
-	filename = '90mm_100mm.png'
+	
+	filename = '100mm_90mm.png'
 	directory = 'Test Images/Curvature_experiment_11-15-19/'
 	pix_per_mm = 8.498439  # 767625596
 	crop_area = ( 84, 250, 1280, 715 )
+	
+	# metadata processing
+	pattern = r'([0-9]+)mm_([0-9]+)mm.png'
+	result = re.search( pattern, filename )
+	act_R1, act_R2 = result.groups()
+	act_R1 = float( act_R1 )
+	act_R2 = -float( act_R2 )
 	
 	x_ignore = ( 525, 900 )
 
@@ -564,17 +572,28 @@ def main():
 	Rraw_mean = smooth_data ( R_raw, window, iterations = iterations )
 	
 	plt.figure()
+	plt.xlabel( "x (px)" )
+	plt.ylabel( "Radius of Curvature (mm)" )
+	
 	plt.plot( x, R_pcirc , label = "Circle-poly, no smooth" )
-	plt.plot( x, Rpc_mean , label = "Circle-poly, {}px smooth, {} iters.".format( window, iterations ) )
+# 	plt.plot( x, Rpc_mean , label = "Circle-poly, {}px smooth, {} iters.".format( window, iterations ) )
 	
 	plt.plot( x, R_poly, label = "Polynomial, no smooth" )
-	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth, {} iters.".format( window, iterations ) )
+# 	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth, {} iters.".format( window, iterations ) )
 	
 	plt.plot( x, R_raw, label = "Circle-raw, no smooth" )
-	plt.plot( x, Rraw_mean, label = "Circle-raw, {}px smooth, {} iters.".format( window, iterations ) )
+# 	plt.plot( x, Rraw_mean, label = "Circle-raw, {}px smooth, {} iters.".format( window, iterations ) )
 	
 # 	plt.plot( x, R_scirc, label = "Circle-spline, no smooth" )
 # 	plt.plot( x, Rsc_mean , label = "Circle-spline, {}px smooth, {} iters.".format( window, iterations ) )
+
+	# boundary lines
+	plt.plot( x_ignore[0] * np.ones( 2 ), [-300, 300], 'k--' )
+	plt.plot( x_ignore[1] * np.ones( 2 ), [-300, 300], 'k--' )
+	
+	# actual values
+	plt.plot( [np.min( x ), x_ignore[0]], [act_R1, act_R1], 'r', label = "R1: {}mm".format( act_R1 ) )
+	plt.plot( [x_ignore[1], np.max( x )], [act_R2, act_R2], 'r', label = "R2: {}mm".format( act_R2 ) )
 	
 	plt.ylim( -120, 120 )
 	plt.title( "Radius of Curvature vs. x" )
