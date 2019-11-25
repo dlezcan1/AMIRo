@@ -490,7 +490,7 @@ def plot_spline_image( img, s, x ):
 
 def main():
 	
-	filename = '100mm_90mm.png'
+	filename = '80mm_70mm.png'
 	directory = 'Test Images/Curvature_experiment_11-15-19/'
 	pix_per_mm = 8.498439  # 767625596
 	crop_area = ( 84, 250, 1280, 715 )
@@ -502,7 +502,7 @@ def main():
 	act_R1 = float( act_R1 )
 	act_R2 = -float( act_R2 )
 	
-	x_ignore = ( 525, 900 )
+	x_ignore = ( 450, 800 )
 
 	img, gray_image = load_image( directory + filename )
 	
@@ -629,6 +629,15 @@ def main():
 	max_Rpc2 = np.max( R_pcirc[x > x_ignore[1]] )
 	min_Rpc2 = np.min( R_pcirc[x > x_ignore[1]] )
 	
+	# circle-raw statistics
+	mean_Rpr1 = np.mean( R_raw[x < x_ignore[0]] )
+	max_Rpr1 = np.max( R_raw[x < x_ignore[0]] )
+	min_Rpr1 = np.min( R_raw[x < x_ignore[0]] )
+	
+	mean_Rpr2 = np.mean( R_raw[x > x_ignore[1]] )
+	max_Rpr2 = np.max( R_raw[x > x_ignore[1]] )
+	min_Rpr2 = np.min( R_raw[x > x_ignore[1]] )
+	
 	print( "Polynomial Statistics" )
 	print( "Region 1" )
 	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
@@ -647,6 +656,16 @@ def main():
 	print( "Region 2" )
 	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
 					mean_Rpc2, max_Rpc2, min_Rpc2 ) )
+	print()
+	
+	print( "Circle-Raw Statistics" )
+	print( "Region 1" )
+	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+					mean_Rpr1, max_Rpr1, min_Rpr1 ) )
+	print()
+	print( "Region 2" )
+	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+					mean_Rpr2, max_Rpr2, min_Rpr2 ) )
 	print()
 	
 # main
