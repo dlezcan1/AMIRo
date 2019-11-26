@@ -699,7 +699,7 @@ def main_error():
 	directory = 'Test Images/Solidworks_generated/'
 	crop_area = ( 200, 200, 250, 250 )
 
-	img, gray_image = load_image( directory + filename )
+	_, gray_image = load_image( directory + filename )
 	crop_img = set_ROI( gray_image, crop_area )
 	
 	# binarize and invert
