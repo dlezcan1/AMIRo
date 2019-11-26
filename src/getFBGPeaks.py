@@ -1,3 +1,5 @@
+#!/usr/local/bin/python3.7
+
 '''
 Created on Nov 26, 2019
 
@@ -13,7 +15,8 @@ from datetime import datetime
 from hyperion import Hyperion, HCommTCPPeaksStreamer
 
 TIME_FMT = "%H-%M-%S.%f"
-DEFAULT_OUTFILE = "%Y-%m-%d_%H-%M-%S.txt"
+DEFAULT_OUTFILE = "data/%Y-%m-%d_%H-%M-%S.txt"
+MAX_CHANNELS = 4
 
 
 def create_outfile( filename: str = None ):
@@ -22,19 +25,29 @@ def create_outfile( filename: str = None ):
         
     else:
         now = datetime.now()
-        outfile = now.strftime( DEFAULT_OUTFILE )
+        retval = now.strftime( DEFAULT_OUTFILE )
 
+    # else
+
+    return retval
+
+# crate_outfile
 
 def parsepeakdata( data: dict ):
     """ Method to parse the peak data into a good format for printing """
     timestamp = datetime.fromtimestamp( data["timestamp"] )  # parse timestamp
-    peaks = data["data"][:]
+    peaks = np.zeros(0)
+    # append the chang
+    for channel in range(1, MAX_CHANNELS + 1):
+        peaks = np.append(peaks,data['data'][channel])
+        
     
     # parse timestamp and peak date into str formats 
     str_ts = timestamp.strftime( TIME_FMT )
     
     str_peaks = np.array2string( peaks, precision = 10, separator = ', ' )
-    str_peaks.strip( '[]' )  # remove the brackets
+    str_peaks = str_peaks.strip( '[]' )  # remove the brackets
+    print(str_ts + ": " + str_peaks + '\n')
     
     return str_ts + ": " + str_peaks + '\n'
 
@@ -44,11 +57,12 @@ def parsepeakdata( data: dict ):
 def main( *argv ):
     """ Method to run the script for gathering data from the si155 fbg interrogator. """
     # interrogator instantiations
-    ipaddress = ''
-#     fbginterr = Hyperion( ipaddress )
+    ipaddress = '10.162.34.7'
+    #fbginterr = Hyperion( ipaddress )
 
     # output file set up
-    outfile = create_outfile( argv[0] )
+    arg_1 = None if len( argv ) == 0 else argv[0]
+    outfile = create_outfile( arg_1 )
     
     # meant for peak-streaming and taken from example file
     loop = asyncio.get_event_loop()
@@ -60,26 +74,34 @@ def main( *argv ):
     # create the streamer object instance
     peaks_streamer = HCommTCPPeaksStreamer( ipaddress, loop, queue )
     t0 = time.perf_counter()
+    
     with open( outfile, 'w+' ) as writestream:
 
         async def write_peaks():
             while True:
-                peak_data = await queue.get()
-                queue.task_done()
-                
-                # check if the streaming is streaming any data
-                if peak_data['data']:
-                    serial_numbers.append( peak_data['data'].header.serial_number )
-                    peak_str = parsepeakdata( peak_data )
-                    writestream.write( peak_str )
+                try:
+                    peak_data = await queue.get()
+                    queue.task_done()
                     
-                # if
+                    # check if the streaming is streaming any data
+                    if peak_data['data']:
+                        serial_numbers.append( peak_data['data'].header.serial_number )
+                        peak_str = parsepeakdata( peak_data )
+                        print(peak_str)
+                        writestream.write( peak_str )
+                        
+                    # if
+                    
+                    else:
+                        print( "Writing peak data has ended." )
+                        break  # streaming has ended
+
+                    # else
                 
-                else:
-                    print( "Writing peak data has ended." )
-                    break  # streaming has ended
-                
-                # else
+                except KeyboardInterrupt:                    
+                    peaks_streamer.stop_streaming()
+
+                # except            
             
             # while
             
@@ -87,6 +109,7 @@ def main( *argv ):
         
         loop.create_task( write_peaks() )
         try:
+            print("Gathering peak values")
             loop.run_until_complete( peaks_streamer.stream_data() )
             
         except KeyboardInterrupt:
@@ -95,7 +118,7 @@ def main( *argv ):
             
     # with
     print( f"Peak FBG data file '{outfile}' written." )
-    dt = time.perf_counter - t0
+    dt = time.perf_counter() - t0
     
     print( f"Elapsed time for recording data: {dt:.2f}s." )
     
