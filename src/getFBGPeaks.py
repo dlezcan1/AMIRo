@@ -6,6 +6,7 @@ Created on Nov 26, 2019
 @author: Dimitri Lezcano
 
 @summary: Script in order to get peaks on loop from the si155 fbg interrogator
+          asynchronously.
 '''
 
 import sys
@@ -58,7 +59,6 @@ def main( *argv ):
     """ Method to run the script for gathering data from the si155 fbg interrogator. """
     # interrogator instantiations
     ipaddress = '10.162.34.7'
-    #fbginterr = Hyperion( ipaddress )
 
     # output file set up
     arg_1 = None if len( argv ) == 0 else argv[0]
