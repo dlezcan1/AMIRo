@@ -5,15 +5,18 @@ Created on Nov 26, 2019
 
 @author: Dimitri Lezcano
 
+@bug: The timing of the script is not 100% accurate with the computer's time
+      and there does not appear to be a way to set the time in the script.
+
 @summary: Script in order to get peaks on loop from the si155 fbg interrogator
-          asynchronously.
+          asynchronously using the HCommTCPPeaksstreamer.
 '''
 
 import sys
 import numpy as np
 import asyncio, timeit, time
 from datetime import datetime
-from hyperion import Hyperion, HCommTCPPeaksStreamer
+from hyperion import  HCommTCPPeaksStreamer
 
 TIME_FMT = "%H-%M-%S.%f"
 DEFAULT_OUTFILE = "data/%Y-%m-%d_%H-%M-%S.txt"
