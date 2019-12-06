@@ -14,14 +14,20 @@ Created on Nov 26, 2019
 
 import sys
 import numpy as np
+import argparse
 import asyncio, timeit, time
 from datetime import datetime
 from hyperion import  HCommTCPPeaksStreamer
 
 TIME_FMT = "%H-%M-%S.%f"
-DEFAULT_OUTFILE = "data/%Y-%m-%d_%H-%M-%S.txt"
+DEFAULT_OUTFILE = "fbgdata_%Y-%m-%d_%H-%M-%S.txt"
 MAX_CHANNELS = 4
 
+parser = argparse.ArgumentParser(description= "Function to get FBG data and write to a log file.")
+parser.add_argument("ip", nargs="?",type=str, default="10.162.34.16")
+parser.add_argument("-o","--output",type=str, dest="outfile", default=None)
+parser.add_argument('-v','--verbose', action="store_true")
+parser.add_argument('-d', '--directory', type=str, default='',dest='dir')
 
 def create_outfile( filename: str = None ):
     if filename:
@@ -35,7 +41,7 @@ def create_outfile( filename: str = None ):
 
     return retval
 
-# crate_outfile
+# create_outfile
 
 def parsepeakdata( data: dict ):
     """ Method to parse the peak data into a good format for printing """
@@ -51,21 +57,26 @@ def parsepeakdata( data: dict ):
     
     str_peaks = np.array2string( peaks, precision = 10, separator = ', ' )
     str_peaks = str_peaks.strip( '[]' )  # remove the brackets
-    print(str_ts + ": " + str_peaks + '\n')
     
     return str_ts + ": " + str_peaks + '\n'
 
 # parsepeakdata
 
 
-def main( *argv ):
+def main( args: argparse.Namespace ):
     """ Method to run the script for gathering data from the si155 fbg interrogator. """
     # interrogator instantiations
-    ipaddress = '10.162.34.7'
+    ipaddress = args.ip
+
+    global DEFAULT_OUTFILE
+
+    DEFAULT_OUTFILE = args.dir + DEFAULT_OUTFILE
 
     # output file set up
-    arg_1 = None if len( argv ) == 0 else argv[0]
-    outfile = create_outfile( arg_1 )
+#    arg_1 = None if len( argv ) == 0 else argv[0]
+    outfile = create_outfile( args.outfile )
+    if args.verbose:
+    	print("On")
     
     # meant for peak-streaming and taken from example file
     loop = asyncio.get_event_loop()
@@ -83,16 +94,17 @@ def main( *argv ):
         async def write_peaks():
             while True:
                 try:
-                    peak_data = await queue.get()
+                    peak_data = await queue.get()  
                     queue.task_done()
                     
                     # check if the streaming is streaming any data
                     if peak_data['data']:
                         serial_numbers.append( peak_data['data'].header.serial_number )
                         peak_str = parsepeakdata( peak_data )
-                        print(peak_str)
+                        if args.verbose:
+                        	print(peak_str)
+
                         writestream.write( peak_str )
-                        
                     # if
                     
                     else:
@@ -118,7 +130,7 @@ def main( *argv ):
         except KeyboardInterrupt:
             peaks_streamer.stop_streaming()
             print( "Streaming has ended." )
-            
+         
     # with
     print( f"Peak FBG data file '{outfile}' written." )
     dt = time.perf_counter() - t0
@@ -129,6 +141,6 @@ def main( *argv ):
 
     
 if __name__ == '__main__':
-    main( *sys.argv[1:] )
+    main( parser.parse_args() )
     
 # if

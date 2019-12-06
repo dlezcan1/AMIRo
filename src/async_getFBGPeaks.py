@@ -48,7 +48,7 @@ def parsepeakdata( data: dict ):
     
     str_peaks = np.array2string( peaks, precision = 10, separator = ', ' )
     str_peaks = str_peaks.strip( '[]' )  # remove the brackets
-    print( str_ts + ": " + str_peaks + '\n' )
+#    print( str_ts + ": " + str_peaks + '\n' )
     
     return str_ts + ": " + str_peaks + '\n'
 
@@ -62,7 +62,7 @@ async def main( *argv ):
 #     queue = asyncio.Queue( maxsize = 5, loop = loop )
     
     # interrogator instantiations
-    ipaddress = '10.162.34.7'
+    ipaddress = '10.162.34.16'
     fbginterr = AsyncHyperion( ipaddress, loop )
     await fbginterr.set_ntp_enabled( True )  # change the time protocol
 
@@ -78,7 +78,7 @@ async def main( *argv ):
             data = {"timestamp": timestamp, "data": peaks}
             str_peaks = parsepeakdata( data )
             writestream.write( str_peaks )
-            print( str_peaks )
+#            print( str_peaks )
                 
         # while
 
