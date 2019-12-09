@@ -46,7 +46,8 @@ def parsepeakdata( data: dict ):
     # parse timestamp and peak date into str formats 
     str_ts = timestamp.strftime( TIME_FMT )
     
-    str_peaks = np.array2string( peaks, precision = 10, separator = ', ' )
+    str_peaks = np.array2string( peaks, precision = 10, separator = ', ',
+                                 max_line_width=np.inf )
     str_peaks = str_peaks.strip( '[]' )  # remove the brackets
 #    print( str_ts + ": " + str_peaks + '\n' )
     
