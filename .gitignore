@@ -105,3 +105,9 @@ venv.bak/
 
 # eclipse project stuff
 .*project
+
+# data that aren't zips or csv's
+FBG_Needle_Calibration_Data/
+!FBG_Needle_Calibration_Data/needle_1/*.zip
+!FBG_Needle_Calibration_Data/*.csv
+
