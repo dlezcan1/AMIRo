@@ -10,11 +10,21 @@ Created on Dec 6, 2019
 
 import numpy as np
 from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
 import glob
 import time  # for debugging purposes
 import warnings
+import image_processing as imgp
+from PIL.ImageOps import crop
+from image_processing import get_centerline
+import cv2
 
 TIME_FMT = "%H-%M-%S.%f"
+TIME_FIX = timedelta( hours = 3 )  # the internal fix for the time
+PIX_PER_MM = 8.498439767625596
+# CROP_AREA = ( 84, 250, 1280, 715 )
+CROP_AREA = ( 32, 425, 1180, 580 )
+BO_REGIONS = [( 0, 70, 165, -1 ), ( 0, 0, -1, 19 )]
 
 
 def fix_fbgData( filename: str ):
@@ -92,7 +102,8 @@ def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
                                  the time per entry
                                  
     """
-    global TIME_FMT
+    global TIME_FMT, TIME_FIX
+    
     max_lines = max( lines )
     timestamps = np.empty( 0 )
     fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
@@ -112,7 +123,7 @@ def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
             # if
             
             ts, datastring = line.split( ':' )
-            ts = datetime.strptime( ts, TIME_FMT )
+            ts = datetime.strptime( ts, TIME_FMT ) + TIME_FIX
             timestamps = np.append( timestamps, ts )
             data = np.fromstring( datastring, sep = ',' , dtype = float )
             
@@ -190,20 +201,113 @@ def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray,
 # get_FBGdata_window
 
 
-if __name__ == '__main__':
+def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length: float,
+                          display: bool = False ):
+    """ Method to get curvature @ the active areas & output to data file."""
+    global PIX_PER_MM, CROP_AREA, BO_REGIONS
+    
+    img, gray_img = imgp.load_image( filename )
+    
+    gray_img = imgp.saturate_img( gray_img, 1.75, 15 )
+    crop_img = imgp.set_ROI_box( gray_img, CROP_AREA )
+    canny_img = imgp.canny_edge_detection( crop_img, display, BO_REGIONS )
+    
+    skeleton = imgp.get_centerline ( canny_img )
+    if display:
+        cv2.imshow( "Skeleton", skeleton )
+    
+    # if
+    
+    poly, x = imgp.fit_polynomial( skeleton, 12 )
+    x = np.sort( x )  # sort the x's  (just in case)
+    
+    imgp.plot_func_image( crop_img, poly, x )
+    plt.show()
+    
+    k = input( "Does this plot look ok to proceed? (y/n) " )
+    if k.lower() == 'n':
+        print( "Not continuing with the curvature analysis." )
+        return -1
+    
+    if display:
+        cv2.waitKey( 0 )
+        cv2.destroyAllWindows()
+    
+    # if
+    
+    print( "Continuing with the curvature analysis." )
+    
+    x0 = x.max()  # start integrating from the tip
+    lb = x.min()
+    ub = x.max()
+    x_active = imgp.find_active_areas( x0, poly, active_areas, PIX_PER_MM, lb, ub )
+
+    curvature = imgp.fit_circle_curvature( poly, x, x_active, 20 * PIX_PER_MM )
+    x_active = np.array( x_active ).reshape( -1 )
+    
+    outfile = '.'.join( filename.split( '.' )[:-1] ) + '.txt'
+    outfile = outfile.replace( 'mono', 'curvature_mono' )
+    
+    print( "Completed curvature analysis." )
+    
+    with open( outfile, 'w+' ) as writestream:
+        writestream.write( "Curvature of the needle @ the active areas.\n" )
+        
+        writestream.write( "Active areas (mm): " )
+        msg = np.array2string( active_areas, separator = ', ',
+                                  max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "Curvatures (1/mm): " )
+        msg = np.array2string( curvature, separator = ', ',
+                                 precision = 10, max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "Polynomial coefficients: " )
+        msg = np.array2string( poly.coef , separator = ', ',
+                                 precision = 10, max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "x range of center line (px): " )
+        msg = f"[ {x.min()}, {x.max()} ]"
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "x-values of active areas (px): " )
+        msg = np.array2string( x_active, separator = ', ',
+                                 precision = 10, max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+    
+    # with
+    
+    print( "Wrote outfile:", outfile )
+    
+# get_curvature_image
+
+
+def main():
     directory = "../FBG_Needle_Calibaration_Data/needle_1/"
     fbgdata_list = [f.replace( '\\', '/' ) for f in 
                     sorted( glob.glob( directory + "*/fixed_fbgdata_*.txt" ) )]
     needleparam = directory + "needle_params.csv"
+    directory = "../FBG_Needle_Calibaration_Data/needle_1/"
+    img_file = "12-09-19_12-29/mono_0001.jpg"
     
-    lines = list( range( 0, 1000 ) )
-    print( "Reading in FBG data" )
-    ts, fbgdata = read_fbgData( fbgdata_list[0], 3 , lines )
+    num_actives, length, active_areas = read_needleparam( needleparam )
     
-    print( f"timestamps length: {len(ts)}" )
-    print( f"fbgdata shape: {fbgdata.shape}" )
-    for t, d, in zip( ts, fbgdata ):
-        print( f"{t}: {d}\n" )
+    get_curvature_image( directory + img_file, active_areas, length )
+
+# main
+
+
+if __name__ == '__main__':
+    main()
+#     directory = "../FBG_Needle_Calibaration_Data/needle_1/"
+#     img_file = "12-09-19_12-29/mono_0001.jpg"
+#     a = np.empty( 0 )
+#     
+#     get_curvature_image( directory + img_file, a, 0 , True )
+    
+    pass
     
 # if
     
