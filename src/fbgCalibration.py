@@ -75,12 +75,15 @@ def fix_fbgData( filename: str ):
 # fix_fbgData
                 
     
-def read_fbgData( filename: str , num_active_areas: int ):
+def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
     """ Function to read in the FBG data
     
         @param filename: str, the input fbg data file
         
         @param num_active_areas: int, representing the number of active areas
+        
+        @param lines: list of line numbers that would like to be read in. 
+                        (default = [-1], indicating all lines)
         
         @return: (timestamps, fbgdata)
                  timestamps: numpy array of timestamps corresponding row-wise
@@ -90,15 +93,23 @@ def read_fbgData( filename: str , num_active_areas: int ):
                                  
     """
     global TIME_FMT
-    
+    max_lines = max( lines )
     timestamps = np.empty( 0 )
     fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
     
     with open( filename, 'r' ) as file:
         for i, line in enumerate( file ):
             
-            if i >= 5000:
-                break
+            # read in desired lines
+            if lines != [-1]:
+                
+                if i > max_lines:  # passed the maximum lines, stop reading
+                    break
+                
+                elif i not in lines:  # not a line we want to read
+                    continue
+            
+            # if
             
             ts, datastring = line.split( ':' )
             ts = datetime.strptime( ts, TIME_FMT )
@@ -148,7 +159,7 @@ def read_needleparam( filename: str ):
 # read_needleparam
 
 
-def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray ):
+def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray, max_match: int = 100 ):
     """ Function to find the windowed timedata from the gathered FBGdata.
     
         @param lutime: list of items to look up
@@ -156,101 +167,43 @@ def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray 
         @param dt:     float, the time window length in seconds.
         
         @param timestamps: numpy 1-D array of timestamps
+        
+        @param max_match: (optional, default = 100) number of maximum matches
                 
         @return 1-D array -> indices matching to the timestamps matched
                 
-                
     """
-    lutimes = sorted( lutimes )
-    timestamps = sorted( timestamps )
-    MAX_MATCHES = 100
-    retval = -1 * np.ones( ( len( lutimes ), MAX_MATCHES ) )  # instantiate no matches
-    
-    dT = timedelta( seconds = dt )
-    
-    ii = 0  # pointer in lutimes
-    for kk, lut in enumerate( lutimes ):
-        jj = 0  # pointer in retval
-        
-        while ii >= 0 and lut > timestamps[ii] :
-            ii -= 1  # back it up
-            
-        # check to see if you ran past the timestamps
-        if ii < 0:
-            warnings.warn( f"look-up time: {lut} is not in this set (less than). Passing over" )
-            ii = 0
-            continue
-        
-        while ii < len( lutimes ) and lut <= timestamps[ii]  :
-            if timestamps[ii] >= lut - dT and timestamps[ii] <= lut + dT:  # lut - dt <= lutimes <= lut + dt
-                retval[kk, jj] = ii
-                jj += 1
-                
-                if jj >= MAX_MATCHES:  # don't overshoot
-                    break
-            
-            # if
-            
-            ii += 1  # increment to next greater time
-            
-        # while
-                
-        if ii >= len( timestamps ) + 1:
-            warnings.warn( f"look-up time: {lut} is not in this set (greater than). Passing over" )
-            ii = len( timestamps ) - 1
-            continue
-            
-        # if
-        
-        ii -= 1  # go back to the last element
-    # for
-    
-    return retval
-            
-# get_FBGdata_window
 
-
-def get_window_numpy( lutimes: np.ndarray, dt: float, timestamps: np.ndarray ):
-    MAX_MATCHES = 100
-    retval = -1 * np.ones( ( len( lutimes ), MAX_MATCHES ) )  # instantiate no matches
+    retval = -1 * np.ones( ( len( lutimes ), max_match ) )  # instantiate no matches
     
     dT = timedelta( seconds = dt )
     
     for kk, lut in enumerate( lutimes ):
         idxs = np.logical_and( timestamps >= lut - dT, timestamps <= lut + dT )
         idxs = np.argwhere( idxs ).reshape( -1 )
-        retval[kk, :len( idxs )] = idxs[:MAX_MATCHES]
+        retval[kk, :len( idxs )] = idxs[:max_match]
         
     # for
     
     return retval
 
-
 # get_FBGdata_window
+
+
 if __name__ == '__main__':
     directory = "../FBG_Needle_Calibaration_Data/needle_1/"
     fbgdata_list = [f.replace( '\\', '/' ) for f in 
                     sorted( glob.glob( directory + "*/fixed_fbgdata_*.txt" ) )]
     needleparam = directory + "needle_params.csv"
     
+    lines = list( range( 0, 1000 ) )
     print( "Reading in FBG data" )
-    ts, fbgdata = read_fbgData( fbgdata_list[0], 3 )
-    print( "FBG data read in.\n" )
-    print( ts.shape )
+    ts, fbgdata = read_fbgData( fbgdata_list[0], 3 , lines )
     
-    print( "Beginning windowed time comparison." )    
-    dt = 0.005
-    # test 1: using my method
-    start = time.time()
-    print( np.count_nonzero( get_FBGdata_windows( ts, dt, ts ) + 1 ) )
-    elapsed = time.time() - start
-    print( f"Elapsed time for my implemenation is {elapsed} seconds." )
-    
-    # test 2: numpy method
-    start = time.time()
-    print( np.count_nonzero( get_window_numpy( ts, dt, ts ) + 1 ) )
-    elapsed = time.time() - start
-    print( f"Elapsed time for numpy implemenation is {elapsed} seconds." )
+    print( f"timestamps length: {len(ts)}" )
+    print( f"fbgdata shape: {fbgdata.shape}" )
+    for t, d, in zip( ts, fbgdata ):
+        print( f"{t}: {d}\n" )
     
 # if
     
