@@ -4,7 +4,7 @@ from skimage.morphology import skeletonize
 import sys, os
 from scipy.interpolate import splrep, splev, CubicSpline
 from scipy.integrate import quad
-from scipy.optimize import fsolve, leastsq
+from scipy.optimize import fsolve, leastsq, minimize, Bounds
 from matplotlib.pyplot import draw
 import matplotlib.pyplot as plt
 import re
@@ -96,6 +96,15 @@ def binary( image ):
 	return binary_img
 
 
+def saturate_img ( img: np.ndarray, alpha: float, beta: float ):
+	""" function to increase contrast in gray image. """
+	
+	new_img = np.round( alpha * img + beta ).astype( int )
+	new_img = np.clip( new_img, 0, 255 ).astype( np.uint8 )
+	
+	return new_img
+
+
 def gen_kernel( shape ):
 	"""Function to generate the shape of the kernel for image processing
 
@@ -105,49 +114,86 @@ def gen_kernel( shape ):
 	return np.ones( shape, np.uint8 )
 
 
-def canny_edge_detection( image ):
-	thresh1 = 25
+def blackout_regions( img, regions: list ):
+	for bor in regions:
+		tlx, tly, brx, bry = bor
+		
+		img[tly:bry, tlx:brx] = 0
+		
+	# for
+	
+	return img
+
+# blackout_regions
+
+
+def canny_edge_detection( image, display: bool = False , bo_regions: list = None ):
+	thresh1 = 10
 	thresh2 = 225
 	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
 	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
 
 	img = np.copy( image )
+	if display:
+		cv2.imshow( "Full Image", img )
 
 	# edges = cv2.Canny(image, thresh1, thresh2)
-
+	
 	# # Canny Filtering for Edge detection
 	canny1 = cv2.Canny( img, thresh1, thresh2 )
+	if display:
+		cv2.imshow( "0) Raw canny", canny1 ) 
+		
 	# cv2.imshow('canny1 before',canny1)
 
 	# # Remove (pre-determined for simplicity in this code) artifacts manually
 	# # I plan to make this part of the algorithm to be incorproated into GUI
-	canny1[bor1[2]:bor1[3], bor1[0]:bor1[1]] = 0
-	canny1[bor2[2]:bor2[3], bor2[0]:bor2[1]] = 0
+# 	canny1[bor1[2]:bor1[3], bor1[0]:bor1[1]] = 0
+# 	canny1[bor2[2]:bor2[3], bor2[0]:bor2[1]] = 0
 	# cv2.imshow('canny1 after',canny1)
 	# cv2.waitKey(0)
-
+	
+	if bo_regions:
+		canny1 = blackout_regions( canny1, bo_regions )
+	
 	# worked for black background
-	kernel = gen_kernel( ( 7, 7 ) )
+	kernel = gen_kernel( ( 11, 11 ) )
 	canny1_fixed = cv2.morphologyEx( canny1, cv2.MORPH_CLOSE, kernel )
+	
+	if display:
+		cv2.imshow( "1) Closed 9x9", canny1_fixed )
 	# cv2.imshow('canny1 morph_close',canny1_fixed)
 
-	kernel = gen_kernel( ( 9, 9 ) )
+	kernel = gen_kernel( ( 20, 13 ) )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 2 )
+	if display:
+		cv2.imshow( "2) 2 x Dilated 20x13", canny1_fixed )
+				
 	# cv2.imshow('canny1 dilate',canny1_fixed)
 
-	kernel = gen_kernel( ( 11, 31 ) )
+	kernel = gen_kernel( ( 9, 51 ) )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
+	if display:
+		cv2.imshow( "3) 1 x erosion 11x61", canny1_fixed )
 	# cv2.imshow('canny1 erode',canny1_fixed)
 
-	kernel = gen_kernel( ( 7, 7 ) )
+	kernel = gen_kernel( ( 9, 9 ) )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
+	if display:
+		cv2.imshow( "4) Open 7x7", canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
 
+	kernel = gen_kernel( ( 31, 3 ) )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
+	if display:
+		cv2.imshow( "5) 1 x erosion 1x31 | finished", canny1_fixed )
 	# cv2.imshow('canny1 erode2',canny1_fixed)
 	# cv2.waitKey(0)
 
 	retval = canny1_fixed
+# 	if display:
+# 		cv2.waitKey( 0 )
+# 		cv2.destroyAllWindows()
 
 	return retval
 
@@ -210,6 +256,22 @@ def find_param_along_poly ( poly: np.poly1d, x0: float, target_length: float ):
 # find_param_along_poly
 
 
+def find_param_along_poly_con ( poly: np.poly1d, x0: float, target_length: float, lb: float, ub: float ):
+	bnds = Bounds( lb, ub )
+	deriv_1 = np.polyder( poly, 1 )
+	integrand = lambda x: np.sqrt( 1 + ( deriv_1( x ) ) ** 2 )
+	
+	arc_length = lambda x: quad( integrand, x, x0 )[0] 
+	cost_fn = lambda x: np.abs( target_length - arc_length( x ) )
+	
+	result = minimize( cost_fn, np.array( [x0] ), method = "SLSQP", bounds = bnds )
+	err = target_length - arc_length( result.x )
+	
+	return result.x, err
+
+# find_param_along_poly_con
+
+
 def find_param_along_spline ( s, x0: float, target_length: float ):
 	costfn = lambda x: np.abs( target_length - arclength_spline( s, x0, x ) )
 	ret_x = fsolve ( costfn, x0 ) [0]
@@ -256,16 +318,16 @@ def xycenterline( centerline_img ):
 # xycenterline
 
 
-def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm ):
+def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm , lb: float, ub: float ):
 	''' Determines the active area x parameters for the fit polynomial given
 		a desired arclength(s).
 	'''
 	
 	lengths = pix_per_mm * np.array( lengths )
-
+	
 	ret_x = []
 	for l in lengths:
-		ret_x.append( find_param_along_poly( poly, x0, l )[0] )
+		ret_x.append( find_param_along_poly_con( poly, x0, l, lb, ub )[0] )
 
 	return ret_x
 
@@ -368,6 +430,20 @@ def fit_circle_raw_curvature( y, x, x_int, width: float ):
 	
 
 def fit_circle_curvature( p, x, x_int, width: float ):
+	""" Function to find the curvature of a function by circle fitting
+	
+		@param p: the polynomial of the curve
+		
+		@param x: the x values in the of the whole polynomial
+		
+		@param x_int: the x values that we are interested in
+		
+		@param width: the width of the fitting window
+	
+		@return: numpy array of curvatures for the associated 'x_ints'	
+		
+	"""
+	
 	k = []
 	for xi in x_int:
 		x_window = x[np.abs( x - xi ) <= width]
@@ -446,7 +522,7 @@ def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 
 def plot_func_image( img, func, x ):
 	y = func( x )
-	tempfile = "Output/temporary_img.png"
+	tempfile = "../Output/temporary_img.png"
 	result = cv2.imwrite( tempfile, img )
 	
 	if not result:
@@ -492,7 +568,7 @@ def main():
 	
 	filename = '80mm_70mm.png'
 	directory = 'Test Images/Curvature_experiment_11-15-19/'
-	pix_per_mm = 8.498439  # 767625596
+	pix_per_mm = 8.498439767625596
 	crop_area = ( 84, 250, 1280, 715 )
 	
 	# metadata processing
