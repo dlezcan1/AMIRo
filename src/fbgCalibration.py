@@ -9,8 +9,12 @@ Created on Dec 6, 2019
 '''
 
 import numpy as np
-from datetime import datetime
-from _ast import Num
+from datetime import datetime, timedelta
+import glob
+import time  # for debugging purposes
+import warnings
+
+TIME_FMT = "%H-%M-%S.%f"
 
 
 def fix_fbgData( filename: str ):
@@ -40,7 +44,7 @@ def fix_fbgData( filename: str ):
                 fbgdata = np.append( fbgdata, line.replace( '\n', '' ) )
             
             else:
-                ts = line.split( '\n' )[-1]
+                ts = line.split( '\n' )[-1] + ':'
                 data = line.split( '\n' )[:-1]
                 data = " ".join( data ).replace( '\n', '' )
 #                 data = " ".join( data.split( '\n' ) )
@@ -85,23 +89,27 @@ def read_fbgData( filename: str , num_active_areas: int ):
                                  the time per entry
                                  
     """
+    global TIME_FMT
     
     timestamps = np.empty( 0 )
     fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
     
     with open( filename, 'r' ) as file:
-        lines = file.read().split( "\n" )
-        
-        for line in lines:
+        for i, line in enumerate( file ):
+            
+            if i >= 5000:
+                break
+            
             ts, datastring = line.split( ':' )
+            ts = datetime.strptime( ts, TIME_FMT )
             timestamps = np.append( timestamps, ts )
-            data = np.fromstring( datastring, sep = ',' )
+            data = np.fromstring( datastring, sep = ',' , dtype = float )
             
             if len( data ) == 3 * num_active_areas:  # all active areas measured
                 fbgdata = np.vstack( ( fbgdata, data ) )
                 
             else:  # too many or not enough sensor readings
-                fbgdata = np.vstack( ( fbgdata, -1 * np.ones( 6 ) ) )
+                fbgdata = np.vstack( ( fbgdata, -1 * np.ones( 3 * num_active_areas ) ) )
                 
         # for
     # with
@@ -140,31 +148,109 @@ def read_needleparam( filename: str ):
 # read_needleparam
 
 
-def get_FBGdata_window( lutime: datetime, dt: float, timestamps: np.ndarray, FBGdata: np.ndarray ):
+def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray ):
     """ Function to find the windowed timedata from the gathered FBGdata.
     
-        @param lutime: datetime, the lookup time data
+        @param lutime: list of items to look up
         
-        @param dt:     float, the time window length
+        @param dt:     float, the time window length in seconds.
         
         @param timestamps: numpy 1-D array of timestamps
-        
-        @param FBGdata:    numpy array of the fbg data for each of the timestamps
-        
-        @return 1-D array -> corresponding timestamps
-                2-D array -> FBG data stored in each row.
+                
+        @return 1-D array -> indices matching to the timestamps matched
+                
                 
     """
-    pass
+    lutimes = sorted( lutimes )
+    timestamps = sorted( timestamps )
+    MAX_MATCHES = 100
+    retval = -1 * np.ones( ( len( lutimes ), MAX_MATCHES ) )  # instantiate no matches
+    
+    dT = timedelta( seconds = dt )
+    
+    ii = 0  # pointer in lutimes
+    for kk, lut in enumerate( lutimes ):
+        jj = 0  # pointer in retval
+        
+        while ii >= 0 and lut > timestamps[ii] :
+            ii -= 1  # back it up
+            
+        # check to see if you ran past the timestamps
+        if ii < 0:
+            warnings.warn( f"look-up time: {lut} is not in this set (less than). Passing over" )
+            ii = 0
+            continue
+        
+        while ii < len( lutimes ) and lut <= timestamps[ii]  :
+            if timestamps[ii] >= lut - dT and timestamps[ii] <= lut + dT:  # lut - dt <= lutimes <= lut + dt
+                retval[kk, jj] = ii
+                jj += 1
+                
+                if jj >= MAX_MATCHES:  # don't overshoot
+                    break
+            
+            # if
+            
+            ii += 1  # increment to next greater time
+            
+        # while
+                
+        if ii >= len( timestamps ) + 1:
+            warnings.warn( f"look-up time: {lut} is not in this set (greater than). Passing over" )
+            ii = len( timestamps ) - 1
+            continue
+            
+        # if
+        
+        ii -= 1  # go back to the last element
+    # for
+    
+    return retval
+            
+# get_FBGdata_window
+
+
+def get_window_numpy( lutimes: np.ndarray, dt: float, timestamps: np.ndarray ):
+    MAX_MATCHES = 100
+    retval = -1 * np.ones( ( len( lutimes ), MAX_MATCHES ) )  # instantiate no matches
+    
+    dT = timedelta( seconds = dt )
+    
+    for kk, lut in enumerate( lutimes ):
+        idxs = np.logical_and( timestamps >= lut - dT, timestamps <= lut + dT )
+        idxs = np.argwhere( idxs ).reshape( -1 )
+        retval[kk, :len( idxs )] = idxs[:MAX_MATCHES]
+        
+    # for
+    
+    return retval
 
 
 # get_FBGdata_window
 if __name__ == '__main__':
     directory = "../FBG_Needle_Calibaration_Data/needle_1/"
-#     filename = "12-09-19_12-29/fbgdata_2019-12-09_12-29-20.txt"
-#     filename = "12-09-19_13-34/fbgdata_2019-12-09_13-34-52.txt"
-#     filename = "12-09-19_13-49/fbgdata_2019-12-09_13-49-12.txt"
-    filename = "12-09-19_14-01/fbgdata_2019-12-09_14-01-06.txt"    
+    fbgdata_list = [f.replace( '\\', '/' ) for f in 
+                    sorted( glob.glob( directory + "*/fixed_fbgdata_*.txt" ) )]
+    needleparam = directory + "needle_params.csv"
     
-    fix_fbgData( directory + filename )
+    print( "Reading in FBG data" )
+    ts, fbgdata = read_fbgData( fbgdata_list[0], 3 )
+    print( "FBG data read in.\n" )
+    print( ts.shape )
+    
+    print( "Beginning windowed time comparison." )    
+    dt = 0.005
+    # test 1: using my method
+    start = time.time()
+    print( np.count_nonzero( get_FBGdata_windows( ts, dt, ts ) + 1 ) )
+    elapsed = time.time() - start
+    print( f"Elapsed time for my implemenation is {elapsed} seconds." )
+    
+    # test 2: numpy method
+    start = time.time()
+    print( np.count_nonzero( get_window_numpy( ts, dt, ts ) + 1 ) )
+    elapsed = time.time() - start
+    print( f"Elapsed time for numpy implemenation is {elapsed} seconds." )
+    
+# if
     
