@@ -128,7 +128,7 @@ def blackout_regions( img, regions: list ):
 
 
 def canny_edge_detection( image, display: bool = False , bo_regions: list = None ):
-	thresh1 = 10
+	thresh1 = 45
 	thresh2 = 225
 	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
 	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
@@ -183,7 +183,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "4) Open 7x7", canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
 
-	kernel = gen_kernel( ( 31, 3 ) )
+	kernel = gen_kernel( ( 33, 3 ) )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
 		cv2.imshow( "5) 1 x erosion 1x31 | finished", canny1_fixed )

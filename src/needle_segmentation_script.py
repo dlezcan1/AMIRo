@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import image_processing as imgp
 
 directory = "Test Images/Curvature_Experiment_11-15-19/"
-directory = "../FBG_Needle_Calibaration_Data/needle_1/"
+directory = "../FBG_Needle_Calibration_Data/needle_1/"
 print( "CWD:", os.getcwd() )
 
 for file in os.listdir():
@@ -52,7 +52,7 @@ for file in os.listdir( directory ):
 
 # pick out a particular file
 if True:
-    file = directory + "12-09-19_12-29/mono_0015.jpg"
+    file = directory + "12-09-19_14-01/mono_0019.jpg"
     img = cv2.imread( file, cv2.IMREAD_GRAYSCALE )
     ROI = [84, 250, 1280, 715]  # x_t-left, y_t-left, x_b-right, y_b-right
 #     img = imgp.set_ROI(img, crop_area)

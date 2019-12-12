@@ -11,13 +11,14 @@ Created on Dec 6, 2019
 import numpy as np
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-import glob
+import glob, re
 import time  # for debugging purposes
 import warnings
 import image_processing as imgp
 from PIL.ImageOps import crop
 from image_processing import get_centerline
 import cv2
+from matplotlib.testing.jpl_units import sec
 
 TIME_FMT = "%H-%M-%S.%f"
 TIME_FIX = timedelta( hours = 3 )  # the internal fix for the time
@@ -25,6 +26,8 @@ PIX_PER_MM = 8.498439767625596
 # CROP_AREA = ( 84, 250, 1280, 715 )
 CROP_AREA = ( 32, 425, 1180, 580 )
 BO_REGIONS = [( 0, 70, 165, -1 ), ( 0, 0, -1, 19 )]
+BO_REGIONS.append( ( 0, 0, -1, 30 ) )
+BO_REGIONS.append( ( 0, 60, 20, -1 ) )
 
 
 def fix_fbgData( filename: str ):
@@ -210,6 +213,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     gray_img = imgp.saturate_img( gray_img, 1.75, 15 )
     crop_img = imgp.set_ROI_box( gray_img, CROP_AREA )
+    print( BO_REGIONS )
     canny_img = imgp.canny_edge_detection( crop_img, display, BO_REGIONS )
     
     skeleton = imgp.get_centerline ( canny_img )
@@ -218,9 +222,18 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     # if
     
+    if display:
+        cv2.waitKey( 0 )
+        cv2.destroyAllWindows()
+    
+    # if
+    
     poly, x = imgp.fit_polynomial( skeleton, 12 )
     x = np.sort( x )  # sort the x's  (just in case)
     
+    plt.figure()
+    mng = plt.get_current_fig_manager()
+    mng.full_screen_toggle()
     imgp.plot_func_image( crop_img, poly, x )
     plt.show()
     
@@ -228,12 +241,8 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     if k.lower() == 'n':
         print( "Not continuing with the curvature analysis." )
         return -1
-    
-    if display:
-        cv2.waitKey( 0 )
-        cv2.destroyAllWindows()
-    
     # if
+
     
     print( "Continuing with the curvature analysis." )
     
@@ -252,6 +261,8 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     with open( outfile, 'w+' ) as writestream:
         writestream.write( "Curvature of the needle @ the active areas.\n" )
+        
+        writestream.write( f"Pixels/mm: {PIX_PER_MM}\n" )
         
         writestream.write( "Active areas (mm): " )
         msg = np.array2string( active_areas, separator = ', ',
@@ -280,22 +291,38 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     # with
     
     print( "Wrote outfile:", outfile )
+    return 0
     
 # get_curvature_image
 
 
 def main():
-    directory = "../FBG_Needle_Calibaration_Data/needle_1/"
-    fbgdata_list = [f.replace( '\\', '/' ) for f in 
-                    sorted( glob.glob( directory + "*/fixed_fbgdata_*.txt" ) )]
-    needleparam = directory + "needle_params.csv"
-    directory = "../FBG_Needle_Calibaration_Data/needle_1/"
-    img_file = "12-09-19_12-29/mono_0001.jpg"
+    directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
+    needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    get_curvature_image( directory + img_file, active_areas, length )
-
+    directory += "12-09-19_14-01/"
+    
+    imgfiles = glob.glob( directory + "monofbg*.jpg" )
+    
+    img_patt = r"monofbg_12-09-2019_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
+    
+    imgfiles = ["../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-06-03.085297826.jpg",
+                "../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-04-31.217293380.jpg",
+                ]
+    for imgf in imgfiles:
+#         hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
+        print( "Processing file:" , imgf )
+#         str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
+#         ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
+#         print( ts )
+        
+        get_curvature_image( imgf, active_areas, length, True )
+        print()
+        
+    # for
+        
 # main
 
 
@@ -307,7 +334,7 @@ if __name__ == '__main__':
 #     
 #     get_curvature_image( directory + img_file, a, 0 , True )
     
-    pass
+    print( "Program has terminated." )
     
 # if
     
