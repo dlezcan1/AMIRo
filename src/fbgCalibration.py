@@ -22,6 +22,7 @@ from matplotlib.testing.jpl_units import sec
 
 TIME_FMT = "%H-%M-%S.%f"
 TIME_FIX = timedelta( hours = 3 )  # the internal fix for the time
+
 PIX_PER_MM = 8.498439767625596
 # CROP_AREA = ( 84, 250, 1280, 715 )
 CROP_AREA = ( 32, 425, 1180, 580 )
