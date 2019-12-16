@@ -111,7 +111,25 @@ def sync_fbg( directory, curvature, w1, w2 ):
 def wavelength_shift( avg_fbg, baseline ):
     '''process averaged FBG wavelength readings
     '''
-    return avg_fbg - baseline
+    aa1_idxs = [0, 3, 6]
+    aa2_idxs = [1, 4, 7]
+    aa3_idxs = [2, 5, 8]
+    
+#     wl_aa1 = avg_fbg[:, aa1_idxs]
+#     wl_aa2 = avg_fbg[:, aa2_idxs]
+#     wl_aa3 = avg_fbg[:, aa3_idxs]
+    
+    baselines_aa1 = np.mean( avg_fbg[:, aa1_idxs], axis = 1 )
+    baselines_aa2 = np.mean( avg_fbg[:, aa2_idxs], axis = 1 )
+    baselines_aa3 = np.mean( avg_fbg[:, aa3_idxs], axis = 1 )
+    
+    avg_fbg[:, aa1_idxs] -= baselines_aa1.reshape( -1, 1 )
+    avg_fbg[:, aa2_idxs] -= baselines_aa2.reshape( -1, 1 )
+    avg_fbg[:, aa3_idxs] -= baselines_aa3.reshape( -1, 1 )
+    
+    delta_fbg = avg_fbg - avg_fbg[0, :]
+    
+    return delta_fbg
 
 # wavelength_shift
 
@@ -137,6 +155,18 @@ def get_curvature_vectors( curvature, direction ):
     return [ts, aa1, aa2, aa3]
 
 # get_curvature_vectors
+
+
+def load_filteredfbg_data( filename: str ):
+    """ Method to read in the fbg filtered data """
+    inp = np.loadtxt( filename, np.float64 )
+    
+    ts = inp[:, 0]
+    data = inp[:, 1:]
+    
+    return ts, data
+
+# load_filteredfbg_data
 
 
 def leastsq_fit( delta_fbg, curvature ):
@@ -169,6 +199,10 @@ def leastsq_fit( delta_fbg, curvature ):
     C1, resid1, rnk1, sng1 = np.linalg.lstsq( delta_aa1, curvature1, None )
     C2, resid2, rnk2, sng2 = np.linalg.lstsq( delta_aa2, curvature2, None )
     C3, resid3, rnk3, sng3 = np.linalg.lstsq( delta_aa3, curvature3, None )
+    
+    print( f"1) Residuals: {resid1}" )
+    print( f"2) Residulas: {resid2}" )
+    print( f"3) Residuals: {resid3}" )
     
     return [np.transpose( C1 ), np.transpose( C2 ), np.transpose( C3 )]
     
@@ -261,8 +295,12 @@ def main():
     curv_vect = [curv_vect_aa1, curv_vect_aa2, curv_vect_aa3]
     delta_fbg = np.vstack( ( deltafbg_py, deltafbg_px, deltafbg_my, deltafbg_mx ) )
     
-    C1, C2, C3 = leastsq_fit( delta_fbg, curv_vect )
+    write_vect = np.hstack( ( curv_vect_aa1, curv_vect_aa2, curv_vect_aa3 ) )
+    np.savetxt( root_path + "curvature_vectors.txt", write_vect )
+    np.savetxt( root_path + "wavelength_shift.txt", delta_fbg )
     
+    C1, C2, C3 = leastsq_fit( delta_fbg, curv_vect )
+#     return;
     outfile = root_path + "needle_params.csv"
     write_calibration_matrices( outfile, C1, C2, C3 )
     print( f"Calibration matrices appended to: {outfile}." )
