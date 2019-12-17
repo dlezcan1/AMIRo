@@ -103,7 +103,7 @@ def main( args: argparse.Namespace ):
                         serial_numbers.append( peak_data['data'].header.serial_number )
                         peak_str = parsepeakdata( peak_data )
                         if args.verbose:
-                        	print(peak_str)
+                            print(peak_str)
 
                         writestream.write( peak_str )
                     # if

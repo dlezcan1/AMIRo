@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import glob, re
 import time  # for debugging purposes
 from datetime import timedelta, datetime
+from _pickle import load
 
 
 def load_curvature( directory ):
@@ -54,6 +55,7 @@ def sync_fbg( directory, curvature, w1, w2 ):
     name_length = len( directory + "fixed_fbgdata_yyyy_mm_dd_" )
     filenames = glob.glob( directory + "fixed_fbgdata_*.txt" )
     curv_idx = 0
+    camera_time_offset = 0.75  # seconds
 
     # # generate a numpy array of rawFBG data
     rawFBG = np.empty( [0, 10] )
@@ -76,7 +78,7 @@ def sync_fbg( directory, curvature, w1, w2 ):
                     hour, minute, sec = data[0][0].split( '-' )
                     timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec ) + offset
 
-                    if abs( timeInSec - curvature[curv_idx, 0] ) < w1:
+                    if abs( timeInSec - curvature[curv_idx, 0] - camera_time_offset ) < w1:
                         # print('appending for %s' %curv_idx)
                         toappend = [float( i ) for i in data[1]]  # convert to floats
                         toappend.insert( 0, timeInSec )
@@ -119,15 +121,15 @@ def wavelength_shift( avg_fbg, baseline ):
 #     wl_aa2 = avg_fbg[:, aa2_idxs]
 #     wl_aa3 = avg_fbg[:, aa3_idxs]
     
-    baselines_aa1 = np.mean( avg_fbg[:, aa1_idxs], axis = 1 )
-    baselines_aa2 = np.mean( avg_fbg[:, aa2_idxs], axis = 1 )
-    baselines_aa3 = np.mean( avg_fbg[:, aa3_idxs], axis = 1 )
-    
-    avg_fbg[:, aa1_idxs] -= baselines_aa1.reshape( -1, 1 )
-    avg_fbg[:, aa2_idxs] -= baselines_aa2.reshape( -1, 1 )
-    avg_fbg[:, aa3_idxs] -= baselines_aa3.reshape( -1, 1 )
-    
     delta_fbg = avg_fbg - avg_fbg[0, :]
+    
+    baselines_aa1 = np.mean( delta_fbg[:, aa1_idxs], axis = 1 )
+    baselines_aa2 = np.mean( delta_fbg[:, aa2_idxs], axis = 1 )
+    baselines_aa3 = np.mean( delta_fbg[:, aa3_idxs], axis = 1 )
+    
+    delta_fbg[:, aa1_idxs] = delta_fbg[:, aa1_idxs] - baselines_aa1.reshape( -1, 1 )
+    delta_fbg[:, aa2_idxs] = delta_fbg[:, aa2_idxs] - baselines_aa2.reshape( -1, 1 )
+    delta_fbg[:, aa3_idxs] = delta_fbg[:, aa3_idxs] - baselines_aa3.reshape( -1, 1 )
     
     return delta_fbg
 
@@ -200,9 +202,42 @@ def leastsq_fit( delta_fbg, curvature ):
     C2, resid2, rnk2, sng2 = np.linalg.lstsq( delta_aa2, curvature2, None )
     C3, resid3, rnk3, sng3 = np.linalg.lstsq( delta_aa3, curvature3, None )
     
+    delta1 = curvature1 - np.dot( delta_aa1, C1 )
+    delta2 = curvature2 - np.dot( delta_aa2, C2 )
+    delta3 = curvature3 - np.dot( delta_aa3, C3 )
+    resid1 = np.linalg.norm( delta1, axis = 0 )
+    resid2 = np.linalg.norm( delta2, axis = 0 )
+    resid3 = np.linalg.norm( delta3, axis = 0 )
+    
+#     rel_err1 = np.divide(delta1 , curvature1, out=np.zeros_like(delta1), where=curvature1!=0)
+    rel_err1 = delta1 / curvature1
+    rel_err2 = delta2 / curvature2
+    rel_err3 = delta3 / curvature3
+    
+    rel_err1[np.logical_or( rel_err1 == -np.inf, rel_err1 == np.inf )] = np.nan
+    rel_err2[np.logical_or( rel_err2 == -np.inf, rel_err2 == np.inf )] = np.nan
+    rel_err3[np.logical_or( rel_err3 == -np.inf, rel_err3 == np.inf )] = np.nan
+    
+    min_relerr1 = np.nanmin( rel_err1 , axis = 0 )
+    mean_relerr1 = np.nanmean( rel_err1, axis = 0 )
+    max_relerr1 = np.nanmax( rel_err1 , axis = 0 )
+    
+    min_relerr2 = np.nanmin( rel_err2, axis = 0 )
+    mean_relerr2 = np.nanmean( rel_err2, axis = 0 )
+    max_relerr2 = np.nanmax( rel_err2, axis = 0 )
+    
+    min_relerr3 = np.nanmin( rel_err3 , axis = 0 )
+    mean_relerr3 = np.nanmean( rel_err3 , axis = 0 )
+    max_relerr3 = np.nanmax( rel_err3 , axis = 0 )
+    
     print( f"1) Residuals: {resid1}" )
-    print( f"2) Residulas: {resid2}" )
+    print( f"Relative error\nMin: {min_relerr1}\nMean: {mean_relerr1}\nMax: {max_relerr1}\n\n" )
+    
+    print( f"2) Residuals: {resid2}" )
+    print( f"Relative error\nMin: {min_relerr2}\nMean: {mean_relerr2}\nMax: {max_relerr2}\n\n" )
+    
     print( f"3) Residuals: {resid3}" )
+    print( f"Relative error\nMin: {min_relerr3}\nMean: {mean_relerr3}\nMax: {max_relerr3}\n\n" )
     
     return [np.transpose( C1 ), np.transpose( C2 ), np.transpose( C3 )]
     
@@ -257,22 +292,41 @@ def main():
 
     # load the fbg data
 #     startTime = time.time()
-    baseline_py, avgFBG_py = sync_fbg( folder_py, curvature_py, w1, w2 )
-    baseline_px, avgFBG_px = sync_fbg( folder_px, curvature_px, w1, w2 )
-    baseline_my, avgFBG_my = sync_fbg( folder_my, curvature_my, w1, w2 )
-    baseline_mx, avgFBG_mx = sync_fbg( folder_mx, curvature_mx, w1, w2 )
+
+    if True:
+        baseline_py, avgFBG_py = sync_fbg( folder_py, curvature_py, w1, w2 )
+        baseline_px, avgFBG_px = sync_fbg( folder_px, curvature_px, w1, w2 )
+        baseline_my, avgFBG_my = sync_fbg( folder_my, curvature_my, w1, w2 )
+        baseline_mx, avgFBG_mx = sync_fbg( folder_mx, curvature_mx, w1, w2 )
+        
+        # save the averaged FBG data
+        np.savetxt( folder_py + 'filteredFBG.txt', avgFBG_py )
+        np.savetxt( folder_px + 'filteredFBG.txt', avgFBG_px )
+        np.savetxt( folder_my + 'filteredFBG.txt', avgFBG_my )
+        np.savetxt( folder_mx + 'filteredFBG.txt', avgFBG_mx )
+        
+        avgFBG_py = avgFBG_py[:, 1:]
+        avgFBG_px = avgFBG_px[:, 1:]
+        avgFBG_my = avgFBG_my[:, 1:]
+        avgFBG_mx = avgFBG_mx[:, 1:]
     
-    # save the averaged FBG data
-    np.savetxt( folder_py + 'filteredFBG.txt', avgFBG_py )
-    np.savetxt( folder_px + 'filteredFBG.txt', avgFBG_px )
-    np.savetxt( folder_my + 'filteredFBG.txt', avgFBG_my )
-    np.savetxt( folder_mx + 'filteredFBG.txt', avgFBG_mx )
+    # if
+    
+    else:
+        _, avgFBG_py = load_filteredfbg_data( folder_py + "filteredFBG.txt" )
+        _, avgFBG_px = load_filteredfbg_data( folder_px + "filteredFBG.txt" )
+        _, avgFBG_my = load_filteredfbg_data( folder_my + "filteredFBG.txt" )
+        _, avgFBG_mx = load_filteredfbg_data( folder_mx + "filteredFBG.txt" )
+        print( avgFBG_py.shape )
+        print( avgFBG_py )
+    
+    # else
     
     # compute the delta fbg data
-    deltafbg_py = wavelength_shift( avgFBG_py[:, 1:], baseline_py )
-    deltafbg_px = wavelength_shift( avgFBG_px[:, 1:], baseline_px )
-    deltafbg_my = wavelength_shift( avgFBG_my[:, 1:], baseline_my )
-    deltafbg_mx = wavelength_shift( avgFBG_mx[:, 1:], baseline_mx )
+    deltafbg_py = wavelength_shift( avgFBG_py, 0 )
+    deltafbg_px = wavelength_shift( avgFBG_px, 0 )
+    deltafbg_my = wavelength_shift( avgFBG_my, 0 )
+    deltafbg_mx = wavelength_shift( avgFBG_mx, 0 )
     
 #     print(baseline)
 #     print(avgFBG)

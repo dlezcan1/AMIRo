@@ -243,7 +243,6 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
         print( "Not continuing with the curvature analysis." )
         return -1
     # if
-
     
     print( "Continuing with the curvature analysis." )
     
@@ -256,6 +255,8 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     x_active = np.array( x_active ).reshape( -1 )
     
     outfile = '.'.join( filename.split( '.' )[:-1] ) + '.txt'
+    if 'fbg' not in outfile:
+        outfile = outfile.replace( 'mono', 'monofbg' )
     outfile = outfile.replace( 'mono', 'curvature_mono' )
     
     print( "Completed curvature analysis." )
@@ -303,15 +304,15 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-09-19_14-01/"
+    directory += "12-09-19_12-29/"
     
-    imgfiles = glob.glob( directory + "monofbg*.jpg" )
+    imgfiles = glob.glob( directory + "mono*_12y*.jpg" )
     
     img_patt = r"monofbg_12-09-2019_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
     
-    imgfiles = ["../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-06-03.085297826.jpg",
-                "../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-04-31.217293380.jpg",
-                ]
+#     imgfiles = ["../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-06-03.085297826.jpg",
+#                 "../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-04-31.217293380.jpg",
+#                 ]
     for imgf in imgfiles:
 #         hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
         print( "Processing file:" , imgf )
@@ -319,7 +320,7 @@ def main():
 #         ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
 #         print( ts )
         
-        get_curvature_image( imgf, active_areas, length, True )
+        get_curvature_image( imgf, active_areas, length, False )
         print()
         
     # for
