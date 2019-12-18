@@ -120,8 +120,18 @@ def wavelength_shift( avg_fbg, baseline ):
 #     wl_aa1 = avg_fbg[:, aa1_idxs]
 #     wl_aa2 = avg_fbg[:, aa2_idxs]
 #     wl_aa3 = avg_fbg[:, aa3_idxs]
-    
-    delta_fbg = avg_fbg - avg_fbg[0, :]
+
+    deltaFBG = avg_fbg - avg_fbg[0,:] # wavelength shift
+
+    # average shift at each active area
+    mean_aa1 = np.mean(deltaFBG[:, aa1_idxs], axis = 1)
+    mean_aa2 = np.mean(deltaFBG[:, aa2_idxs], axis = 1)
+    mean_aa3 = np.mean(deltaFBG[:, aa3_idxs], axis = 1)
+
+    # subtract contribution from temperature (uniform across each active area)
+    # deltaFBG[:, aa1_idxs] -= mean_aa1.reshape( -1, 1 )
+    # deltaFBG[:, aa2_idxs] -= mean_aa2.reshape( -1, 1 )
+    # deltaFBG[:, aa3_idxs] -= mean_aa3.reshape( -1, 1 )
     
     baselines_aa1 = np.mean( delta_fbg[:, aa1_idxs], axis = 1 )
     baselines_aa2 = np.mean( delta_fbg[:, aa2_idxs], axis = 1 )
@@ -131,7 +141,15 @@ def wavelength_shift( avg_fbg, baseline ):
     delta_fbg[:, aa2_idxs] = delta_fbg[:, aa2_idxs] - baselines_aa2.reshape( -1, 1 )
     delta_fbg[:, aa3_idxs] = delta_fbg[:, aa3_idxs] - baselines_aa3.reshape( -1, 1 )
     
-    return delta_fbg
+    # baselines_aa1 = np.mean( avg_fbg[:, aa1_idxs], axis = 1 )
+    # baselines_aa2 = np.mean( avg_fbg[:, aa2_idxs], axis = 1 )
+    # baselines_aa3 = np.mean( avg_fbg[:, aa3_idxs], axis = 1 )
+    
+    # avg_fbg[:, aa1_idxs] -= baselines_aa1.reshape( -1, 1 )
+    # avg_fbg[:, aa2_idxs] -= baselines_aa2.reshape( -1, 1 )
+    # avg_fbg[:, aa3_idxs] -= baselines_aa3.reshape( -1, 1 )
+    
+    return deltaFBG
 
 # wavelength_shift
 
