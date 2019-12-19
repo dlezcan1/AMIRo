@@ -28,6 +28,7 @@ parser.add_argument("ip", nargs="?",type=str, default="10.162.34.16")
 parser.add_argument("-o","--output",type=str, dest="outfile", default=None)
 parser.add_argument('-v','--verbose', action="store_true")
 parser.add_argument('-d', '--directory', type=str, default='',dest='dir')
+parser.add_argument('-N','--number-points', type=int, default= -1, dest='N')
 
 def create_outfile( filename: str = None ):
     if filename:
@@ -90,6 +91,9 @@ def main( args: argparse.Namespace ):
     peaks_streamer = HCommTCPPeaksStreamer( ipaddress, loop, queue )
     t0 = time.perf_counter()
     
+    if args.N >= 0:
+        count = 0
+    
     with open( outfile, 'w+' ) as writestream:
 
         async def write_peaks():
@@ -106,6 +110,10 @@ def main( args: argparse.Namespace ):
                             print(peak_str)
 
                         writestream.write( peak_str )
+                        
+                        if args.N > 0:
+                            count += 1
+                            
                     # if
                     
                     else:
@@ -113,6 +121,12 @@ def main( args: argparse.Namespace ):
                         break  # streaming has ended
 
                     # else
+                    
+                    if args.N > 0 and count > args.N:
+                        peaks_streamer.stop_streaming()
+                        break
+                    
+                    # if
                 
                 except KeyboardInterrupt:                    
                     peaks_streamer.stop_streaming()
