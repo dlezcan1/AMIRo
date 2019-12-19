@@ -9,6 +9,7 @@ Created on Dec 6, 2019
 '''
 
 import numpy as np
+import os.path
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import glob, re
@@ -29,7 +30,7 @@ CROP_AREA = ( 32, 425, 1180, 580 )
 BO_REGIONS = [( 0, 70, 165, -1 ), ( 0, 0, -1, 19 )]
 BO_REGIONS.append( ( 0, 0, -1, 30 ) )
 BO_REGIONS.append( ( 0, 60, 20, -1 ) )
-BO_REGIONS.append( ( 0, 0, 8, -1 ) )
+BO_REGIONS.append( ( 0, 0, 15, -1 ) )
 
 
 def fix_fbgData( filename: str ):
@@ -300,32 +301,35 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
 
 
 def main():
+    skip_curv = True
+
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-19-19_12-32/"
+    directory += "12-19-19_15-02/"
     
-    imgfiles = glob.glob( directory + "mono*_12*.jpg" )
+    imgfiles = glob.glob( directory + "monofbg_12*.jpg" )
     
-    img_patt = r"monofbg_12-09-2019_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
+    img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
     
-#     imgfiles = ["../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-06-03.085297826.jpg",
-#                 "../FBG_Needle_Calibration_Data/needle_1/12-09-19_14-01\monofbg_12-09-2019_14-04-31.217293380.jpg",
-#                 ]
-
-    imgfiles = [directory + "monofbg_12-19-2019_12-49-09.489031144.jpg"]
     for imgf in imgfiles:
-#         hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
-        print( "Processing file:" , imgf )
-#         str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
-#         ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
-#         print( ts )
+        mon, day, yr, hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
+        curv_file = directory + f"curvature_monofbg_{mon}-{day}-{yr}_{hr}-{mn}-{sec}.{ns}.txt"
+        if skip_curv and not os.path.exists( curv_file ):
+            
+            print( "Processing file:" , imgf )
+    #         str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
+    #         ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
+    #         print( ts )
+            
+            get_curvature_image( imgf, active_areas, length, True )
+            print()
+        # if
         
-        get_curvature_image( imgf, active_areas, length, True )
-        print()
-        
+        else:
+            print( f"Curvature file exists '{curv_file}'.\n" )
     # for
         
 # main

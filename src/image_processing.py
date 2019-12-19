@@ -157,7 +157,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		canny1 = blackout_regions( canny1, bo_regions )
 	
 	# worked for black background
-	shape = ( 3, 3 )
+	shape = ( 9, 3 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1, cv2.MORPH_CLOSE, kernel )
 	
@@ -165,7 +165,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "1) Closed {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_close',canny1_fixed)
 
-	shape = ( 9, 20 )
+	shape = ( 9, 15 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
@@ -173,25 +173,31 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 				
 	# cv2.imshow('canny1 dilate',canny1_fixed)
 	
-	shape = ( 3, 39 )
+	shape = ( 3, 25 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
 		cv2.imshow( "3) 1 x erosion {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 erode',canny1_fixed)
 
-	shape = ( 7, 7 )
+	shape = ( 7, 12 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
 	if display:
 		cv2.imshow( "4) Open {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
-
-	shape = ( 7, 3 )
+	
+	shape = ( 1, 10 )
+	kernel = gen_kernel( shape )
+	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
+	if display:
+		cv2.imshow( "5) 1 x dilation {}x{} | finished".format( *shape ), canny1_fixed )
+	
+	shape = ( 5, 7 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
-		cv2.imshow( "5) 1 x erosion {}x{} | finished".format( *shape ), canny1_fixed )
+		cv2.imshow( "6) 1 x erosion {}x{} | finished".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 erode2',canny1_fixed)
 	# cv2.waitKey(0)
 
