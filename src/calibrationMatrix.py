@@ -109,6 +109,54 @@ def sync_fbg( directory, curvature, w1, w2 ):
 
 # sync_fbg
 
+def process_fbg(directory):
+    ''' Loads all FBG files, average_fbg and baseline
+        rawFBG_list is a list of numpy arrays with each array holding the raw data from one file
+    '''
+    name_length = len( directory + "fbgdata_yyyy_mm_dd_" )
+    filenames = glob.glob( directory + "fbgdata*.txt" )
+    print( 'number of files: %s' % len( filenames ) )
+
+    rawFBG = np.empty( [0, 10] )
+    avgFBG = np.empty([0,10])
+    rawFBG_list = []
+
+    for idx, file in enumerate(filenames):
+        baseTime = file[name_length:-4]
+        hour, minute, sec = baseTime.split( '-' )
+        baseInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+
+        with open(file, 'r') as f:
+            for i, line in enumerate( f ):
+                if i == 0:
+                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                    hour, minute, sec = data[0][0].split( '-' )
+                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+                    offset = baseInSec - np.floor(timeInSec)
+                    print( 'offset: %s' % offset )
+
+                data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                hour, minute, sec = data[0][0].split( '-' )
+                timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec ) + offset
+
+                toappend = [float( i ) for i in data[1]]  # convert to floats
+                toappend.insert( 0, timeInSec )
+                rawFBG = np.vstack( [rawFBG, toappend] )
+
+        ## create baseline using first file
+        if idx == 0:
+            baseline = np.mean(rawFBG[:, 1:], axis=0)
+
+        rawFBG_list.append(rawFBG)
+        avg = np.mean(rawFBG[:, 1:], axis=0)
+        toappend = np.hstack([baseInSec, avg])
+        avgFBG = np.vstack([avgFBG, toappend])
+        rawFBG = np.empty([0, 10])
+    
+    return rawFBG_list, avgFBG, baseline
+
+# process_fbg
+
 
 def wavelength_shift( avg_fbg, baseline ):
     '''process averaged FBG wavelength readings
@@ -121,7 +169,7 @@ def wavelength_shift( avg_fbg, baseline ):
 #     wl_aa2 = avg_fbg[:, aa2_idxs]
 #     wl_aa3 = avg_fbg[:, aa3_idxs]
 
-    deltaFBG = avg_fbg - avg_fbg[0,:] # wavelength shift
+    deltaFBG = avg_fbg[:, 1:] - baseline # wavelength shift
 
     # average shift at each active area
     mean_aa1 = np.mean(deltaFBG[:, aa1_idxs], axis = 1)
@@ -129,17 +177,17 @@ def wavelength_shift( avg_fbg, baseline ):
     mean_aa3 = np.mean(deltaFBG[:, aa3_idxs], axis = 1)
 
     # subtract contribution from temperature (uniform across each active area)
-    # deltaFBG[:, aa1_idxs] -= mean_aa1.reshape( -1, 1 )
-    # deltaFBG[:, aa2_idxs] -= mean_aa2.reshape( -1, 1 )
-    # deltaFBG[:, aa3_idxs] -= mean_aa3.reshape( -1, 1 )
+    deltaFBG[:, aa1_idxs] -= mean_aa1.reshape( -1, 1 )
+    deltaFBG[:, aa2_idxs] -= mean_aa2.reshape( -1, 1 )
+    deltaFBG[:, aa3_idxs] -= mean_aa3.reshape( -1, 1 )
     
-    baselines_aa1 = np.mean( delta_fbg[:, aa1_idxs], axis = 1 )
-    baselines_aa2 = np.mean( delta_fbg[:, aa2_idxs], axis = 1 )
-    baselines_aa3 = np.mean( delta_fbg[:, aa3_idxs], axis = 1 )
+    # baselines_aa1 = np.mean( delta_fbg[:, aa1_idxs], axis = 1 )
+    # baselines_aa2 = np.mean( delta_fbg[:, aa2_idxs], axis = 1 )
+    # baselines_aa3 = np.mean( delta_fbg[:, aa3_idxs], axis = 1 )
     
-    delta_fbg[:, aa1_idxs] = delta_fbg[:, aa1_idxs] - baselines_aa1.reshape( -1, 1 )
-    delta_fbg[:, aa2_idxs] = delta_fbg[:, aa2_idxs] - baselines_aa2.reshape( -1, 1 )
-    delta_fbg[:, aa3_idxs] = delta_fbg[:, aa3_idxs] - baselines_aa3.reshape( -1, 1 )
+    # delta_fbg[:, aa1_idxs] = delta_fbg[:, aa1_idxs] - baselines_aa1.reshape( -1, 1 )
+    # delta_fbg[:, aa2_idxs] = delta_fbg[:, aa2_idxs] - baselines_aa2.reshape( -1, 1 )
+    # delta_fbg[:, aa3_idxs] = delta_fbg[:, aa3_idxs] - baselines_aa3.reshape( -1, 1 )
     
     # baselines_aa1 = np.mean( avg_fbg[:, aa1_idxs], axis = 1 )
     # baselines_aa2 = np.mean( avg_fbg[:, aa2_idxs], axis = 1 )
@@ -381,7 +429,20 @@ def main():
 
 # main
 
+def main_test():
+    e1 = np.array( [1, 0, 0] )
+    e2 = np.array( [0, 1, 0] )
+    root_path = "../FBG_Needle_Calibration_Data/needle_1/"
+    folder_CH1 = root_path + "12-19-19_12-32/"
+
+    rawFBG_list, avgFBG, baseline = process_fbg(folder_CH1)
+    np.savetxt(folder_CH1 + "rawFBGdata.csv", np.asarray(rawFBG_list).reshape((-1,10)))
+
+    deltaFBG_CH1 = wavelength_shift(avgFBG, baseline)
+    np.savetxt(folder_CH1 + "wavelength_shift.csv", deltaFBG_CH1)
 
 if __name__ == '__main__':
-    main()
+    # main()
+    main_test()
 
+# if
