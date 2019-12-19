@@ -128,8 +128,8 @@ def blackout_regions( img, regions: list ):
 
 
 def canny_edge_detection( image, display: bool = False , bo_regions: list = None ):
-	thresh1 = 45
-	thresh2 = 225
+	thresh1 = 215
+	thresh2 = 255
 	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
 	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
 
@@ -157,36 +157,41 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		canny1 = blackout_regions( canny1, bo_regions )
 	
 	# worked for black background
-	kernel = gen_kernel( ( 11, 11 ) )
+	shape = ( 3, 3 )
+	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1, cv2.MORPH_CLOSE, kernel )
 	
 	if display:
-		cv2.imshow( "1) Closed 9x9", canny1_fixed )
+		cv2.imshow( "1) Closed {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_close',canny1_fixed)
 
-	kernel = gen_kernel( ( 20, 13 ) )
-	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 2 )
+	shape = ( 9, 20 )
+	kernel = gen_kernel( shape )
+	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
-		cv2.imshow( "2) 2 x Dilated 20x13", canny1_fixed )
+		cv2.imshow( "2) 1 x Dilated {}x{}".format( *shape ), canny1_fixed )
 				
 	# cv2.imshow('canny1 dilate',canny1_fixed)
-
-	kernel = gen_kernel( ( 9, 51 ) )
+	
+	shape = ( 3, 39 )
+	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
-		cv2.imshow( "3) 1 x erosion 11x61", canny1_fixed )
+		cv2.imshow( "3) 1 x erosion {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 erode',canny1_fixed)
 
-	kernel = gen_kernel( ( 9, 9 ) )
+	shape = ( 7, 7 )
+	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
 	if display:
-		cv2.imshow( "4) Open 7x7", canny1_fixed )
+		cv2.imshow( "4) Open {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
 
-	kernel = gen_kernel( ( 33, 3 ) )
+	shape = ( 7, 3 )
+	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
-		cv2.imshow( "5) 1 x erosion 1x31 | finished", canny1_fixed )
+		cv2.imshow( "5) 1 x erosion {}x{} | finished".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 erode2',canny1_fixed)
 	# cv2.waitKey(0)
 
@@ -335,20 +340,25 @@ def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm , lb: flo
 
 
 def fit_polynomial( centerline_img, deg ):
-	nonzero = np.argwhere( centerline_img )
+# 	nonzero = np.argwhere( centerline_img )
 # 	x_coord = nonzero[:, 1]
 # 	y_coord = nonzero[:, 0]
 # 	poly = np.poly1d( np.polyfit( x_coord, y_coord, deg ) )
-	
-	N_rows, N_cols = np.shape( centerline_img )
-	
-	x = np.arange( N_cols )  # x-coords
-	y = N_rows * np.ones( N_cols )  # y-coords
+	offset = -1
+	_, N_cols = np.shape( centerline_img )
+
+	x = np.arange( N_cols - 10 )  # x-coords
+# 	y = N_rows * np.ones( N_cols )  # y-coords
 	y = np.argmax( centerline_img, 0 )
 
-	x = x[y > 0]
+	x = x[y[:len( x )] > 0]
 	y = y[y > 0]
-	poly = np.poly1d( np.polyfit( x, y, deg ) )
+	
+	if offset > 0:
+		poly = np.poly1d( np.polyfit( x[:-offset], y[:-offset], deg ) )
+		
+	else:
+		poly = np.poly1d( np.polyfit( x, y, deg ) )
 
 	return poly, x
 
