@@ -180,20 +180,20 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "3) 1 x erosion {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 erode',canny1_fixed)
 
-	shape = ( 7, 12 )
+	shape = ( 8, 12 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
 	if display:
 		cv2.imshow( "4) Open {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
 	
-	shape = ( 1, 10 )
+	shape = ( 1, 20 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
 		cv2.imshow( "5) 1 x dilation {}x{} | finished".format( *shape ), canny1_fixed )
 	
-	shape = ( 5, 7 )
+	shape = ( 5, 13 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:

@@ -26,11 +26,12 @@ TIME_FIX = timedelta( hours = 3 )  # the internal fix for the time
 
 PIX_PER_MM = 8.498439767625596
 # CROP_AREA = ( 84, 250, 1280, 715 )
-CROP_AREA = ( 32, 425, 1180, 580 )
+CROP_AREA = ( 32, 425, 1180, 600 )
 BO_REGIONS = [( 0, 70, 165, -1 ), ( 0, 0, -1, 19 )]
 BO_REGIONS.append( ( 0, 0, -1, 30 ) )
 BO_REGIONS.append( ( 0, 60, 20, -1 ) )
 BO_REGIONS.append( ( 0, 0, 15, -1 ) )
+BO_REGIONS.append( ( 980, 0, -1, 46 ) )
 
 
 def fix_fbgData( filename: str ):
@@ -308,7 +309,7 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-19-19_15-02/"
+    directory += "12-19-19_15-27/"
     
     imgfiles = glob.glob( directory + "monofbg_12*.jpg" )
     
