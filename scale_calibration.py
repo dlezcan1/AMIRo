@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import sys
+# import image_processing as img_proc
 
 def load_image(filename):
 	img = cv2.imread(filename, cv2.IMREAD_COLOR)
@@ -11,9 +12,9 @@ def load_image(filename):
 def set_ROI(image):
 	''' Note that origin of images is typically top lefthand corner'''
 	startX = 143
-	endX = image.shape[1] - 140
-	startY = 200
-	endY = image.shape[0] - 100
+	endX = image.shape[1] - 160
+	startY = 150
+	endY = image.shape[0] - 200
 
 	cropped = image[startY:endY, startX:endX]
 
@@ -23,18 +24,23 @@ def process_image(cropped_img):
 	# ## Invert the colors
 	# inverted_img = 255-cropped_img
 
+	cropped_img = cv2.bilateralFilter(cropped_img, 11, 55, 75)
 	# ## Closing to get rid of artifacts
 	# kernel = np.ones((5,5))
 	thresh = 200
 	# temp = cv2.morphologyEx(inverted_img, cv2.MORPH_CLOSE, kernel)
 
 	# orig_color = 255-temp
-	orig_color = np.copy(cropped_img)
+	# orig_color = np.copy(cropped_img)
 
-	orig_color[orig_color > thresh] = 255
-	orig_color[orig_color <= thresh] = 0
+	# orig_color[orig_color > thresh] = 255
+	# orig_color[orig_color <= thresh] = 0
 
-	result = orig_color
+	# result = orig_color
+	result = cropped_img
+
+	cv2.imshow('result', result)
+	cv2.waitKey(0)
 	return result
 
 def get_scale(image):
@@ -63,8 +69,8 @@ def get_scale(image):
 
 		avg_per_col[c] = dist_sum/(num_rows-1)
 
-	# print('avg_per_row: %s' % avg_per_row)
-	# print('avg_per_col: %s' % avg_per_col)
+	print('avg_per_row: %s' % avg_per_row)
+	print('avg_per_col: %s' % avg_per_col)
 
 	avg_pixels_per_mm = np.mean(np.hstack((avg_per_row, avg_per_col)))/10.
 	print('avg_pixels_per_mm: %s' % avg_pixels_per_mm)
@@ -73,7 +79,7 @@ def get_scale(image):
 
 def check_scale(image, pixels_per_mm):
 	## Find the circles in the image
-	circles = cv2.HoughCircles(image, cv2.HOUGH_GRADIENT, 2, 100)
+	circles = cv2.HoughCircles(image, cv2.HOUGH_GRADIENT, 2, 20)
 	ref_radius = 5.
 
 	## compute the error
@@ -88,7 +94,7 @@ def check_scale(image, pixels_per_mm):
 
 def main():
 	# filename = argv[0]
-	filename = 'scaling_calibration_10-23-2019.png'
+	filename = 'scaling_calibration_11-4-2019.png'
 	directory = 'Test Images/'
 
 	img, gray_image = load_image(directory + filename)
@@ -106,18 +112,14 @@ def main():
 	## draw circles on image
 	check_img = set_ROI(img)
 	for c in circles:
+		print(c[2])
 		radius = np.round(c[2]).astype('int')
 		cv2.circle(check_img, (c[0],c[1]), radius, (0,255,0), 2)
 	
-	# cv2.imwrite('output/' + filename + '_gray.png', gray_image)
+	cv2.imwrite('output/' + filename + '_gray.png', gray_image)
 	cv2.imwrite('output/' + filename + '_cropped.png', crop_img)
 	# cv2.imwrite('output/' + filename + '_processed.png', proc_img)
 	cv2.imwrite('output/' + filename + '_circle-check.png', check_img)
-	# cv2.imwrite('output/' + filename + '_dilated.png', img_dilated)
-	# cv2.imwrite('output/' + filename + '_eroded.png', img_eroded)
-	# cv2.imwrite('output/' + filename + '_centerline.png', centerline_img)
-	# cv2.imwrite('output/' + filename + '_centerline.png', img_circles)
-	# cv2.imwrite('output/' + filename + '_compare.png', stitched_img)
 
 if __name__ == '__main__':
 	main()

@@ -1,0 +1,15 @@
+near tip holder: 10 mm
+
+
+curvature holder (middle)
+40 mm: depths 1-3mm 1mm/trial 
+
+
+50 mm: depths 1-3mm 1mm/trial 
+
+
+60 mm: depths 1-3mm 1mm/trial 
+
+
+filename for data images:
+#tip_#middle_#depth.png
