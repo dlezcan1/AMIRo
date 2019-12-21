@@ -165,7 +165,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "1) Closed {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_close',canny1_fixed)
 
-	shape = ( 9, 15 )
+	shape = ( 9, 20 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
@@ -187,13 +187,13 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "4) Open {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
 	
-	shape = ( 1, 20 )
+	shape = ( 1, 25 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
 		cv2.imshow( "5) 1 x dilation {}x{} | finished".format( *shape ), canny1_fixed )
 	
-	shape = ( 5, 13 )
+	shape = ( 5, 3 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
@@ -445,7 +445,7 @@ def fit_circle_raw_curvature( y, x, x_int, width: float ):
 # fit_circle_raw_curvature
 	
 
-def fit_circle_curvature( p, x, x_int, width: float ):
+def fit_circle_curvature( p, x, x_int, width: float , dx: float = -1):
 	""" Function to find the curvature of a function by circle fitting
 	
 		@param p: the polynomial of the curve
@@ -462,7 +462,18 @@ def fit_circle_curvature( p, x, x_int, width: float ):
 	
 	k = []
 	for xi in x_int:
-		x_window = x[np.abs( x - xi ) <= width]
+		if dx > 0:
+			xlow = max([xi - width, x.min()])
+			xhi = min([xi + width, x.max()])
+			x_window = np.arange(xlow, xhi, dx)
+		
+		# if
+		
+		else:
+			x_window = x[np.abs( x - xi ) <= width]
+		
+		# else
+		
 		y_window = p( x_window )
 		
 		xm = np.mean( x_window )
@@ -536,7 +547,7 @@ def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 # find_active_areas_poly
 
 
-def plot_func_image( img, func, x ):
+def plot_func_image( img, func, x , intf = plt):
 	y = func( x )
 	tempfile = "../Output/temporary_img.png"
 	result = cv2.imwrite( tempfile, img )
@@ -547,9 +558,9 @@ def plot_func_image( img, func, x ):
 	img = plt.imread( tempfile )
 	os.remove( tempfile )
 	
-	plt.imshow( img , cmap = "gray" )
-	plt.plot( x, y , 'r-' )
-	plt.title( "Plot of function on image" )
+	intf.imshow( img , cmap = "gray" )
+	intf.plot( x, y , 'r-' )
+	#intf.title( "Plot of function on image" )
 # 	plt.show()
 	
 # plot_func_image

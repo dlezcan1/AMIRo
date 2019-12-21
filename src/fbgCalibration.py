@@ -213,9 +213,24 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     """ Method to get curvature @ the active areas & output to data file."""
     global PIX_PER_MM, CROP_AREA, BO_REGIONS
     
+    smooth_iter = 1 
+    smooth_win = 10  # px
+    curv_dx = 0.1  # px
+    circ_win = 5  # mm
+    
+    print( 75 * '=' )
+    print( ( "Configuatation:\n",
+           f"Curvature Determination Type: Circle fitting to polynomial\n"
+           f"Circle Fitting Window: {circ_win} mm\n",
+           f"Curvature interpolation size: {curv_dx}px\n",
+           f"Smoothing Window size: {smooth_win}\n",
+           f"Smoothing iterations: {smooth_iter}\n"
+           ) )
+    print( 75 * '=' )
+    
     img, gray_img = imgp.load_image( filename )
     
-    gray_img = imgp.saturate_img( gray_img, 1.4, 15 )
+    gray_img = imgp.saturate_img( gray_img, 1.4, 14 )
     crop_img = imgp.set_ROI_box( gray_img, CROP_AREA )
     print( BO_REGIONS )
     canny_img = imgp.canny_edge_detection( crop_img, display, BO_REGIONS )
@@ -232,13 +247,25 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     # if
     
-    poly, x = imgp.fit_polynomial( skeleton, 15 )
+    poly, x = imgp.fit_polynomial( skeleton, 4 )
     x = np.sort( x )  # sort the x's  (just in case)
     
-    plt.figure()
+    fig, axs = plt.subplots( 2 )
+    fig.suptitle( filename )
     mng = plt.get_current_fig_manager()
     mng.full_screen_toggle()
-    imgp.plot_func_image( crop_img, poly, x )
+    imgp.plot_func_image( crop_img, poly, x, axs[0] )
+    
+    curv_plot = imgp.fit_circle_curvature( poly, x, x, circ_win * PIX_PER_MM, dx = curv_dx )
+    smooth_curv_plot = imgp.smooth_data( curv_plot, smooth_win, smooth_iter )
+    axs[1].plot( x, curv_plot, label = "Circle-Poly, no smooth" )
+    axs[1].plot( x, smooth_curv_plot, label = "Circle-Poly, smooth" )
+    axs[1].legend()
+    axs[1].set( xlabel = 'x (mm)', ylabel = 'curvature (1/mm)' )
+    
+#     axs[1].xlabel( "x (mm)" )
+#     axs[1].ylabel( "curvature \kappa (1/mm)" )
+#         
     plt.show()
     
     k = input( "Does this plot look ok to proceed? (y/n) " )
@@ -254,7 +281,8 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     ub = x.max()
     x_active = imgp.find_active_areas( x0, poly, active_areas, PIX_PER_MM, lb, ub )
 
-    curvature = imgp.fit_circle_curvature( poly, x, x_active, 20 * PIX_PER_MM )
+    curvature = imgp.fit_circle_curvature( poly, x, x_active, circ_win * PIX_PER_MM, dx = curv_dx )
+    curvature = imgp.smooth_data( curvature, smooth_win, smooth_iter )
     x_active = np.array( x_active ).reshape( -1 )
     
     outfile = '.'.join( filename.split( '.' )[:-1] ) + '.txt'
@@ -264,6 +292,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     print( "Completed curvature analysis." )
     
+    return -1
     with open( outfile, 'w+' ) as writestream:
         writestream.write( "Curvature of the needle @ the active areas.\n" )
         
@@ -302,35 +331,36 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
 
 
 def main():
-    skip_curv = True
+    skip_curv = False
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-19-19_15-27/"
+    directory += "12-19-19_12-32/"
     
-    imgfiles = glob.glob( directory + "monofbg_12*.jpg" )
+    imgfiles = glob.glob( directory + "mono_001*.jpg" )
+    imgfiles = [directory + "mono_0012.jpg"]
     
     img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
     
     for imgf in imgfiles:
-        mon, day, yr, hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
-        curv_file = directory + f"curvature_monofbg_{mon}-{day}-{yr}_{hr}-{mn}-{sec}.{ns}.txt"
-        if skip_curv and not os.path.exists( curv_file ):
+#         mon, day, yr, hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
+#         curv_file = directory + f"curvature_monofbg_{mon}-{day}-{yr}_{hr}-{mn}-{sec}.{ns}.txt"
+        if not skip_curv :  # or not os.path.exists( curv_file ):
             
             print( "Processing file:" , imgf )
     #         str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
     #         ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
     #         print( ts )
             
-            get_curvature_image( imgf, active_areas, length, True )
+            get_curvature_image( imgf, active_areas, length, False )
             print()
         # if
         
-        else:
-            print( f"Curvature file exists '{curv_file}'.\n" )
+#         else:
+#             print( f"Curvature file exists '{curv_file}'.\n" )
     # for
         
 # main
