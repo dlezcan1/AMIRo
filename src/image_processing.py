@@ -165,7 +165,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "1) Closed {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_close',canny1_fixed)
 
-	shape = ( 9, 20 )
+	shape = ( 9, 10 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
@@ -187,13 +187,14 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		cv2.imshow( "4) Open {}x{}".format( *shape ), canny1_fixed )
 	# cv2.imshow('canny1 morph_open',canny1_fixed)
 	
-	shape = ( 1, 25 )
+	shape = ( 1, 35 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
 	if display:
 		cv2.imshow( "5) 1 x dilation {}x{} | finished".format( *shape ), canny1_fixed )
 	
-	shape = ( 5, 3 )
+# 	shape = ( 5, 25 ) # for not on the tip
+	shape = ( 5, 3 ) # for on the tip
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
