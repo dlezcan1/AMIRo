@@ -433,13 +433,37 @@ def main_test():
     e1 = np.array( [1, 0, 0] )
     e2 = np.array( [0, 1, 0] )
     root_path = "../FBG_Needle_Calibration_Data/needle_1/"
-    folder_CH1 = root_path + "12-19-19_12-32/"
+    # folder_CH1 = root_path + "12-19-19_12-32/"
+    # folder_CH2 = root_path + "12-19-19_15-02/"
+    # folder_CH3 = root_path + "12-19-19_15-27/"
+    folder_CH1 = root_path + "12-20-19_14-04/"
+    folder_CH2 = root_path + "12-20-19_15-16/"
+    folder_CH3 = root_path + "12-20-19_15-43/"
 
-    rawFBG_list, avgFBG, baseline = process_fbg(folder_CH1)
-    np.savetxt(folder_CH1 + "rawFBGdata.csv", np.asarray(rawFBG_list).reshape((-1,10)))
+    # curvature_CH1 = load_curvature(folder_CH1)
+    # curvature_CH2 = load_curvature(folder_CH2)
+    # curvature_CH3 = load_curvature(folder_CH3)
 
-    deltaFBG_CH1 = wavelength_shift(avgFBG, baseline)
+    # curv_vect_CH1 = get_curvature_vectors(curvature_CH1, e2)
+    # curv_vect_CH2 = get_curvature_vectors(curvature_CH2, e1)
+    # curv_vect_CH3 = get_curvature_vectors(curvature_CH3, -e2)
+    # np.savetxt(folder_CH1 + "curvature.csv", np.hstack((curv_vect_CH1[1], curv_vect_CH1[2], curv_vect_CH1[3])))
+    # np.savetxt(folder_CH2 + "curvature.csv", np.hstack((curv_vect_CH2[1], curv_vect_CH2[2], curv_vect_CH2[3])))
+    # np.savetxt(folder_CH3 + "curvature.csv", np.hstack((curv_vect_CH3[1], curv_vect_CH3[2], curv_vect_CH3[3])))
+
+    rawFBG_list1, avgFBG1, baseline1 = process_fbg(folder_CH1)
+    rawFBG_list2, avgFBG2, baseline2 = process_fbg(folder_CH2)
+    rawFBG_list3, avgFBG3, baseline3 = process_fbg(folder_CH3)
+    np.savetxt(folder_CH1 + "rawFBGdata.csv", np.asarray(rawFBG_list1).reshape((-1,10)))
+    np.savetxt(folder_CH2 + "rawFBGdata.csv", np.asarray(rawFBG_list2).reshape((-1,10)))
+    np.savetxt(folder_CH3 + "rawFBGdata.csv", np.asarray(rawFBG_list3).reshape((-1,10)))
+
+    deltaFBG_CH1 = wavelength_shift(avgFBG1, baseline1)
+    deltaFBG_CH2 = wavelength_shift(avgFBG2, baseline2)
+    deltaFBG_CH3 = wavelength_shift(avgFBG3, baseline3)
     np.savetxt(folder_CH1 + "wavelength_shift.csv", deltaFBG_CH1)
+    np.savetxt(folder_CH2 + "wavelength_shift.csv", deltaFBG_CH2)
+    np.savetxt(folder_CH3 + "wavelength_shift.csv", deltaFBG_CH3)
 
 if __name__ == '__main__':
     # main()
