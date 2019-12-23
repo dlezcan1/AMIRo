@@ -20,9 +20,10 @@ from PIL.ImageOps import crop
 from image_processing import get_centerline
 import cv2
 from matplotlib.testing.jpl_units import sec
+import xlsxwriter
 
 TIME_FMT = "%H-%M-%S.%f"
-TIME_FIX = timedelta( hours = 3 )  # the internal fix for the time
+TIME_FIX = timedelta( hours = 0 )  # the internal fix for the time
 
 PIX_PER_MM = 8.498439767625596
 # CROP_AREA = ( 84, 250, 1280, 715 )
@@ -131,7 +132,9 @@ def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
             
             ts, datastring = line.split( ':' )
             ts = datetime.strptime( ts, TIME_FMT ) + TIME_FIX
-            timestamps = np.append( timestamps, ts )
+            t0 = datetime( ts.year, ts.month, ts.day )
+            dt = ( ts - t0 ).total_seconds()
+            timestamps = np.append( timestamps, dt )
             data = np.fromstring( datastring, sep = ',' , dtype = float )
             
             if len( data ) == 3 * num_active_areas:  # all active areas measured
@@ -352,6 +355,109 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
 # get_curvature_image
 
 
+def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
+    """ Process fbgdata text files """
+    time_fmt = 'fbgdata_%h'
+    col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    
+    outfile = directory + 'fbgdata.xlsx'
+    fbgfiles = glob.glob( directory + filefmt )
+    
+    workbook = xlsxwriter.Workbook( outfile )
+    result = workbook.add_worksheet( "Summary" )
+    
+    header = ["time (s)",
+              "CH1 | AA1", "CH1 | AA2", "CH1 | AA3",
+              "CH2 | AA1", "CH2 | AA2", "CH2 | AA3",
+              "CH3 | AA1", "CH3 | AA2", "CH3 | AA3" ]
+    
+    # excel formulas
+    mean_form = "=AVERAGE({0}1:{0}{1})"
+    std_form = "=_xlfn.STDEV.S({0}1:{0}{1})"
+    min_form = "=MIN({0}1:{0}{1})"
+    max_form = "=MAX({0}1:{0}{1})"
+    vlookup_form = "=VLOOKUP(\"{form}\",'{sheet}'!A1:{lcol}{lrow},{idx},FALSE)"
+    
+    vlookup_data = []
+    for file in fbgfiles:
+        vl_d = {}
+        
+        # file formatting
+        file = file.replace( '\\', '/' )
+        vl_d['sheet'] = file[:-4].split( '/' )[-1]
+        
+        # header processing
+        worksheet = workbook.add_worksheet( vl_d['sheet'] )
+        worksheet.write_row( 0, 0, header )
+        ts, fbgdata = read_fbgData( file, 3 )
+        vl_d['time'] = ts[0]  # in seconds
+        
+        col_head = np.append( ts, ['Average', 'StdDev', 'Min', 'Max'] )
+        worksheet.write_column( 1, 0, col_head )
+        rowidx_start = 1
+        
+        Nrows, Ncols = fbgdata.shape
+
+        # write the data matrix
+        for row_idx, data in enumerate( fbgdata ):
+            worksheet.write_row( rowidx_start + row_idx, 1, data )
+    
+        # for
+        
+        # formulas to write
+        mean_formula = [mean_form.format( c, Nrows + 1 ) for c in col_letts[1:Ncols + 1]]
+        std_formula = [std_form.format( c, Nrows + 1 ) for c in col_letts[1:Ncols + 1]]
+        min_formula = [min_form.format( c, Nrows + 1 ) for c in col_letts[1:Ncols + 1]]
+        max_formula = [max_form.format( c, Nrows + 1 ) for c in col_letts[1:Ncols + 1]]
+        
+        # write the formulas
+        for form_idx, form_row in enumerate( [mean_formula, std_formula, min_formula, max_formula] ):
+            worksheet.write_row( rowidx_start + row_idx + 1 + form_idx , 1, form_row )
+            
+        # for
+        
+        vl_d['lrow'] = rowidx_start + row_idx + 1 + form_idx + 1
+        vl_d['lcol'] = col_letts[Ncols + 1]
+        
+        vlookup_data.append( vl_d )
+    # for
+    
+    # process the results worksheet
+    i = 2
+    result_header1 = header.copy()
+    while i < len( result_header1 ):
+        result_header1.insert( i, '' )
+        i += 2
+        
+    # while
+    
+    result_header2 = 9 * ['Average (nm)', 'STD (nm)']
+    result.write_row( 0, 0, result_header1 )
+    result.write_row( 1, 1, result_header2 )
+    rowstart_idx = 2
+    
+    for vl_idx, vl in enumerate( vlookup_data ):
+        result.write( rowstart_idx + vl_idx, 0, vl['time'] )
+        
+        # get the average and std rows
+        write_avg = [vlookup_form.format( idx = jj, form = 'Average', **vl ) for jj in range( 2, 11 )]
+        write_std = [vlookup_form.format( idx = jj, form = 'StdDev', **vl ) for jj in range( 2, 11 )]
+         
+        # co-mingle the values
+        write_val = write_std.copy()
+        for idx, avg in enumerate( write_avg ):
+            write_val.insert( 2 * idx, avg )
+            
+        # for
+        
+        result.write_row( rowstart_idx + vl_idx, 1, write_val )
+            
+    # for
+    workbook.close()
+    
+# process_fbgdata_directory
+
+
 def main():
     skip_prev = True
     show_imgp = False
@@ -396,7 +502,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+#     main()
+    directory = "../FBG_Needle_Calibration_Data/needle_1/"
+    directory = directory + "12-23-19_13-28/"
+    process_fbgdata_directory( directory )
     
     print( "Program has terminated." )
     
