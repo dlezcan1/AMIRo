@@ -1,0 +1,22 @@
+Experiment Description
+CH1 on Top, 0 deg Rotation
+1st jig @ tip
+2nd jig @ 45mm from tip
+Trial 3
+
+Image Description
+00: No Deflection @ tip, touching
+01: 1mm deflection @ tip
+02: 2mm deflection @ tip
+03: 3mm deflection @ tip
+04: 4mm deflection @ tip
+05: 5mm deflection @ tip
+06: 6mm deflection @ tip
+07: 5mm deflection @ tip
+08: 4mm deflection @ tip
+09: 3mm deflection @ tip
+10: 2mm deflection @ tip
+11: 1mm deflection @ tip
+12: No Deflection @ tip, touching
+
+
