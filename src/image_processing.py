@@ -193,8 +193,8 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 	if display:
 		cv2.imshow( "5) 1 x dilation {}x{} | finished".format( *shape ), canny1_fixed )
 	
-# 	shape = ( 5, 25 ) # for not on the tip
-	shape = ( 5, 3 ) # for on the tip
+	shape = ( 5, 25 )  # for not on the tip
+# 	shape = ( 5, 3 ) # for on the tip
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
 	if display:
@@ -446,7 +446,7 @@ def fit_circle_raw_curvature( y, x, x_int, width: float ):
 # fit_circle_raw_curvature
 	
 
-def fit_circle_curvature( p, x, x_int, width: float , dx: float = -1):
+def fit_circle_curvature( p, x, x_int, width: float , dx: float = -1 ):
 	""" Function to find the curvature of a function by circle fitting
 	
 		@param p: the polynomial of the curve
@@ -464,9 +464,9 @@ def fit_circle_curvature( p, x, x_int, width: float , dx: float = -1):
 	k = []
 	for xi in x_int:
 		if dx > 0:
-			xlow = max([xi - width, x.min()])
-			xhi = min([xi + width, x.max()])
-			x_window = np.arange(xlow, xhi, dx)
+			xlow = max( [xi - width, x.min()] )
+			xhi = min( [xi + width, x.max()] )
+			x_window = np.arange( xlow, xhi, dx )
 		
 		# if
 		
@@ -481,7 +481,7 @@ def fit_circle_curvature( p, x, x_int, width: float , dx: float = -1):
 		ym = np.mean( y_window )
 		
 		calcdist = lambda xc, yc: np.sqrt( ( x_window - xc ) ** 2 + ( y_window - yc ) ** 2 )
-		costfn = lambda c: np.abs( calcdist( *c ) - np.mean( calcdist( *c ) ) )
+		costfn = lambda c: np.abs( calcdist( *c ) - np.mean( calcdist( *c ) ) ) 
 		
 		c2, ier = leastsq( costfn , ( xm, ym ) )
 		R = np.mean( calcdist( *c2 ) )
@@ -548,7 +548,7 @@ def find_active_areas_poly( centerline_img, poly, pix_per_mm ):
 # find_active_areas_poly
 
 
-def plot_func_image( img, func, x , intf = plt):
+def plot_func_image( img, func, x , intf = plt ):
 	y = func( x )
 	tempfile = "../Output/temporary_img.png"
 	result = cv2.imwrite( tempfile, img )
@@ -561,7 +561,7 @@ def plot_func_image( img, func, x , intf = plt):
 	
 	intf.imshow( img , cmap = "gray" )
 	intf.plot( x, y , 'r-' )
-	#intf.title( "Plot of function on image" )
+	# intf.title( "Plot of function on image" )
 # 	plt.show()
 	
 # plot_func_image

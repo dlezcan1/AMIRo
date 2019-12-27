@@ -13,14 +13,14 @@ import os.path
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import glob, re
-import time  # for debugging purposes
-import warnings
 import image_processing as imgp
 from PIL.ImageOps import crop
 from image_processing import get_centerline
 import cv2
 from matplotlib.testing.jpl_units import sec
 import xlsxwriter
+import calibrationMatrix as calmat
+from scipy import interpolate
 
 TIME_FMT = "%H-%M-%S.%f"
 TIME_FIX = timedelta( hours = 0 )  # the internal fix for the time
@@ -33,6 +33,53 @@ BO_REGIONS.append( ( 0, 0, -1, 30 ) )
 BO_REGIONS.append( ( 0, 60, 20, -1 ) )
 BO_REGIONS.append( ( 0, 0, 15, -1 ) )
 BO_REGIONS.append( ( 980, 0, -1, 46 ) )
+
+
+def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
+    """ Function to load the curvature data. """
+    global  TIME_FMT
+    curv_files = glob.glob( directory + filefmt )
+    timefmt = "%m-%d-%Y_" + TIME_FMT
+    pattern = "([0-9]+)-([0-9]+)-([0-9]+)_([0-9]+)-([0-9]+)-([0-9]+).([0-9]+).txt"
+    
+    curv_data = np.empty( ( 0, 4 ) )
+    
+    for file in curv_files:
+        data = np.empty( 0 )
+        mon, day, yr, hr, minutes, sec, ns = re.search( pattern, file ).groups()
+        ms = ns[:-3]
+        ts_str = '-'.join( [mon, day, yr] ) + '_' + '-'.join( [hr, minutes, sec] ) + "." + ms
+        ts = datetime.strptime( ts_str, timefmt )
+        t0 = datetime( ts.year, ts.month, ts.day ) 
+        dt = ( ts - t0 ).total_seconds()
+        data = np.append( data, dt )
+        
+        with open( file, 'r' ) as readstream:
+            for line in readstream:
+                s = line.split( ':' )
+                
+                if len( s ) != 2:
+                    continue
+                
+                else:
+                    desc, d = s
+                    
+                if desc == "Curvatures (1/mm)":
+                    curvature = np.fromstring( d, sep = ',' , dtype = float )
+                    data = np.append( data, curvature )
+                    break
+                
+                # if
+            # for
+        # with
+        
+        curv_data = np.vstack( ( curv_data, data ) )
+        
+    # for
+    
+    return curv_data
+
+# load_curvature
 
 
 def fix_fbgData( filename: str ):
@@ -216,8 +263,8 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     """ Method to get curvature @ the active areas & output to data file."""
     global PIX_PER_MM, CROP_AREA, BO_REGIONS
     
-    smooth_iter = 2 
-    smooth_win = 20  # px
+    smooth_iter = 1 
+    smooth_win = 25  # px
     curv_dx = 0.5  # px
     circ_win = 10  # mm
     
@@ -225,7 +272,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
            f"Curvature Determination Type: Circle fitting to polynomial",
            f"Circle Fitting Window: {circ_win} mm",
            f"Curvature interpolation size: {curv_dx}px",
-           f"Smoothing Window size: {smooth_win}",
+           f"Smoothing Window size: {smooth_win} px",
            f"Smoothing iterations: {smooth_iter}"
            ) )
     
@@ -252,7 +299,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     # if
     
-    poly, x = imgp.fit_polynomial( skeleton, 4 )
+    poly, x = imgp.fit_polynomial( skeleton, 3 )
     xc, yc = imgp.xycenterline( skeleton )
     x = np.sort( x )  # sort the x's  (just in case)
     
@@ -269,7 +316,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     curv_plot = imgp.fit_circle_curvature( poly, x, x, circ_win * PIX_PER_MM, dx = curv_dx )
     
     # get the curvature along the image using raw xy-centerline
-    curv_plot = imgp.fit_circle_raw_curvature( yc, xc, xc, circ_win * PIX_PER_MM )
+#     curv_plot = imgp.fit_circle_raw_curvature( yc, xc, xc, circ_win * PIX_PER_MM )
     
     # smooth the data
     smooth_curv_plot = imgp.smooth_data( curv_plot, smooth_win, smooth_iter )
@@ -280,7 +327,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     axs[1].set( xlabel = 'x (mm)', ylabel = 'curvature (1/mm)' )
     
     plt.show()
-    return -1
+    
     k = input( "Does this plot look ok to proceed? (y/n) " )
     if k.lower() == 'n':
         print( "Not continuing with the curvature analysis." )
@@ -301,11 +348,11 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     lb = x.min()
     ub = x.max()
     x_active = imgp.find_active_areas( x0, poly, active_areas, PIX_PER_MM, lb, ub )
+    x_active = np.array( x_active ).reshape( -1 )
 
     # find the curvature at the active areas
-    curvature = imgp.fit_circle_curvature( poly, x, x_active, circ_win * PIX_PER_MM, dx = curv_dx )
-    curvature = imgp.smooth_data( curvature, smooth_win, smooth_iter )
-    x_active = np.array( x_active ).reshape( -1 )
+    curv_interp = interpolate.interp1d( x, curv_plot )
+    curvature = curv_interp( x_active )
     
     # result file name processing
     outfile = '.'.join( filename.split( '.' )[:-1] ) + '.txt'
@@ -357,7 +404,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
 
 def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
     """ Process fbgdata text files """
-    time_fmt = 'fbgdata_%h'
+#     time_fmt = 'fbgdata_%h'
     col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     
     outfile = directory + 'fbgdata.xlsx'
@@ -458,8 +505,42 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
 # process_fbgdata_directory
 
 
+def process_curvature_directory( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
+    """ Function to parse the curvature directory as to an Excel file."""
+    col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    
+    # get files and output file
+    outfile = directory + 'curvature_data.xlsx'
+#     curvfiles = glob.glob( directory + filefmt ) # not needed, implmented in function already
+    
+    # get the Excel workbook open
+    workbook = xlsxwriter.Workbook( outfile )
+    result = workbook.add_worksheet( "Summary" )
+    
+    # write the header to the file
+    header = ["time (s)", "AA1 Curvature (1/mm)", "AA2 Curvature (1/mm)",
+              "AA3 Curvature (1/mm)"]
+    result.write_row( 0, 0, header )
+    row_start_idx = 1
+    
+    # get the curvature data
+    curv_data = load_curvature( directory )
+    
+    # write the curvature data to the file
+    for idx, row in enumerate( curv_data ):
+        result.write_row( idx + row_start_idx, 0, row )
+        
+    # for
+    
+    # close and save the excel workbook
+    workbook.close()
+    print( f"Summary file written: '{outfile}'" )
+
+# process_curvature_directory
+
+
 def main():
-    skip_prev = True
+    skip_prev = False
     show_imgp = False
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
@@ -467,10 +548,10 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-19-19_15-27/"
+    directory += "12-23-19_12-52/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
-    imgfiles = [directory + "mono_0000.jpg"]
+#     imgfiles = [directory + "mono_0012.jpg"] # for testing
     
     img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
     
@@ -504,8 +585,9 @@ def main():
 if __name__ == '__main__':
 #     main()
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    directory = directory + "12-23-19_13-28/"
-    process_fbgdata_directory( directory )
+    directory = directory + "12-23-19_12-52/"
+#     process_fbgdata_directory( directory )
+    process_curvature_directory( directory )
     
     print( "Program has terminated." )
     
