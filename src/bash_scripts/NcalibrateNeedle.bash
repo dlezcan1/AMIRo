@@ -13,6 +13,8 @@ done
 
 mkdir -p $outdir
 
-(trap 'kill 0' SIGINT;
-./getFBGPeaks.py "-d$outdir " $@ &
-./recordSingleImage $outdir )
+(trap 'break' SIGINT;
+./rundatacollection.bash $outdir $@
+)
+
+./addTimeStamps.bash "$outdir"
