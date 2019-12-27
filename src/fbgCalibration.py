@@ -318,9 +318,17 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     axs[1].legend()
     axs[1].set( xlabel = 'x (mm)', ylabel = 'curvature (1/mm)' )
     
-    plt.show()
+    if display:
+        k = 'input( "Does this plot look ok to proceed? (y/n) " )'
+        plt.show()
     
-    k = input( "Does this plot look ok to proceed? (y/n) " )
+    # if
+    
+    else:
+        k = 'y'
+        
+    # else
+        
     if k.lower() == 'n':
         print( "Not continuing with the curvature analysis." )
         return -1
@@ -332,6 +340,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     outfig = filename[:idx] + '_processed.png'
     del( idx )
     fig.savefig( outfig )
+    plt.close( 'all' )
     
     print( "Continuing with the curvature analysis." )
     
@@ -532,7 +541,7 @@ def process_curvature_directory( directory: str, filefmt: str = "curvature_monof
 
 
 def main():
-    skip_prev = False
+    skip_prev = True
     show_imgp = False
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
@@ -540,7 +549,7 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-23-19_13-28/"
+    directory += "12-27-19_13-09/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
 #     imgfiles = [directory + "mono_0012.jpg"] # for testing
@@ -579,7 +588,7 @@ def main():
 if __name__ == '__main__':
     main()
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    directory = directory + "12-23-19_13-16/"
+    directory = directory + "12-27-19_13-09/"
 #     process_fbgdata_directory( directory )
 #     process_curvature_directory( directory )
     
