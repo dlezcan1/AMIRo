@@ -7,19 +7,12 @@ Created on Dec 6, 2019
           incorporating the image and FBG data when needle calibration is 
           performed.
 '''
-
+import glob, re, cv2, xlsxwriter, os.path
 import numpy as np
-import os.path
-from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-import glob, re
-import image_processing as imgp
-from PIL.ImageOps import crop
-from image_processing import get_centerline
-import cv2
-from matplotlib.testing.jpl_units import sec
-import xlsxwriter
 import calibrationMatrix as calmat
+import image_processing as imgp
+from datetime import datetime, timedelta
 from scipy import interpolate
 
 TIME_FMT = "%H-%M-%S.%f"
@@ -284,7 +277,6 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     gray_img = imgp.saturate_img( gray_img, 1.4, 14 )
     crop_img = imgp.set_ROI_box( gray_img, CROP_AREA )
-    print( BO_REGIONS )
     canny_img = imgp.canny_edge_detection( crop_img, display, BO_REGIONS )
     
     skeleton = imgp.get_centerline ( canny_img )
@@ -351,7 +343,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     x_active = np.array( x_active ).reshape( -1 )
 
     # find the curvature at the active areas
-    curv_interp = interpolate.interp1d( x, curv_plot )
+    curv_interp = interpolate.interp1d( x, smooth_curv_plot )
     curvature = curv_interp( x_active )
     
     # result file name processing
@@ -548,7 +540,7 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-23-19_12-52/"
+    directory += "12-23-19_13-28/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
 #     imgfiles = [directory + "mono_0012.jpg"] # for testing
@@ -578,16 +570,18 @@ def main():
 #         else:
 #             print( f"Curvature file exists '{curv_file}'.\n" )
     # for
+    
+    process_curvature_directory( directory )
         
 # main
 
 
 if __name__ == '__main__':
-#     main()
+    main()
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    directory = directory + "12-23-19_12-52/"
+    directory = directory + "12-23-19_13-16/"
 #     process_fbgdata_directory( directory )
-    process_curvature_directory( directory )
+#     process_curvature_directory( directory )
     
     print( "Program has terminated." )
     
