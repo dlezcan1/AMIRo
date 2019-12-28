@@ -109,4 +109,4 @@ venv.bak/
 # data that are just too big
 FBG_Needle_Calibration_Data/needle_1/12-09-19*
 !FBG_Needle_Calibration_Data/needle_1/*.zip
-
+FBG_Needle_Calibration_Data/*/~*.xlsx
