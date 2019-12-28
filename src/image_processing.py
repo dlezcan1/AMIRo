@@ -128,7 +128,7 @@ def blackout_regions( img, regions: list ):
 
 
 def canny_edge_detection( image, display: bool = False , bo_regions: list = None ):
-	thresh1 = 215
+	thresh1 = 150
 	thresh2 = 255
 	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
 	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
@@ -143,70 +143,86 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 	canny1 = cv2.Canny( img, thresh1, thresh2 )
 	if display:
 		cv2.imshow( "0) Raw canny", canny1 ) 
+		step = 1
 		
-	# cv2.imshow('canny1 before',canny1)
+	# if
 
-	# # Remove (pre-determined for simplicity in this code) artifacts manually
-	# # I plan to make this part of the algorithm to be incorproated into GUI
-# 	canny1[bor1[2]:bor1[3], bor1[0]:bor1[1]] = 0
-# 	canny1[bor2[2]:bor2[3], bor2[0]:bor2[1]] = 0
-	# cv2.imshow('canny1 after',canny1)
-	# cv2.waitKey(0)
-	
 	if bo_regions:
 		canny1 = blackout_regions( canny1, bo_regions )
 	
+# 	shape = ( 3, 1 )
+# 	iters = 1
+# 	kernel = gen_kernel( shape )
+# 	canny1 = cv2.dilate( canny1, kernel, iterations = iters )
+# 	if display:
+# 		cv2.imshow( "{}) {} x Dilated {}x{}".format( step, iters, *shape ), canny1 )
+# 		step += 1
+# 		
+# 	# if
+	
 	# worked for black background
-	shape = ( 9, 3 )
+	shape = ( 9, 5 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1, cv2.MORPH_CLOSE, kernel )
 	
 	if display:
-		cv2.imshow( "1) Closed {}x{}".format( *shape ), canny1_fixed )
-	# cv2.imshow('canny1 morph_close',canny1_fixed)
-
+		
+		cv2.imshow( "{}) Closed {}x{}".format( step, *shape ), canny1_fixed )
+		step += 1
+	
+	# if
+	
 	shape = ( 9, 10 )
+	iters = 1
 	kernel = gen_kernel( shape )
-	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
+	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = iters )
 	if display:
-		cv2.imshow( "2) 1 x Dilated {}x{}".format( *shape ), canny1_fixed )
-				
-	# cv2.imshow('canny1 dilate',canny1_fixed)
+		cv2.imshow( "{}) {} x Dilated {}x{}".format( step, iters, *shape ), canny1_fixed )
+		step += 1
+		
+	# if
 	
 	shape = ( 3, 25 )
 	kernel = gen_kernel( shape )
-	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
+	iters = 1
+	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = iters )
 	if display:
-		cv2.imshow( "3) 1 x erosion {}x{}".format( *shape ), canny1_fixed )
-	# cv2.imshow('canny1 erode',canny1_fixed)
+		cv2.imshow( "{}) {} x erosion {}x{}".format( step, iters, *shape ), canny1_fixed )
+		step += 1
+	# if
 
 	shape = ( 8, 12 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
 	if display:
-		cv2.imshow( "4) Open {}x{}".format( *shape ), canny1_fixed )
-	# cv2.imshow('canny1 morph_open',canny1_fixed)
+		cv2.imshow( "{}) Open {}x{}".format( step, *shape ), canny1_fixed )
+		step += 1
+		
+	# if
 	
 	shape = ( 1, 35 )
 	kernel = gen_kernel( shape )
-	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = 1 )
+	iters = 1
+# 	iters = 3 # for off of tip horizontal for some reason
+	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = iters )
 	if display:
-		cv2.imshow( "5) 1 x dilation {}x{} | finished".format( *shape ), canny1_fixed )
+		cv2.imshow( "{}) {} x dilation {}x{} | finished".format( step, iters, *shape ), canny1_fixed )
+		step += 1
+	# if
 	
 	shape = ( 5, 25 )  # for not on the tip
 # 	shape = ( 5, 3 ) # for on the tip
 	kernel = gen_kernel( shape )
-	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = 1 )
+	iters = 1
+	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = iters )
 	if display:
-		cv2.imshow( "6) 1 x erosion {}x{} | finished".format( *shape ), canny1_fixed )
-	# cv2.imshow('canny1 erode2',canny1_fixed)
-	# cv2.waitKey(0)
-
+		cv2.imshow( "{}) {} x erosion {}x{} | finished".format( step, iters, *shape ), canny1_fixed )
+		step += 1
+		
+	# if
+	
 	retval = canny1_fixed
-# 	if display:
-# 		cv2.waitKey( 0 )
-# 		cv2.destroyAllWindows()
-
+	
 	return retval
 
 

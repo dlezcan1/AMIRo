@@ -52,7 +52,7 @@ for file in os.listdir( directory ):
 
 # pick out a particular file
 if True:
-    file = directory + "12-19-19_15-02/mono_0019.jpg"
+    file = directory + "12-27-19_14-32/mono_0006.jpg"
     img = cv2.imread( file, cv2.IMREAD_GRAYSCALE )
     ROI = [84, 250, 1280, 715]  # x_t-left, y_t-left, x_b-right, y_b-right
 #     img = imgp.set_ROI(img, crop_area)

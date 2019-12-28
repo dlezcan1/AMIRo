@@ -25,7 +25,8 @@ BO_REGIONS = [( 0, 70, 165, -1 ), ( 0, 0, -1, 19 )]
 BO_REGIONS.append( ( 0, 0, -1, 30 ) )
 BO_REGIONS.append( ( 0, 60, 20, -1 ) )
 BO_REGIONS.append( ( 0, 0, 15, -1 ) )
-BO_REGIONS.append( ( 980, 0, -1, 46 ) )
+BO_REGIONS.append( ( 980, 0, -1, 40 ) )
+BO_REGIONS.append( ( 0, 0, 560, -1 ) )  # for use only with second jig @ 45 mm from tip
 
 
 def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
@@ -260,6 +261,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     smooth_win = 25  # px
     curv_dx = 0.5  # px
     circ_win = 10  # mm
+    poly_fit = 3
     
     imgpconfig = '\n'.join( ( "Configuatation:",
            f"Curvature Determination Type: Circle fitting to polynomial",
@@ -291,7 +293,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     # if
     
-    poly, x = imgp.fit_polynomial( skeleton, 3 )
+    poly, x = imgp.fit_polynomial( skeleton, poly_fit )
     xc, yc = imgp.xycenterline( skeleton )
     x = np.sort( x )  # sort the x's  (just in case)
     
@@ -319,9 +321,9 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     axs[1].set( xlabel = 'x (mm)', ylabel = 'curvature (1/mm)' )
     
     if display:
-        k = 'input( "Does this plot look ok to proceed? (y/n) " )'
         plt.show()
-    
+        k = input( "Does this plot look ok to proceed? (y/n) " )
+        
     # if
     
     else:
@@ -518,14 +520,19 @@ def process_curvature_directory( directory: str, filefmt: str = "curvature_monof
     workbook = xlsxwriter.Workbook( outfile )
     result = workbook.add_worksheet( "Summary" )
     
+    # get the curvature data
+    curv_data = load_curvature( directory )
+    
+    if 0 in curv_data.shape:
+        return -1  # no data
+    
+    # if
+    
     # write the header to the file
     header = ["time (s)", "AA1 Curvature (1/mm)", "AA2 Curvature (1/mm)",
               "AA3 Curvature (1/mm)"]
     result.write_row( 0, 0, header )
     row_start_idx = 1
-    
-    # get the curvature data
-    curv_data = load_curvature( directory )
     
     # write the curvature data to the file
     for idx, row in enumerate( curv_data ):
@@ -537,25 +544,26 @@ def process_curvature_directory( directory: str, filefmt: str = "curvature_monof
     workbook.close()
     print( f"Summary file written: '{outfile}'" )
 
+    return 0
 # process_curvature_directory
 
 
 def main():
     skip_prev = True
-    show_imgp = False
+    show_imgp = True
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-27-19_13-09/"
+    directory += "12-27-19_14-43/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
-#     imgfiles = [directory + "mono_0012.jpg"] # for testing
+#     imgfiles = [directory + "mono_0006.jpg"]  # for testing
     
     img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
-    
+    retval = 0
     for imgf in imgfiles:
         try:
             mon, day, yr, hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
@@ -568,11 +576,11 @@ def main():
         if not ( skip_prev  and os.path.exists( curv_file ) ):
             
             print( "Processing file:" , imgf )
-    #         str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
-    #         ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
-    #         print( ts )
+#             str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
+#             ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
+#             print( ts )
             
-            get_curvature_image( imgf, active_areas, length, show_imgp )
+            retval += get_curvature_image( imgf, active_areas, length, show_imgp )
             print()
         # if
         
@@ -580,15 +588,20 @@ def main():
 #             print( f"Curvature file exists '{curv_file}'.\n" )
     # for
     
-    process_curvature_directory( directory )
+    if retval >= 0:
+        process_curvature_directory( directory )
+        
+    # if
         
 # main
 
 
 if __name__ == '__main__':
     main()
-    directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    directory = directory + "12-27-19_13-09/"
+    
+    
+#     directory = "../FBG_Needle_Calibration_Data/needle_1/"
+#     directory = directory + "12-27-19_14-32/"
 #     process_fbgdata_directory( directory )
 #     process_curvature_directory( directory )
     

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from hyperion import HCommTCPPeaksStreamer
 
 TIME_FMT = "%H-%M-%S.%f"
-DEFAULT_OUTFILE = "fbgdata_%Y-%m-%d_%H-%M-%S.txt"
+DEFAULT_OUTFILE = "fbgdata_%Y-%m-%d_%H-%M-%S.%f.txt"
 MAX_CHANNELS = 4
 
 parser = argparse.ArgumentParser(description="Function to get FBG data and write to a log file.")
