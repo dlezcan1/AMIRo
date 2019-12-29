@@ -505,6 +505,7 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
             
     # for
     workbook.close()
+    print( 'Wrote fbg data file:', outfile )
     
 # process_fbgdata_directory
 
@@ -603,11 +604,17 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+#     main()
     
-#     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-#     directory = directory + "12-27-19_14-32/"
-#     process_fbgdata_directory( directory )
+    directory = "../FBG_Needle_Calibration_Data/needle_1/"
+    directory += "Calibration/0 deg/"
+#     directory +="12-28-19_14-43/"
+    directories = glob.glob( directory + '*' )
+    for dir in directories:
+        dir += '/'
+        print( 'Processing:', dir )
+        process_fbgdata_directory( dir )
+        print()
 #     process_curvature_directory( directory )
     
     print( "Program has terminated." )
