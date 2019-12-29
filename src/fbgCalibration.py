@@ -26,7 +26,8 @@ BO_REGIONS.append( ( 0, 0, -1, 30 ) )
 BO_REGIONS.append( ( 0, 60, 20, -1 ) )
 BO_REGIONS.append( ( 0, 0, 15, -1 ) )
 BO_REGIONS.append( ( 980, 0, -1, 40 ) )
-BO_REGIONS.append( ( 0, 0, 560, -1 ) )  # for use only with second jig @ 45 mm from tip
+BO_REGIONS.append( ( 935, 95, -1, -1 ) )
+# BO_REGIONS.append( ( 0, 0, 560, -1 ) )  # for use only with second jig @ 45 mm from tip
 
 
 def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
@@ -261,7 +262,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     smooth_win = 25  # px
     curv_dx = 0.5  # px
     circ_win = 10  # mm
-    poly_fit = 3
+    poly_fit = 5
     
     imgpconfig = '\n'.join( ( "Configuatation:",
            f"Curvature Determination Type: Circle fitting to polynomial",
@@ -557,9 +558,11 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "12-27-19_14-43/"
+    directory += "Calibration/0 deg/"
+    directory += "12-28-19_15-14/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
+    imgfiles.sort()
 #     imgfiles = [directory + "mono_0006.jpg"]  # for testing
     
     img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
@@ -598,7 +601,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
     
 #     directory = "../FBG_Needle_Calibration_Data/needle_1/"
 #     directory = directory + "12-27-19_14-32/"
