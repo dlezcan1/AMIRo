@@ -1,0 +1,13 @@
+Curvature of the needle @ the active areas.
+Pixels/mm: 8.498439767625596
+Configuatation:
+Curvature Determination Type: Circle fitting to polynomial
+Circle Fitting Window: 10 mm
+Curvature interpolation size: 0.5px
+Smoothing Window size: 25 px
+Smoothing iterations: 1
+Active areas (mm): 11., 26., 70.
+Curvatures (1/mm): -7.3728495201e-05, -2.2851370616e-04, -1.5041768697e-04
+Polynomial coefficients:  9.0014235483e-14, -8.0335224064e-11, -1.8273881405e-07,  1.7217071778e-04,  3.2200954803e-02,  3.4573542586e+01
+x range of center line (px): [ 21, 1015 ]
+x-values of active areas (px): 921.6063291106, 794.2063796439, 420.5543976368

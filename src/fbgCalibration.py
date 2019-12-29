@@ -254,7 +254,7 @@ def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray,
 
 
 def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length: float,
-                          display: bool = False ):
+                          display: bool = False, polfit: int = 5 ):
     """ Method to get curvature @ the active areas & output to data file."""
     global PIX_PER_MM, CROP_AREA, BO_REGIONS
     
@@ -262,7 +262,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     smooth_win = 25  # px
     curv_dx = 0.5  # px
     circ_win = 10  # mm
-    poly_fit = 5
+    poly_fit = polfit
     
     imgpconfig = '\n'.join( ( "Configuatation:",
            f"Curvature Determination Type: Circle fitting to polynomial",
@@ -550,16 +550,17 @@ def process_curvature_directory( directory: str, filefmt: str = "curvature_monof
 
 
 def main():
-    skip_prev = True
-    show_imgp = True
+    skip_prev = False
+    show_imgp = False
+    correct_firstlast = True
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "Calibration/0 deg/"
-    directory += "12-28-19_15-14/"
+    directory += "Calibration/90 deg/"
+    directory += "12-28-19_16-04/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
     imgfiles.sort()
@@ -567,7 +568,7 @@ def main():
     
     img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
     retval = 0
-    for imgf in imgfiles:
+    for idx, imgf in enumerate( imgfiles ):
         try:
             mon, day, yr, hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
             curv_file = directory + f"curvature_monofbg_{mon}-{day}-{yr}_{hr}-{mn}-{sec}.{ns}.txt"
@@ -577,13 +578,15 @@ def main():
             pass
         
         if not ( skip_prev  and os.path.exists( curv_file ) ):
-            
             print( "Processing file:" , imgf )
 #             str_ts = f"{hr}:{mn}:{sec}.{ns[0:6]}"
 #             ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
 #             print( ts )
+            if idx == 0 or idx == len( imgfiles ) - 1:
+                retval += get_curvature_image( imgf, active_areas, length, show_imgp, polfit = 3 )
             
-            retval += get_curvature_image( imgf, active_areas, length, show_imgp )
+            else:
+                retval += get_curvature_image( imgf, active_areas, length, show_imgp )
             print()
         # if
         
