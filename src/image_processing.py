@@ -128,7 +128,7 @@ def blackout_regions( img, regions: list ):
 
 
 def canny_edge_detection( image, display: bool = False , bo_regions: list = None ):
-	thresh1 = 150
+	thresh1 = 225
 	thresh2 = 255
 	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
 	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
@@ -191,7 +191,8 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		step += 1
 	# if
 
-	shape = ( 8, 12 )
+# 	shape = ( 8, 12 )
+	shape = ( 8, 8 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
 	if display:
