@@ -72,6 +72,7 @@ def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
         
     # for
     
+    curv_data = curv_data[curv_data[:, 0].argsort()]
     return curv_data
 
 # load_curvature
@@ -187,7 +188,16 @@ def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
                 
         # for
     # with
-        
+    
+    # remove -1 rows - more peaks than intended
+    timestamps = timestamps[fbgdata[:, 0] > 0]
+    fbgdata = fbgdata[[fbgdata[:, 0] > 0]]
+    
+    # sort by the timestamps
+    args = np.argsort( timestamps, axis = 0 )
+    timestamps = timestamps[ args ]
+    fbgdata = fbgdata[ args ]
+    
     return timestamps, fbgdata
             
 # read_fbgData
@@ -423,10 +433,10 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
               "CH3 | AA1", "CH3 | AA2", "CH3 | AA3" ]
     
     # excel formulas
-    mean_form = "=AVERAGE({0}1:{0}{1})"
+    mean_form = '=AVERAGEIF({0}1:{0}{1},">0")'
     std_form = "=_xlfn.STDEV.S({0}1:{0}{1})"
-    min_form = "=MIN({0}1:{0}{1})"
-    max_form = "=MAX({0}1:{0}{1})"
+    min_form = '=MIN({0}1:{0}{1})'
+    max_form = '=MAX({0}1:{0}{1})'
     vlookup_form = "=VLOOKUP(\"{form}\",'{sheet}'!A1:{lcol}{lrow},{idx},FALSE)"
     
     vlookup_data = []
@@ -441,6 +451,7 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
         worksheet = workbook.add_worksheet( vl_d['sheet'] )
         worksheet.write_row( 0, 0, header )
         ts, fbgdata = read_fbgData( file, 3 )
+        
         vl_d['time'] = ts[0]  # in seconds
         
         col_head = np.append( ts, ['Average', 'StdDev', 'Min', 'Max'] )
@@ -609,12 +620,17 @@ if __name__ == '__main__':
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     directory += "Calibration/0 deg/"
 #     directory +="12-28-19_14-43/"
-    directories = glob.glob( directory + '*' )
+    directories = glob.glob( directory + '12-*' )
     for dir in directories:
-        dir += '/'
-        print( 'Processing:', dir )
-        process_fbgdata_directory( dir )
-        print()
+        if os.path.isdir( dir ):
+            dir += '/'
+            print( 'Processing:', dir )
+            process_fbgdata_directory( dir )
+            print()
+            
+        # if
+    # for
+    
 #     process_curvature_directory( directory )
     
     print( "Program has terminated." )
