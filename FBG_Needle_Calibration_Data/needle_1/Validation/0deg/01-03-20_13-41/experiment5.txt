@@ -1,0 +1,15 @@
+Experiment Description:
+CH 1 on top, 0 deg rotation
+1st jig @ 50mm tip
+2nd jig  tip
+
+
+Image Description:
+
+00: 0mm displacement @ 1st jig
+01: 1mm displacement @ 1st jig
+02: 5mm displacement @ 1st jig
+03: 7mm displacement @ 1st jig
+04: 5mm displacement @ 1st jig
+05: 1mm displacement @ 1st jig
+06: 0mm displacement @ 1st jig
