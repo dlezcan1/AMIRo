@@ -14,20 +14,20 @@ import calibrationMatrix as calmat
 import image_processing as imgp
 from datetime import datetime, timedelta
 from scipy import interpolate
+# from needle_segmentation_script import CROP_AREA
 
 TIME_FMT = "%H-%M-%S.%f"
 TIME_FIX = timedelta( hours = 0 )  # the internal fix for the time
 
+# PIX_PER_MM = 8.875 # what appears to be the actual fit
 PIX_PER_MM = 8.498439767625596
-# CROP_AREA = ( 84, 250, 1280, 715 )
-CROP_AREA = ( 32, 425, 1180, 600 )
-BO_REGIONS = [( 0, 70, 165, -1 ), ( 0, 0, -1, 19 )]
-BO_REGIONS.append( ( 0, 0, -1, 30 ) )
-BO_REGIONS.append( ( 0, 60, 20, -1 ) )
-BO_REGIONS.append( ( 0, 0, 15, -1 ) )
-BO_REGIONS.append( ( 980, 0, -1, 40 ) )
-BO_REGIONS.append( ( 935, 95, -1, -1 ) )
-# BO_REGIONS.append( ( 0, 0, 560, -1 ) )  # for use only with second jig @ 45 mm from tip
+# CROP_AREA = ( 32, 425, 1180, 600 )
+CROP_AREA = ( 40, 420, 1230, 620 )
+BO_REGIONS = [( 0, 0, -1, 30 ), ( 1060, 125, -1, -1 )]
+BO_REGIONS.append( ( 1090, 105, -1, -1 ) )
+BO_REGIONS.append( ( 0, 75, 145, -1 ) )
+BO_REGIONS.append( ( 950, 0, -1, 68 ) )
+BO_REGIONS.append( ( 0, 170, -1, -1 ) )
 
 
 def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
@@ -307,6 +307,11 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     poly, x = imgp.fit_polynomial( skeleton, poly_fit )
     xc, yc = imgp.xycenterline( skeleton )
     x = np.sort( x )  # sort the x's  (just in case)
+    x0 = x.max()  # start integrating from the tip
+    lb = x.min()
+    ub = x.max()
+    x_active = imgp.find_active_areas( x0, poly, active_areas, PIX_PER_MM, lb, ub )
+    x_active = np.array( x_active ).reshape( -1 )
     
     # set-up figures
     fig, axs = plt.subplots( 2 )
@@ -316,6 +321,13 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     # plot the polynomial on top of the image
     imgp.plot_func_image( crop_img, poly, x, axs[0] )
+    
+    # plot active areas
+    for x_a in x_active:
+        axs[0].axvline( x = x_a, color = 'r' )
+        axs[1].axvline( x = x_a, color = 'r' )
+        
+    # for
     
     # get the curvature along the image using polynomial
     curv_plot = imgp.fit_circle_curvature( poly, x, x, circ_win * PIX_PER_MM, dx = curv_dx )
@@ -357,12 +369,12 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     print( "Continuing with the curvature analysis." )
     
-    # find the active areas
-    x0 = x.max()  # start integrating from the tip
-    lb = x.min()
-    ub = x.max()
-    x_active = imgp.find_active_areas( x0, poly, active_areas, PIX_PER_MM, lb, ub )
-    x_active = np.array( x_active ).reshape( -1 )
+#     # find the active areas
+#     x0 = x.max()  # start integrating from the tip
+#     lb = x.min()
+#     ub = x.max()
+#     x_active = imgp.find_active_areas( x0, poly, active_areas, PIX_PER_MM, lb, ub )
+#     x_active = np.array( x_active ).reshape( -1 )
 
     # find the curvature at the active areas
     curv_interp = interpolate.interp1d( x, smooth_curv_plot )
@@ -562,17 +574,17 @@ def process_curvature_directory( directory: str, filefmt: str = "curvature_monof
 
 
 def main():
-    skip_prev = False
-    show_imgp = False
-    correct_firstlast = True
+    skip_prev = True
+    show_imgp = True
+    correct_firstlast = False
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
-    directory += "Calibration/90 deg/"
-    directory += "12-28-19_16-04/"
+    directory += "Validation/Sanity_Check/"
+    directory += "01-03-20_11-23/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
     imgfiles.sort()
@@ -598,7 +610,8 @@ def main():
                 retval += get_curvature_image( imgf, active_areas, length, show_imgp, polfit = 3 )
             
             else:
-                retval += get_curvature_image( imgf, active_areas, length, show_imgp )
+                retval += get_curvature_image( imgf, active_areas, length, show_imgp, polfit = 4 )
+            
             print()
         # if
         
@@ -608,6 +621,7 @@ def main():
     
     if retval >= 0:
         process_curvature_directory( directory )
+        process_fbgdata_directory( directory )
         
     # if
         
@@ -615,23 +629,24 @@ def main():
 
 
 if __name__ == '__main__':
-#     main()
+    main()
     
-    directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    directory += "Calibration/0 deg/"
-#     directory +="12-28-19_14-43/"
-    directories = glob.glob( directory + '12-*' )
-    for dir in directories:
-        if os.path.isdir( dir ):
-            dir += '/'
-            print( 'Processing:', dir )
-            process_fbgdata_directory( dir )
-            print()
-            
-        # if
-    # for
-    
-#     process_curvature_directory( directory )
+#     directory = "../FBG_Needle_Calibration_Data/needle_1/"
+#     directory += "Validation/Sanity_Check/01-03-20_11-21/"
+#     directory += "Calibration/0 deg/"
+# #     directory +="12-28-19_14-43/"
+#     directories = glob.glob( directory + '12-*' )
+#     for dir in directories:
+#         if os.path.isdir( dir ):
+#             dir += '/'
+#             print( 'Processing:', dir )
+#             process_fbgdata_directory( dir )
+#             print()
+#             
+#         # if
+# #     # for
+#     
+#     process_fbgdata_directory( directory )
     
     print( "Program has terminated." )
     

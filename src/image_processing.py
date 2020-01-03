@@ -182,7 +182,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		
 	# if
 	
-	shape = ( 3, 25 )
+	shape = ( 3, 35 )
 	kernel = gen_kernel( shape )
 	iters = 1
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = iters )
@@ -577,7 +577,7 @@ def plot_func_image( img, func, x , intf = plt ):
 	os.remove( tempfile )
 	
 	intf.imshow( img , cmap = "gray" )
-	intf.plot( x, y , 'r-' )
+	intf.plot( x, y , 'm-' )
 	# intf.title( "Plot of function on image" )
 # 	plt.show()
 	

@@ -4,7 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 import image_processing as imgp
 
-directory = "Test Images/Curvature_Experiment_11-15-19/"
+# directory = "Test Images/Curvature_Experiment_11-15-19/"
 directory = "../FBG_Needle_Calibration_Data/needle_1/"
 print( "CWD:", os.getcwd() )
 
@@ -52,12 +52,12 @@ for file in os.listdir( directory ):
 
 # pick out a particular file
 if True:
-    directory += "Calibration/0 deg/"
-    file = directory + "12-28-19_14-41/mono_0006.jpg"
+    directory += "Validation\\Sanity_Check\\01-03-20_11-23/"
+    file = directory + "mono_0003.jpg"
     img = cv2.imread( file, cv2.IMREAD_GRAYSCALE )
     ROI = [84, 250, 1280, 715]  # x_t-left, y_t-left, x_b-right, y_b-right
 #     img = imgp.set_ROI(img, crop_area)
-    CROP_AREA = ( 32, 425, 1180, 580 )
+    CROP_AREA = ( 40, 420, 1230, 620 )
     img = imgp.set_ROI_box(img, CROP_AREA)
     find_coordinate_image( img )
 #     seg_needle, _ = segment_needle(file,'canny', True)
