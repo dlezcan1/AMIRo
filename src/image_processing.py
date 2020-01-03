@@ -8,6 +8,7 @@ from scipy.optimize import fsolve, leastsq, minimize, Bounds
 from matplotlib.pyplot import draw
 import matplotlib.pyplot as plt
 import re
+import BSpline1D
 # import scipy
 
 
@@ -405,6 +406,25 @@ def fit_spline( centerline_img ):
 	return spline, x
 	
 # fit_spline
+
+
+def fit_Bspline( centerline_img, deg ):
+	""" Fits a BSpline to the centerline image """
+	offset = -1
+	_, N_cols = np.shape( centerline_img )
+
+	x = np.arange( N_cols - 10 )  # x-coords
+# 	y = N_rows * np.ones( N_cols )  # y-coords
+	y = np.argmax( centerline_img, 0 )
+
+	x = x[y[:len( x )] > 0]
+	y = y[y > 0]
+	
+	bspline = BSpline1D( x, y, k = deg )
+	
+	return bspline, x
+
+# fit_Bspline
 
 
 def find_curvature( p: np.poly1d, x ):
