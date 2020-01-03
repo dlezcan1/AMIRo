@@ -7,7 +7,7 @@ Created on Jan 2, 2020
 '''
 import numpy as np
 import scipy.interpolate as interp
-import warnings
+from warnings import warn
 
 
 class BSpline1D():
@@ -151,7 +151,7 @@ class BSpline1D():
         # else
         
         if np.any( retval > 1 ) or np.any( retval < 0 ):
-            warnings.warn( f"Data is out of the range of the bounding box: [{self.qmin},{self.qmax}]" )
+            warn( f"Data is out of the range of the bounding box: [{self.qmin},{self.qmax}]" )
         
         # if
         
