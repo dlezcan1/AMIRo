@@ -276,6 +276,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
     imgpconfig = '\n'.join( ( "Configuatation:",
            f"Curvature Determination Type: Circle fitting to polynomial",
+           f"Polynomial fit: {poly_fit}"
            f"Circle Fitting Window: {circ_win} mm",
            f"Curvature interpolation size: {curv_dx}px",
            f"Smoothing Window size: {smooth_win} px",
@@ -396,6 +397,161 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
         
         writestream.write( "Polynomial coefficients: " )
         msg = np.array2string( poly.coef , separator = ', ',
+                                 precision = 10, max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "x range of center line (px): " )
+        msg = f"[ {x.min()}, {x.max()} ]"
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "x-values of active areas (px): " )
+        msg = np.array2string( x_active, separator = ', ',
+                                 precision = 10, max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+    
+    # with
+    
+    print( "Wrote outfile:", outfile )
+    return 0
+    
+# get_curvature_image
+
+
+def get_curvature_image_bspline ( filename: str, active_areas: np.ndarray, needle_length: float,
+                          display: bool = False, polfit: int = 3 ):
+    """ Method to get curvature @ the active areas & output to data file. using Bsplines"""
+    global PIX_PER_MM, CROP_AREA, BO_REGIONS
+    
+    smooth_iter = 1 
+    smooth_win = 25  # px
+    curv_dx = 0.5  # px
+    circ_win = 10  # mm
+    poly_fit = polfit
+    
+    imgpconfig = '\n'.join( ( "Configuatation:",
+           f"Curvature Determination Type: Circle fitting to polynomial",
+           f"Polynomial fit: {poly_fit}"
+           f"Circle Fitting Window: {circ_win} mm",
+           f"Curvature interpolation size: {curv_dx}px",
+           f"Smoothing Window size: {smooth_win} px",
+           f"Smoothing iterations: {smooth_iter}"
+           ) )
+    
+    print( 75 * '=' )
+    print( imgpconfig )
+    print( 75 * '=' , '\n' )
+    
+    img, gray_img = imgp.load_image( filename )
+    
+    gray_img = imgp.saturate_img( gray_img, 1.4, 14 )
+    crop_img = imgp.set_ROI_box( gray_img, CROP_AREA )
+    canny_img = imgp.canny_edge_detection( crop_img, display, BO_REGIONS )
+    
+    skeleton = imgp.get_centerline ( canny_img )
+    if display:
+        cv2.imshow( "Skeleton", skeleton )
+    
+    # if
+    
+    if display:
+        cv2.waitKey( 0 )
+        cv2.destroyAllWindows()
+    
+    # if
+    
+#     poly, x = imgp.fit_polynomial( skeleton, poly_fit )
+    bspline, x = imgp.fit_Bspline( skeleton, poly_fit )
+    xc, yc = imgp.xycenterline( skeleton )
+    x = np.sort( x )  # sort the x's  (just in case)
+    
+    # set-up figures
+    fig, axs = plt.subplots( 2 )
+    fig.suptitle( filename )
+    mng = plt.get_current_fig_manager()
+    mng.full_screen_toggle()
+    
+    # plot the polynomial on top of the image
+    imgp.plot_func_image( crop_img, bspline, x, axs[0] )
+    
+    # get the curvature along the image using polynomial
+    curv_plot = imgp.fit_circle_curvature( bspline, x, x, circ_win * PIX_PER_MM, dx = curv_dx )
+    
+    # get the curvature along the image using raw xy-centerline
+#     curv_plot = imgp.fit_circle_raw_curvature( yc, xc, xc, circ_win * PIX_PER_MM )
+    
+    # smooth the data
+    smooth_curv_plot = imgp.smooth_data( curv_plot, smooth_win, smooth_iter )
+    
+    axs[1].plot( x, curv_plot, label = "Circle-Poly, no smooth" )
+    axs[1].plot( x, smooth_curv_plot, label = "Circle-Poly, smooth" )
+    axs[1].legend()
+    axs[1].set( xlabel = 'x (mm)', ylabel = 'curvature (1/mm)' )
+    
+    if display:
+        plt.show()
+        k = input( "Does this plot look ok to proceed? (y/n) " )
+        
+    # if
+    
+    else:
+        k = 'y'
+        
+    # else
+        
+    if k.lower() == 'n':
+        print( "Not continuing with the curvature analysis." )
+        return -1
+    
+    # if
+    
+    # Save the figure
+    idx = filename.index( '.jpg' )
+    outfig = filename[:idx] + '_processed.png'
+    del( idx )
+    fig.savefig( outfig )
+    plt.close( 'all' )
+    
+    print( "Continuing with the curvature analysis." )
+    
+    # find the active areas
+    x0 = x.max()  # start integrating from the tip
+    lb = x.min()
+    ub = x.max()
+    x_active = imgp.find_active_areas_bspline( x0, bspline, active_areas, PIX_PER_MM, lb, ub )
+    x_active = np.array( x_active ).reshape( -1 )
+
+    # find the curvature at the active areas
+    curv_interp = interpolate.interp1d( x, smooth_curv_plot )
+    curvature = curv_interp( x_active )
+    
+    # result file name processing
+    outfile = '.'.join( filename.split( '.' )[:-1] ) + '.txt'
+    if 'fbg' not in outfile:
+        outfile = outfile.replace( 'mono', 'monofbg' )
+    outfile = outfile.replace( 'mono', 'curvature_mono' )
+    
+    print( "Completed curvature analysis." )
+    
+    # write the result file
+    with open( outfile, 'w+' ) as writestream:
+        writestream.write( "Curvature of the needle @ the active areas.\n" )
+        
+        writestream.write( f"Pixels/mm: {PIX_PER_MM}\n" )
+        
+        writestream.write( imgpconfig + '\n' )
+        
+        writestream.write( "Active areas (mm): " )
+        msg = np.array2string( active_areas, separator = ', ',
+                                  max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "Curvatures (1/mm): " )
+        msg = np.array2string( curvature, separator = ', ',
+                                 precision = 10, max_line_width = np.inf ).strip( '[]' )
+        writestream.write( msg + '\n' )
+        
+        writestream.write( "Bspline coefficients: " )
+        msg = np.array2string( bspline.tck[1] , separator = ', ',
                                  precision = 10, max_line_width = np.inf ).strip( '[]' )
         writestream.write( msg + '\n' )
         
@@ -563,8 +719,8 @@ def process_curvature_directory( directory: str, filefmt: str = "curvature_monof
 
 def main():
     skip_prev = False
-    show_imgp = False
-    correct_firstlast = True
+    show_imgp = True
+    correct_firstlast = False
 
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     
@@ -572,7 +728,7 @@ def main():
     num_actives, length, active_areas = read_needleparam( needleparam )
     
     directory += "Calibration/90 deg/"
-    directory += "12-28-19_16-04/"
+    directory += "12-28-19_15-26/"
     
     imgfiles = glob.glob( directory + "monofbg*.jpg" )
     imgfiles.sort()
@@ -580,7 +736,7 @@ def main():
     
     img_patt = r"monofbg_([0-9][0-9])-([0-9][0-9])-([0-9]+)_([0-9][0-9])-([0-9][0-9])-([0-9][0-9]).([0-9]+).jpg"
     retval = 0
-    for idx, imgf in enumerate( imgfiles ):
+    for idx, imgf in enumerate( imgfiles[::2] ):
         try:
             mon, day, yr, hr, mn, sec, ns = re.search( img_patt, imgf ).groups()
             curv_file = directory + f"curvature_monofbg_{mon}-{day}-{yr}_{hr}-{mn}-{sec}.{ns}.txt"
@@ -595,10 +751,10 @@ def main():
 #             ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
 #             print( ts )
             if idx == 0 or idx == len( imgfiles ) - 1:
-                retval += get_curvature_image( imgf, active_areas, length, show_imgp, polfit = 3 )
+                retval += get_curvature_image_bspline( imgf, active_areas, length, show_imgp, polfit = 5 )
             
             else:
-                retval += get_curvature_image( imgf, active_areas, length, show_imgp )
+                retval += get_curvature_image_bspline( imgf, active_areas, length, show_imgp, polfit = 5 )
             print()
         # if
         
@@ -615,21 +771,21 @@ def main():
 
 
 if __name__ == '__main__':
-#     main()
+    main()
     
-    directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    directory += "Calibration/0 deg/"
-#     directory +="12-28-19_14-43/"
-    directories = glob.glob( directory + '12-*' )
-    for dir in directories:
-        if os.path.isdir( dir ):
-            dir += '/'
-            print( 'Processing:', dir )
-            process_fbgdata_directory( dir )
-            print()
-            
-        # if
-    # for
+#     directory = "../FBG_Needle_Calibration_Data/needle_1/"
+#     directory += "Calibration/0 deg/"
+# #     directory +="12-28-19_14-43/"
+#     directories = glob.glob( directory + '12-*' )
+#     for dir in directories:
+#         if os.path.isdir( dir ):
+#             dir += '/'
+#             print( 'Processing:', dir )
+#             process_fbgdata_directory( dir )
+#             print()
+#             
+#         # if
+#     # for
     
 #     process_curvature_directory( directory )
     

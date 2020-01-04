@@ -21,12 +21,12 @@ class BSpline1D():
         Returns an interpolator that uses 0 knots and instead scales the values
         between 0 and 1
         '''
-        self.x = x
-        self.y = y
-        self.qmin = x.min()
-        self.qmax = x.max()
-        self.tck = interp.splrep( self._scale( x ), y,
-                                  w = w, xb = xb, xe = xe, k = k, t = 0 )
+        self.__x = x
+        self.__y = y
+        self.__qmin = x.min()
+        self.__qmax = x.max()
+        self.__tck = interp.splrep( self._scale( x ), y,
+                                  w = w, xb = xb, xe = xe, k = k, t = [.5] )
         
     # __init__
 
@@ -134,7 +134,8 @@ class BSpline1D():
 
     def __call__( self, x , der: int = 0 ):
         """ Return the function's output for a specific derivative """
-        return interp.splev( x, self.tck, der = der, ext = 0 )
+        
+        return interp.splev( self._scale( x ), self.tck, der = der, ext = 0 )
     
     # __call__
     
@@ -158,5 +159,11 @@ class BSpline1D():
         return retval
     
     # _scale
+    
+    def integrate( self, a: float, b: float, der: int = 0 ):
+        """ NOt implemented """
+        pass
+    
+    # integrate
     
 # BSpline1D

@@ -8,7 +8,7 @@ from scipy.optimize import fsolve, leastsq, minimize, Bounds
 from matplotlib.pyplot import draw
 import matplotlib.pyplot as plt
 import re
-import BSpline1D
+from BSpline1D import BSpline1D
 # import scipy
 
 
@@ -286,6 +286,22 @@ def find_param_along_poly ( poly: np.poly1d, x0: float, target_length: float ):
 # find_param_along_poly
 
 
+def find_param_along_bspline( bspline: BSpline1D, x0: float, target_length: float, lb: float, ub: float ):
+	bnds = Bounds( lb, ub )
+	deriv_1 = lambda x: bspline( x, der = 1 )
+	integrand = lambda x: np.sqrt( 1 + ( deriv_1( x ) ) ** 2 )
+	
+	arc_length = lambda x: quad( integrand, x0, x )[0] 
+	cost_fn = lambda x: np.abs( target_length - arc_length( x ) )
+	
+	result = minimize( cost_fn, np.array( [x0] ), method = "SLSQP", bounds = bnds )
+	err = target_length - arc_length( result.x )
+	
+	return result.x, err
+
+# find_param_along_bspline
+
+
 def find_param_along_poly_con ( poly: np.poly1d, x0: float, target_length: float, lb: float, ub: float ):
 	bnds = Bounds( lb, ub )
 	deriv_1 = np.polyder( poly, 1 )
@@ -364,6 +380,19 @@ def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm , lb: flo
 # find_active_areas
 
 
+def find_active_areas_bspline( x0: float, poly: np.poly1d, lengths, pix_per_mm , lb: float, ub: float ):
+	''' Determines the active area x parameters for the fit polynomial given
+		a desired arclength(s) using bsplines.
+	'''
+	lengths = pix_per_mm * np.array( lengths )
+	
+	ret_x = []
+	for l in lengths:
+		ret_x.append( find_param_along_bspline( poly, x0, l, lb, ub )[0] )
+
+	return ret_x
+
+
 def fit_polynomial( centerline_img, deg ):
 # 	nonzero = np.argwhere( centerline_img )
 # 	x_coord = nonzero[:, 1]
@@ -410,7 +439,6 @@ def fit_spline( centerline_img ):
 
 def fit_Bspline( centerline_img, deg ):
 	""" Fits a BSpline to the centerline image """
-	offset = -1
 	_, N_cols = np.shape( centerline_img )
 
 	x = np.arange( N_cols - 10 )  # x-coords
