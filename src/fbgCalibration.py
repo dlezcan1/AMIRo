@@ -629,22 +629,22 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
     
-#     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-#     directory += "Validation/Sanity_Check/01-03-20_11-21/"
-#     directory += "Calibration/0 deg/"
-# #     directory +="12-28-19_14-43/"
-#     directories = glob.glob( directory + '12-*' )
-#     for dir in directories:
-#         if os.path.isdir( dir ):
-#             dir += '/'
-#             print( 'Processing:', dir )
-#             process_fbgdata_directory( dir )
-#             print()
-#             
-#         # if
-# #     # for
+    directory = "../FBG_Needle_Calibration_Data/needle_1/"
+    directory += "Jig_Calibration/"
+    # directory += "Calibration/0 deg/"
+#     directory +="12-28-19_14-43/"
+    directories = glob.glob( directory + '01-*' )
+    for dir in directories:
+        if os.path.isdir( dir ):
+            dir += '/'
+            print( 'Processing:', dir )
+            process_fbgdata_directory( dir )
+            print()
+            
+        # if
+#     # for
 #     
 #     process_fbgdata_directory( directory )
     

@@ -1,0 +1,14 @@
+Curvature of the needle @ the active areas.
+Pixels/mm: 8.85
+Configuatation:
+Curvature Determination Type: Circle fitting to Bspline
+Bspline fit: 5
+Circle Fitting Window: 10 mm
+Curvature interpolation size: 0.5px
+Smoothing Window size: 25 px
+Smoothing iterations: 1
+Active areas (mm): 11., 26., 70.
+Curvatures (1/mm): 0.0005559979, 0.0005513711, 0.0005370393
+Bspline coefficients: 41.0846014529, 41.4368376596, 48.9308523371, 49.1213232267, 66.5488592456, 61.0508850604, 69.8483061711, 66.9197065671, 70.8551034992,  0.          ,  0.          ,  0.          ,  0.          ,  0.          ,  0.          
+x range of center line (px): [ 1, 1144 ]
+x-values of active areas (px): 1142.7482974439, 1140.9911208012, 1135.4581103595
