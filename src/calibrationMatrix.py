@@ -621,7 +621,7 @@ def main_test():
 
 def main_calmat():
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    datadir = directory + "Calibration/"
+    datadir = directory + "Jig_Calibration/"
     datafile = "Data Matrices.xlsx"
     needleparamfile = "needle_params.csv"
     lstsq_logfile = "least_sq.log"
