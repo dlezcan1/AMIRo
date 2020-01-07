@@ -640,7 +640,7 @@ def main_calmat():
 #     # for
 
     calibration_matrices = leastsq_fit( calibration_data, directory + lstsq_logfile )
-    write_calibration_matrices( directory + needleparamfile, calibration_matrices )
+    write_calibration_matrices( datadir + needleparamfile, calibration_matrices )
     print( f"Wrote calibration matrices to '{needleparamfile}'" )
     
 # main_calmat
