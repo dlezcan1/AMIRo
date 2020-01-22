@@ -621,7 +621,7 @@ def main_test():
 
 def main_calmat():
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    datadir = directory + "Calibration/"
+    datadir = directory + "Jig_Calibration/"
     datafile = "Data Matrices.xlsx"
     needleparamfile = "needle_params.csv"
     lstsq_logfile = "least_sq.log"
@@ -640,7 +640,7 @@ def main_calmat():
 #     # for
 
     calibration_matrices = leastsq_fit( calibration_data, directory + lstsq_logfile )
-    write_calibration_matrices( directory + needleparamfile, calibration_matrices )
+    write_calibration_matrices( datadir + needleparamfile, calibration_matrices )
     print( f"Wrote calibration matrices to '{needleparamfile}'" )
     
 # main_calmat

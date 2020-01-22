@@ -15,31 +15,40 @@ def set_ROI( image ):
 	# endY = image.shape[0] - 300
 
 	# # square grid
-	startX = 120
-	endX = image.shape[1] - 135
-	startY = 405
-	endY = image.shape[0] - 370
+	# startX = 120
+	# endX = image.shape[1] - 135
+	# startY = 405
+	# endY = image.shape[0] - 370
+
+	# # square grid
+	startX = 40
+	endX = 1055
+	startY = 380
+	endY = 575
 
 	cropped = image[startY:endY, startX:endX]
 	# cv2.imshow('cropped', cropped)
 	# cv2.waitKey(0)
+	# cv2.destroyAllWindows()
 	return cropped
 
 
 def invert_binary( cropped_img ):
-	thresh = 100
+	thresh = 200
 	binary_img = np.copy( cropped_img )
-	cv2.imshow( 'original', binary_img )
+	# cv2.imshow( 'original', binary_img )
 	binary_img = cv2.bilateralFilter( binary_img, 3, sigmaColor = 100, sigmaSpace = 100 )
-	cv2.imshow( 'bilateralFilter', binary_img )
+	# cv2.imshow( 'bilateralFilter', binary_img )
 
 	binary_img[binary_img < thresh] = 0
 	binary_img[binary_img != 0] = 255
 
-	cv2.imshow( 'binary_img', binary_img )
-	cv2.waitKey( 0 )
+	# cv2.imshow( 'binary_img', binary_img )
 
 	invert_img = 255 - binary_img
+	# cv2.imshow('inverted_img', invert_img)
+	# cv2.waitKey( 0 )
+	# cv2.destroyAllWindows()
 
 	return invert_img
 
@@ -75,15 +84,17 @@ def measure_distances( center_points ):
 	                                               distances.shape )
 	print( x_center_idx )
 	print( y_center_idx )
+	# print(distances)
 	
 	return distances, x_center_idx, y_center_idx
 
 # measure_distances
 
 
-def expected_distances( center_indices: tuple ):
-	pix_to_mm = 8.498439767625596
-	pix_spacing = 4 * pix_to_mm 
+def expected_distances( center_separation, center_indices: tuple ):
+	# pix_to_mm = 8.498439767625596
+	pix_to_mm = 8.85
+	pix_spacing = center_separation * pix_to_mm 
 	x_center_idx, y_center_idx = center_indices
 	v_distances = np.arange( -x_center_idx, 30 - x_center_idx )
 	h_distances = np.arange( -y_center_idx, 5 - y_center_idx )
@@ -91,6 +102,7 @@ def expected_distances( center_indices: tuple ):
 	exp_distances = np.array( [np.linalg.norm( d ) for d in
 	                            itertools.product( h_distances, v_distances )] )
 	exp_distances *= pix_spacing
+	# print(exp_distances.reshape(5,30))
 	
 	return ( exp_distances )
 
@@ -209,7 +221,7 @@ def plot_error( dist_baseline, sorted_circles ):
 	plt.ylabel( 'Error (measured - baseline) (mm)' )
 	text = 'mean error: %.3f \n max error: %.3f \n min error: %.3f' % ( np.mean( error ), np.amax( error ), np.amin( error ) )
 	# print(text)
-	plt.text( 0, -0.55, text )
+	plt.text( 0, -0.2, text )
 
 	for r in range( rows ):
 		marker = color_list[r] + '.'
@@ -230,9 +242,13 @@ def plot_error( dist_baseline, sorted_circles ):
 
 def plot_error_center( num_rows, num_cols, measured_distances, expected_distances ):
 	# error = dist_measured - dist_baseline
-	pix_to_mm = 8.498439767625596
+	# pix_to_mm = 8.498439767625596
+	pix_to_mm = 8.85
 	dist_baseline = expected_distances.reshape( ( num_rows, num_cols ) )
 	error = ( measured_distances - dist_baseline ) / pix_to_mm
+
+	pix_to_mm_calc = measured_distances[measured_distances != 0] / (dist_baseline[dist_baseline != 0] / pix_to_mm)
+	print(np.mean(pix_to_mm_calc))
 
 	# # plot error vs. distance
 	rows = dist_baseline.shape[0]
@@ -255,8 +271,8 @@ def plot_error_center( num_rows, num_cols, measured_distances, expected_distance
 	plt.xlabel( 'Distance (mm)' )
 	plt.ylabel( 'Error (measured - baseline) (mm)' )
 	text = 'mean error: %.3f \n max error: %.3f \n min error: %.3f' % ( np.mean( error ), np.amax( error ), np.amin( error ) )
-	# print(text)
-	plt.text( 0, -0.55, text )
+	print(text)
+	plt.text( 0, -0.85, text )
 
 	for r in range( rows ):
 		marker = color_list[r] + '.'
@@ -278,23 +294,26 @@ def plot_error_center( num_rows, num_cols, measured_distances, expected_distance
 def main():
 	# filename = argv[0]
 	# filename = '5x25_circles_D-2.5mm_space-5mm.png'
-	filename = 'image_processing_binary_image_squares'
-	directory = 'Test Images/'
+	# filename = 'image_processing_binary_image_squares'
+	filename = '5x30_squares_l-2mm_space-4mm_01-07-2020'
+	directory = '../Test Images/'
 
 	num_cols = 30
 	num_rows = 5
-	center_separation = 4
+	# center_separation = 4
+	center_separation = 3.846
 
 	img, gray_image = img_proc.load_image( directory + filename + '.png' )
-	# crop_img = set_ROI(gray_image)
-	# invert_img = invert_binary(crop_img)
+	crop_img = set_ROI(gray_image)
+	invert_img = invert_binary(crop_img)
+	gray_image = np.copy(invert_img)
 	dist_baseline = baseline_distances( num_cols, num_rows, center_separation )
 	# radius, circles = get_centers(crop_img, 25, 5)
 
 	sorted_centers = get_centers_segment( gray_image, num_cols, num_rows )
 
 	measured_distances, x_center_idx, y_center_idx = measure_distances( sorted_centers.reshape( ( -1, 2 ) ) )
-	expected_dist = expected_distances( ( x_center_idx, y_center_idx ) )
+	expected_dist = expected_distances( center_separation, ( x_center_idx, y_center_idx ) )
 
 	# ## marked circle image
 	# circle_img = set_ROI(img)
@@ -309,18 +328,18 @@ def main():
 	# # cv2.waitKey(0)
 
 	# # marked square image
-	square_img = np.copy( img )
+	square_img = set_ROI(img)
 	colors = [( 255, 0, 0 ), ( 0, 255, 0 ), ( 0, 0, 255 ), ( 125, 125, 0 ), ( 0, 125, 125 )]
 	count = 0
 	for c in sorted_centers:
 		for r in range( num_cols ):
-			square_img[int( np.round( c[r, 0] ) ), int( np.round( c[r, 1] ) )] = colors[count]
-			# center = (int(c[r,1]), int(c[r,0]))
-			# cv2.circle(square_img, center, 2, colors[count], 2)
+			# square_img[int( np.round( c[r, 0] ) ), int( np.round( c[r, 1] ) )] = colors[count]
+			center = (int(c[r,1]), int(c[r,0]))
+			cv2.circle(square_img, center, 2, colors[count], 2)
 		count += 1
 	# cv2.imshow('square_img', square_img)
 	# cv2.waitKey(0)
-	cv2.imwrite( 'output/' + filename + '_square.png', square_img )
+	# cv2.imwrite( 'output/' + filename + '_square.png', square_img )
 
 	# error = plot_error(dist_baseline, sorted_centers)
 	error = plot_error_center( num_rows, num_cols, measured_distances, expected_dist )
