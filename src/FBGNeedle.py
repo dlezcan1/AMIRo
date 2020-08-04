@@ -38,11 +38,11 @@ class FBGNeedle( object ):
         self.length = length
         self.num_channels = num_channels
         self.num_aa = len( sensor_location )
-        self.sensor_location = sensor_location
+        self.sensor_location = sorted( sensor_location )
         
     # __init__
     
-    def save_json( self, filename: str ):
+    def save_json( self, filename: str = "needle_params.json", directory: str = "" ):
         """
         This function is used to save the needle parameters as a JSON file.
         
@@ -63,7 +63,7 @@ class FBGNeedle( object ):
         # for
         
         # write the data
-        with open( filename, 'w' ) as outfile:
+        with open( directory + filename, 'w' ) as outfile:
             json.dump( data, outfile, indent = 4 )
             
         # with
@@ -118,7 +118,8 @@ class FBGNeedle( object ):
 
 
 # for debugging purposes
-if __name__ == "__main__":
+if __name__ == "__main__" and False:
+
     directory = "C:/Users/dlezcan1/Desktop/"
     
     print( "before" )

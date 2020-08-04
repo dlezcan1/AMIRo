@@ -14,6 +14,8 @@ import calibrationMatrix as calmat
 import image_processing as imgp
 from datetime import datetime, timedelta
 from scipy import interpolate
+from FBGNeedle import FBGNeedle
+import itertools
 # from needle_segmentation_script import CROP_AREA
 
 TIME_FMT = "%H-%M-%S.%f"
@@ -136,12 +138,12 @@ def fix_fbgData( filename: str ):
 # fix_fbgData
                 
     
-def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
+def read_fbgData( filename: str, fbg_needle: FBGNeedle, lines: list = [-1] ):
     """ Function to read in the FBG data
     
         @param filename: str, the input fbg data file
         
-        @param num_active_areas: int, representing the number of active areas
+        @param fbg_needle: FBGNeedle, the FBGNeedle class object for the needle
         
         @param lines: list of line numbers that would like to be read in. 
                         (default = [-1], indicating all lines)
@@ -157,7 +159,8 @@ def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
     
     max_lines = max( lines )
     timestamps = np.empty( 0 )
-    fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
+#     fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
+    fbgdata = np.empty( ( 0, fbg_needle.num_channels * fbg_needle.num_aa ) )  # more flexible
     
     with open( filename, 'r' ) as file:
         for i, line in enumerate( file ):
@@ -180,16 +183,20 @@ def read_fbgData( filename: str , num_active_areas: int, lines: list = [-1] ):
             timestamps = np.append( timestamps, dt )
             data = np.fromstring( datastring, sep = ',' , dtype = float )
             
-            if len( data ) == 3 * num_active_areas:  # all active areas measured
+#             if len( data ) == 3 * num_active_areas:  # all active areas measured
+#                 fbgdata = np.vstack( ( fbgdata, data ) )
+                
+            # more flexible way
+            if len( data ) == fbg_needle.num_channels * fbg_needle.num_aa:  # all active areas measured
                 fbgdata = np.vstack( ( fbgdata, data ) )
                 
             else:  # too many or not enough sensor readings
-                fbgdata = np.vstack( ( fbgdata, -1 * np.ones( 3 * num_active_areas ) ) )
+                fbgdata = np.vstack( ( fbgdata, -1 * fbgdata.shape[1] ) )
                 
         # for
     # with
     
-    # remove -1 rows - more peaks than intended
+    # remove "-1" rows - more peaks than intended
     timestamps = timestamps[fbgdata[:, 0] > 0]
     fbgdata = fbgdata[[fbgdata[:, 0] > 0]]
     
@@ -428,7 +435,7 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
 # get_curvature_image
 
 
-def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
+def process_fbgdata_directory( directory: str, fbg_needle: FBGNeedle, filefmt: str = "fbgdata*.txt", ):
     """ Process fbgdata text files """
 #     time_fmt = 'fbgdata_%h'
     col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -439,10 +446,15 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
     workbook = xlsxwriter.Workbook( outfile )
     result = workbook.add_worksheet( "Summary" )
     
-    header = ["time (s)",
-              "CH1 | AA1", "CH1 | AA2", "CH1 | AA3",
-              "CH2 | AA1", "CH2 | AA2", "CH2 | AA3",
-              "CH3 | AA1", "CH3 | AA2", "CH3 | AA3" ]
+#     header = ["time (s)",
+#               "CH1 | AA1", "CH1 | AA2", "CH1 | AA3",
+#               "CH2 | AA1", "CH2 | AA2", "CH2 | AA3",
+#               "CH3 | AA1", "CH3 | AA2", "CH3 | AA3" ]
+    
+    # more direct way of performing header operation
+    header = ["time(s)"]
+    header.append( ["CH{:d} | AA{:d}".format( nc + 1, na + 1 ) for ( nc, na ) in
+                      itertools.product( range( fbg_needle.num_channels ), range( fbg_needle.num_aa ) )] )
     
     # excel formulas
     mean_form = '=AVERAGEIF({0}1:{0}{1},">0")'
@@ -462,7 +474,8 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
         # header processing
         worksheet = workbook.add_worksheet( vl_d['sheet'] )
         worksheet.write_row( 0, 0, header )
-        ts, fbgdata = read_fbgData( file, 3 )
+#         ts, fbgdata = read_fbgData( file, 3 )
+        ts, fbgdata = read_fbgData( file, fbg_needle.num_aa )  # more flexible way
         
         vl_d['time'] = ts[0]  # in seconds
         
@@ -471,12 +484,18 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
         rowidx_start = 1
         
         Nrows, Ncols = fbgdata.shape
-
+        
         # write the data matrix
-        for row_idx, data in enumerate( fbgdata ):
-            worksheet.write_row( rowidx_start + row_idx, 1, data )
+        for row_idx, data in enumerate( fbgdata, rowidx_start ):
+            worksheet.write_row( row_idx, 1, data )
     
         # for
+
+#         # write the data matrix
+#         for row_idx, data in enumerate( fbgdata ):
+#             worksheet.write_row( rowidx_start + row_idx, 1, data )
+#     
+#         # for
         
         # formulas to write
         mean_formula = [mean_form.format( c, Nrows + 1 ) for c in col_letts[1:Ncols + 1]]
@@ -505,7 +524,8 @@ def process_fbgdata_directory( directory: str, filefmt: str = "fbgdata*.txt" ):
         
     # while
     
-    result_header2 = 9 * ['Average (nm)', 'STD (nm)']
+#     result_header2 = 9 * ['Average (nm)', 'STD (nm)']
+    result_header2 = fbg_needle.num_channels * fbg_needle.num_aa * ['Average (nm)', 'STD (nm)']  # more robust way
     result.write_row( 0, 0, result_header1 )
     result.write_row( 1, 1, result_header2 )
     rowstart_idx = 2
@@ -583,6 +603,8 @@ def main():
     needleparam = directory + "needle_params.csv"
     num_actives, length, active_areas = read_needleparam( needleparam )
     
+    fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the FBGNeedle file
+    
     directory += "Validation/Sanity_Check/"
     directory += "01-03-20_11-23/"
     
@@ -607,10 +629,10 @@ def main():
 #             ts = datetime.strptime( str_ts, "%H:%M:%S.%f" )
 #             print( ts )
             if idx == 0 or idx == len( imgfiles ) - 1:
-                retval += get_curvature_image( imgf, active_areas, length, show_imgp, polfit = 3 )
+                retval += get_curvature_image( imgf, np.array( fbg_needle.sensor_location ), fbg_needle.length, show_imgp, polfit = 3 )
             
             else:
-                retval += get_curvature_image( imgf, active_areas, length, show_imgp, polfit = 4 )
+                retval += get_curvature_image( imgf, np.array( fbg_needle.sensor_location ), fbg_needle.length, show_imgp, polfit = 4 )
             
             print()
         # if
@@ -632,6 +654,9 @@ if __name__ == '__main__':
     # main()
     
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
+    fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
+    
+    # process the FBG data directory
     directory += "Jig_Calibration/"
     # directory += "Calibration/0 deg/"
 #     directory +="12-28-19_14-43/"
@@ -640,7 +665,7 @@ if __name__ == '__main__':
         if os.path.isdir( dir ):
             dir += '/'
             print( 'Processing:', dir )
-            process_fbgdata_directory( dir )
+            process_fbgdata_directory( dir, fbg_needle )
             print()
             
         # if
