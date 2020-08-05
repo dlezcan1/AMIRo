@@ -409,120 +409,6 @@ def plot( delta_fbg, curvature ):
 # plot
 
 
-def process_fbgdata_file( fbg_input_file: str, fbg_needle: FBGNeedle ):
-    """ 
-    This function is to handle the fbgdata.xlsx files and combine them into a single file.
-    
-    @param fbg_input_file, str: The fbgdata file to be processed
-    
-    @param fbg_needle, FBGNeedle: The FBGNeedle param class object
-    
-    @return: The Pandas Dataframe of the Avg. and STD for the fbg_input_file 
-    """
-    wb = pd.read_excel( fbg_input_file, None )  # read all sheets from wkbook
-    data_sheets = [k for k in wb.keys() if k != 'Summary']  # only count the data sheets
-    
-    # Note: remove the end parts of the files (remove the bottom 4 when processing Avg. Std. Min. Max.)
-    
-    # initialize the DataFrame for all the processed data
-    time_head = pd.MultiIndex.from_arrays( [['time (s)'], ['empty 2'], ['empty 3']] )
-    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
-    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
-    data_head = ['Average (nm)', 'STD (nm)']
-    proc_header = pd.MultiIndex.from_product( [ch_head, aa_head, data_head] )
-    proc_header = time_head.append( proc_header )
-    
-    # the empty processed data
-    proc_data = pd.DataFrame( index = range( len( data_sheets ) ), columns = proc_header )
-    avg_mask = proc_data.get_level_values( 2 ) == data_head[0]  # for col selection
-    std_mask = proc_data.get_level_values( 2 ) == data_head[1]  # for col selection
-    
-    # process each frame of data from the trials to create a summary table
-    for i, sheet in enumerate( data_sheets ):
-        sheet_data = wb[sheet].astype( float )  # and convert all to floats
-        sheet_data = sheet_data.iloc[:-4]
-        
-        # change the headers for better alignment
-        sheet_data.columns = proc_header.droplevel( 2 ).drop_duplicates() 
-        
-        # add the data to the processed data
-        proc_data.iloc[i, 0] = sheet_data.iloc[:, 0].min()[0]  # set the time
-        proc_data.iloc[i, avg_mask] = sheet_data.iloc[:, 1:].mean()  # set the mean
-        proc_data.iloc[i, std_mask] = sheet_data.iloc[:, 1:].std()  # set the STD  
-    
-    # for
-    
-    return proc_data
-
-# process_fbgdata_file
-
-
-def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list, 
-                               fbg_needle: FBGNeedle, outfile: str = None ):
-    """
-    This function is used to consolidate the FBGdata file lists 
-    
-    @param fbg_input_files, list: list of fbgdata.xlsx files to be processed.
-    
-    @param curvature_values, list: list of associated curvatures induced in
-                fbgdata.xlsx files list.
-                
-    @param fbg_needle, FBGNeedle: the FBGNeedle class param object
-    
-    @param outfile, str (Optional, Default = None): Output file path. If is 'None',
-                then no file will be saved.
-
-    @return: The entire pandas Dataframe consolidated with curvature and processed
-                fbgdata.xlsx averages and std.
-    """
-    # data checking
-    if len( curvature_values ) != len( fbg_input_files ):
-        raise IndexError( "The curvature values and fbg files must be of the same length." )
-    
-    # initialize the array with the first sheet
-    first_head = pd.MultiIndex.from_arrays( [['Curvature (1/m)', 'time (s)'],
-                                            2 * ['empty 2'], 2 * ['empty 3']] )
-    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
-    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
-    data_head = ['Average (nm)', 'STD (nm)']
-    
-    all_data_header = pd.MultiIndex.from_product( [ch_head, aa_head, data_head] )
-    all_data_header = first_head.append( all_data_header )
-    
-    all_data = pd.DataFrame( columns = all_data_header )
-    
-    # Begin collecting data from the fbgdata.xlsx files
-    for fbg_file, curvature in zip( fbg_input_files, curvature_values ):
-        # run the curvatures
-        df = process_fbgdata_file( fbg_file, fbg_needle )  # get the processsed df
-        curv_ds = pd.Series( curvature * np.ones( df.shape[0] ), name = 'Curvature (1/m)' ) 
-        
-        # concatenate the data
-        all_data = all_data.append( pd.concat( [curv_ds, df], axis = 1 ), ignore_index = True )
-        
-    # for
-    
-    # save the data
-    if outfile is not None:
-        all_data.to_excel( outfile )
-        
-    return all_data
-    
-# consolidate_fbgdata_files
-
-
-def create_datamatrices( fbg_input_files: list, fbg_needle: FBGNeedle,
-                          outfile: str = None ):
-    """ 
-    This function is used to consolidate the data into a single
-    data matrix for multiple AA from the compiled data. 
-    """
-    
-    raise NotImplementedError( "'create_datamatrices_file' is not implemented yet." )
-
-# create_datamatrices_file
-
-
 def read_datamatrices( filename: str, fbg_needle: FBGNeedle ):
     """ To read the excel data matrices summary file """
     wkbook = xlrd.open_workbook( filename )
@@ -757,7 +643,7 @@ def main_calmat():
     datafile = "Data Matrices.xlsx"
     needleparamfile = "needle_params.csv"
     needlejsonfile = "needle_params.json"
-    out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split('/')[-2] + '.json'
+    out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
     lstsq_logfile = "least_sq.log"
 
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )

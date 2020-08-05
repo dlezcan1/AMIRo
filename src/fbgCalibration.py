@@ -7,20 +7,22 @@ Created on Dec 6, 2019
           incorporating the image and FBG data when needle calibration is 
           performed.
 '''
-import glob, re, cv2, xlsxwriter, os.path
+import glob, re, cv2, xlsxwriter, os.path, itertools
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-import calibrationMatrix as calmat
+# import calibrationMatrix as calmat
 import image_processing as imgp
 from datetime import datetime, timedelta
 from scipy import interpolate
 from FBGNeedle import FBGNeedle
-import itertools
 # from needle_segmentation_script import CROP_AREA
 
+# the time formatting of the data
 TIME_FMT = "%H-%M-%S.%f"
 TIME_FIX = timedelta( hours = 0 )  # the internal fix for the time
 
+# Image processing params
 # PIX_PER_MM = 8.875 # what appears to be the actual fit
 PIX_PER_MM = 8.498439767625596
 # CROP_AREA = ( 32, 425, 1180, 600 )
@@ -30,6 +32,72 @@ BO_REGIONS.append( ( 1090, 105, -1, -1 ) )
 BO_REGIONS.append( ( 0, 75, 145, -1 ) )
 BO_REGIONS.append( ( 950, 0, -1, 68 ) )
 BO_REGIONS.append( ( 0, 170, -1, -1 ) )
+
+
+def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
+                               fbg_needle: FBGNeedle, outfile: str = None ):
+    """
+    This function is used to consolidate the FBGdata file lists 
+    
+    @param fbg_input_files, list: list of fbgdata.xlsx files to be processed.
+    
+    @param curvature_values, list: list of associated curvatures induced in
+                fbgdata.xlsx files list.
+                
+    @param fbg_needle, FBGNeedle: the FBGNeedle class param object
+    
+    @param outfile, str (Optional, Default = None): Output file path. If is 'None',
+                then no file will be saved.
+
+    @return: The entire pandas Dataframe consolidated with curvature and processed
+                fbgdata.xlsx averages and std.
+    """
+    # data checking
+    if len( curvature_values ) != len( fbg_input_files ):
+        raise IndexError( "The curvature values and fbg files must be of the same length." )
+    
+    # initialize the array with the first sheet
+    first_head = pd.MultiIndex.from_arrays( [['Curvature (1/m)', 'time (s)'],
+                                            2 * ['empty 2'], 2 * ['empty 3']] )
+    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
+    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    data_head = ['Average (nm)', 'STD (nm)']
+    
+    all_data_header = pd.MultiIndex.from_product( [ch_head, aa_head, data_head] )
+    all_data_header = first_head.append( all_data_header )
+    
+    all_data = pd.DataFrame( columns = all_data_header )
+    
+    # Begin collecting data from the fbgdata.xlsx files
+    for fbg_file, curvature in zip( fbg_input_files, curvature_values ):
+        # run the curvatures
+        df = process_fbgdata_file( fbg_file, fbg_needle )  # get the processsed df
+        curv_ds = pd.Series( curvature * np.ones( df.shape[0] ), name = 'Curvature (1/m)' ) 
+        
+        # concatenate the data
+        all_data = all_data.append( pd.concat( [curv_ds, df], axis = 1 ), ignore_index = True )
+        
+    # for
+    
+    # save the data
+    if outfile is not None:
+        all_data.to_excel( outfile )
+        
+    return all_data
+    
+# consolidate_fbgdata_files
+
+
+def create_datamatrices( fbg_input_files: list, fbg_needle: FBGNeedle,
+                          outfile: str = None ):
+    """ 
+    This function is used to consolidate the data into a single
+    data matrix for multiple AA from the compiled data. 
+    """
+    
+    raise NotImplementedError( "'create_datamatrices' is not implemented yet." )
+
+# create_datamatrices_file
 
 
 def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
@@ -136,138 +204,6 @@ def fix_fbgData( filename: str ):
 #     # with
         
 # fix_fbgData
-                
-    
-def read_fbgData( filename: str, fbg_needle: FBGNeedle, lines: list = [-1] ):
-    """ Function to read in the FBG data
-    
-        @param filename: str, the input fbg data file
-        
-        @param fbg_needle: FBGNeedle, the FBGNeedle class object for the needle
-        
-        @param lines: list of line numbers that would like to be read in. 
-                        (default = [-1], indicating all lines)
-        
-        @return: (timestamps, fbgdata)
-                 timestamps: numpy array of timestamps corresponding row-wise
-                                to fbgdata
-                 fbgdata:    numpy array of fbg readings where the rows are 
-                                 the time per entry
-                                 
-    """
-    global TIME_FMT, TIME_FIX
-    
-    max_lines = max( lines )
-    timestamps = np.empty( 0 )
-#     fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
-    fbgdata = np.empty( ( 0, fbg_needle.num_channels * fbg_needle.num_aa ) )  # more flexible
-    
-    with open( filename, 'r' ) as file:
-        for i, line in enumerate( file ):
-            
-            # read in desired lines
-            if lines != [-1]:
-                
-                if i > max_lines:  # passed the maximum lines, stop reading
-                    break
-                
-                elif i not in lines:  # not a line we want to read
-                    continue
-            
-            # if
-            
-            ts, datastring = line.split( ':' )
-            ts = datetime.strptime( ts, TIME_FMT ) + TIME_FIX
-            t0 = datetime( ts.year, ts.month, ts.day )
-            dt = ( ts - t0 ).total_seconds()
-            timestamps = np.append( timestamps, dt )
-            data = np.fromstring( datastring, sep = ',' , dtype = float )
-            
-#             if len( data ) == 3 * num_active_areas:  # all active areas measured
-#                 fbgdata = np.vstack( ( fbgdata, data ) )
-                
-            # more flexible way
-            if len( data ) == fbg_needle.num_channels * fbg_needle.num_aa:  # all active areas measured
-                fbgdata = np.vstack( ( fbgdata, data ) )
-                
-            else:  # too many or not enough sensor readings
-                fbgdata = np.vstack( ( fbgdata, -1 * fbgdata.shape[1] ) )
-                
-        # for
-    # with
-    
-    # remove "-1" rows - more peaks than intended
-    timestamps = timestamps[fbgdata[:, 0] > 0]
-    fbgdata = fbgdata[[fbgdata[:, 0] > 0]]
-    
-    # sort by the timestamps
-    args = np.argsort( timestamps, axis = 0 )
-    timestamps = timestamps[ args ]
-    fbgdata = fbgdata[ args ]
-    
-    return timestamps, fbgdata
-            
-# read_fbgData
-
-
-def read_needleparam( filename: str ):
-    """ Function to read the needle parameters file
-    
-        @param filename: str, representing the needle parameter filename
-        
-        
-        @return (needle_length, # active_areas, active_areas)
-                    needle_length  = the length of the needle (in mm)
-                    # active_areas = number of active areas
-                    active_areas   = numpy 1-d array of the distances of active
-                                         areas from the tip (in mm)
-                                    
-    """
-    with open( filename, 'r' ) as file:
-        lines = file.read().split( '\n' )
-        _, needle_length, num_active_areas = lines[0].split( ',' )
-        
-        needle_length = float( needle_length )
-        num_active_areas = int( num_active_areas )
-        
-        active_areas = np.fromstring( lines[1], sep = ',', dtype = float )
-        
-    # with
-    
-    return needle_length, num_active_areas, active_areas
-
-# read_needleparam
-
-
-def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray, max_match: int = 100 ):
-    """ Function to find the windowed timedata from the gathered FBGdata.
-    
-        @param lutime: list of items to look up
-        
-        @param dt:     float, the time window length in seconds.
-        
-        @param timestamps: numpy 1-D array of timestamps
-        
-        @param max_match: (optional, default = 100) number of maximum matches
-                
-        @return 1-D array -> indices matching to the timestamps matched
-                
-    """
-
-    retval = -1 * np.ones( ( len( lutimes ), max_match ) )  # instantiate no matches
-    
-    dT = timedelta( seconds = dt )
-    
-    for kk, lut in enumerate( lutimes ):
-        idxs = np.logical_and( timestamps >= lut - dT, timestamps <= lut + dT )
-        idxs = np.argwhere( idxs ).reshape( -1 )
-        retval[kk, :len( idxs )] = idxs[:max_match]
-        
-    # for
-    
-    return retval
-
-# get_FBGdata_window
 
 
 def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length: float,
@@ -434,6 +370,138 @@ def get_curvature_image ( filename: str, active_areas: np.ndarray, needle_length
     
 # get_curvature_image
 
+                
+def get_FBGdata_windows( lutimes: np.ndarray, dt: float, timestamps: np.ndarray, max_match: int = 100 ):
+    """ Function to find the windowed timedata from the gathered FBGdata.
+    
+        @param lutime: list of items to look up
+        
+        @param dt:     float, the time window length in seconds.
+        
+        @param timestamps: numpy 1-D array of timestamps
+        
+        @param max_match: (optional, default = 100) number of maximum matches
+                
+        @return 1-D array -> indices matching to the timestamps matched
+                
+    """
+
+    retval = -1 * np.ones( ( len( lutimes ), max_match ) )  # instantiate no matches
+    
+    dT = timedelta( seconds = dt )
+    
+    for kk, lut in enumerate( lutimes ):
+        idxs = np.logical_and( timestamps >= lut - dT, timestamps <= lut + dT )
+        idxs = np.argwhere( idxs ).reshape( -1 )
+        retval[kk, :len( idxs )] = idxs[:max_match]
+        
+    # for
+    
+    return retval
+
+# get_FBGdata_window
+
+    
+def read_fbgData( filename: str, fbg_needle: FBGNeedle, lines: list = [-1] ):
+    """ Function to read in the FBG data
+    
+        @param filename: str, the input fbg data file
+        
+        @param fbg_needle: FBGNeedle, the FBGNeedle class object for the needle
+        
+        @param lines: list of line numbers that would like to be read in. 
+                        (default = [-1], indicating all lines)
+        
+        @return: (timestamps, fbgdata)
+                 timestamps: numpy array of timestamps corresponding row-wise
+                                to fbgdata
+                 fbgdata:    numpy array of fbg readings where the rows are 
+                                 the time per entry
+                                 
+    """
+    global TIME_FMT, TIME_FIX
+    
+    max_lines = max( lines )
+    timestamps = np.empty( 0 )
+#     fbgdata = np.empty( ( 0, 3 * num_active_areas ) )
+    fbgdata = np.empty( ( 0, fbg_needle.num_channels * fbg_needle.num_aa ) )  # more flexible
+    
+    with open( filename, 'r' ) as file:
+        for i, line in enumerate( file ):
+            
+            # read in desired lines
+            if lines != [-1]:
+                
+                if i > max_lines:  # passed the maximum lines, stop reading
+                    break
+                
+                elif i not in lines:  # not a line we want to read
+                    continue
+            
+            # if
+            
+            ts, datastring = line.split( ':' )
+            ts = datetime.strptime( ts, TIME_FMT ) + TIME_FIX
+            t0 = datetime( ts.year, ts.month, ts.day )
+            dt = ( ts - t0 ).total_seconds()
+            timestamps = np.append( timestamps, dt )
+            data = np.fromstring( datastring, sep = ',' , dtype = float )
+            
+#             if len( data ) == 3 * num_active_areas:  # all active areas measured
+#                 fbgdata = np.vstack( ( fbgdata, data ) )
+                
+            # more flexible way
+            if len( data ) == fbg_needle.num_channels * fbg_needle.num_aa:  # all active areas measured
+                fbgdata = np.vstack( ( fbgdata, data ) )
+                
+            else:  # too many or not enough sensor readings
+                fbgdata = np.vstack( ( fbgdata, -1 * fbgdata.shape[1] ) )
+                
+        # for
+    # with
+    
+    # remove "-1" rows - more peaks than intended
+    timestamps = timestamps[fbgdata[:, 0] > 0]
+    fbgdata = fbgdata[[fbgdata[:, 0] > 0]]
+    
+    # sort by the timestamps
+    args = np.argsort( timestamps, axis = 0 )
+    timestamps = timestamps[ args ]
+    fbgdata = fbgdata[ args ]
+    
+    return timestamps, fbgdata
+            
+# read_fbgData
+
+
+def read_needleparam( filename: str ):
+    """ Function to read the needle parameters file
+    
+        @param filename: str, representing the needle parameter filename
+        
+        
+        @return (needle_length, # active_areas, active_areas)
+                    needle_length  = the length of the needle (in mm)
+                    # active_areas = number of active areas
+                    active_areas   = numpy 1-d array of the distances of active
+                                         areas from the tip (in mm)
+                                    
+    """
+    with open( filename, 'r' ) as file:
+        lines = file.read().split( '\n' )
+        _, needle_length, num_active_areas = lines[0].split( ',' )
+        
+        needle_length = float( needle_length )
+        num_active_areas = int( num_active_areas )
+        
+        active_areas = np.fromstring( lines[1], sep = ',', dtype = float )
+        
+    # with
+    
+    return needle_length, num_active_areas, active_areas
+
+# read_needleparam
+
 
 def process_fbgdata_directory( directory: str, fbg_needle: FBGNeedle, filefmt: str = "fbgdata*.txt", ):
     """ Process fbgdata text files """
@@ -553,6 +621,54 @@ def process_fbgdata_directory( directory: str, fbg_needle: FBGNeedle, filefmt: s
 # process_fbgdata_directory
 
 
+def process_fbgdata_file( fbg_input_file: str, fbg_needle: FBGNeedle ):
+    """ 
+    This function is to handle the fbgdata.xlsx files and combine them into a single file.
+    
+    @param fbg_input_file, str: The fbgdata file to be processed
+    
+    @param fbg_needle, FBGNeedle: The FBGNeedle param class object
+    
+    @return: The Pandas Dataframe of the Avg. and STD for the fbg_input_file 
+    """
+    wb = pd.read_excel( fbg_input_file, None )  # read all sheets from wkbook
+    data_sheets = [k for k in wb.keys() if k != 'Summary']  # only count the data sheets
+    
+    # Note: remove the end parts of the files (remove the bottom 4 when processing Avg. Std. Min. Max.)
+    
+    # initialize the DataFrame for all the processed data
+    time_head = pd.MultiIndex.from_arrays( [['time (s)'], ['empty 2'], ['empty 3']] )
+    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
+    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    data_head = ['Average (nm)', 'STD (nm)']
+    proc_header = pd.MultiIndex.from_product( [ch_head, aa_head, data_head] )
+    proc_header = time_head.append( proc_header )
+    
+    # the empty processed data
+    proc_data = pd.DataFrame( index = range( len( data_sheets ) ), columns = proc_header )
+    avg_mask = proc_data.get_level_values( 2 ) == data_head[0]  # for col selection
+    std_mask = proc_data.get_level_values( 2 ) == data_head[1]  # for col selection
+    
+    # process each frame of data from the trials to create a summary table
+    for i, sheet in enumerate( data_sheets ):
+        sheet_data = wb[sheet].astype( float )  # and convert all to floats
+        sheet_data = sheet_data.iloc[:-4]
+        
+        # change the headers for better alignment
+        sheet_data.columns = proc_header.droplevel( 2 ).drop_duplicates() 
+        
+        # add the data to the processed data
+        proc_data.iloc[i, 0] = sheet_data.iloc[:, 0].min()[0]  # set the time
+        proc_data.iloc[i, avg_mask] = sheet_data.iloc[:, 1:].mean()  # set the mean
+        proc_data.iloc[i, std_mask] = sheet_data.iloc[:, 1:].std()  # set the STD  
+    
+    # for
+    
+    return proc_data
+
+# process_fbgdata_file
+
+
 def process_curvature_directory( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
     """ Function to parse the curvature directory as to an Excel file."""
     col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -650,28 +766,34 @@ def main():
 # main
 
 
-if __name__ == '__main__':
-    # main()
-    
+if __name__ == '__main__':    
+    # set-up
     directory = "../FBG_Needle_Calibration_Data/needle_1/"
     fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
+    curvature_values = {'cal': [0, .5, 1, 1.6, 2.5, 3.2, 4]}
     
     # process the FBG data directory
+    exp_angle = 0 # the experiment angle of insertion
     directory += "Jig_Calibration/"
-    # directory += "Calibration/0 deg/"
-#     directory +="12-28-19_14-43/"
+#     directory += "{:d}_deg/".format(exp_angle) # add the angle here
+    
+    # iterate through all fbgdata directories processing .txt files
     directories = glob.glob( directory + '01-*' )
-    for dir in directories:
+    directories = [d + '/' if not d.endswith( '/' ) else d for d in directories ]
+    for d in directories:
         if os.path.isdir( dir ):
-            dir += '/'
-            print( 'Processing:', dir )
-            process_fbgdata_directory( dir, fbg_needle )
+            print( 'Processing:', d )
+            process_fbgdata_directory( d, fbg_needle )
             print()
             
         # if
-#     # for
-#     
-#     process_fbgdata_directory( directory )
+    # for
+    
+    # consolidate the fbgdata_files
+    fbgdata_files = [d + "fbgdata.xlsx" for d in directories]
+    out_fbgresult_file = directory + "FBGResults_{:d}deg.xlsx".format( exp_angle )
+    consolidate_fbgdata_files( fbgdata_files, curvature_values['cal'], fbg_needle,
+                              out_fbgresult_file )
     
     print( "Program has terminated." )
     
