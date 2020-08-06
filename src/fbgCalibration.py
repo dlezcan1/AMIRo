@@ -72,7 +72,7 @@ def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
     for fbg_file, curvature in zip( fbg_input_files, curvature_values ):
         # run the curvatures
         df = process_fbgdata_file( fbg_file, fbg_needle )  # get the processsed df
-        curv_ds = pd.Series( curvature * np.ones( df.shape[0] ), name = 'Curvature (1/m)' ) 
+        curv_ds = pd.Series( curvature * np.ones( df.shape[0] ), name = first_head[0] ) 
         
         # concatenate the data
         all_data = all_data.append( pd.concat( [curv_ds, df], axis = 1 ), ignore_index = True )
@@ -521,7 +521,7 @@ def process_fbgdata_directory( directory: str, fbg_needle: FBGNeedle, filefmt: s
     
     # more direct way of performing header operation
     header = ["time(s)"]
-    header.append( ["CH{:d} | AA{:d}".format( nc + 1, na + 1 ) for ( nc, na ) in
+    header.extend( ["CH{:d} | AA{:d}".format( nc + 1, na + 1 ) for ( nc, na ) in
                       itertools.product( range( fbg_needle.num_channels ), range( fbg_needle.num_aa ) )] )
     
     # excel formulas
@@ -543,7 +543,7 @@ def process_fbgdata_directory( directory: str, fbg_needle: FBGNeedle, filefmt: s
         worksheet = workbook.add_worksheet( vl_d['sheet'] )
         worksheet.write_row( 0, 0, header )
 #         ts, fbgdata = read_fbgData( file, 3 )
-        ts, fbgdata = read_fbgData( file, fbg_needle.num_aa )  # more flexible way
+        ts, fbgdata = read_fbgData( file, fbg_needle )  # more flexible way
         
         vl_d['time'] = ts[0]  # in seconds
         
@@ -646,19 +646,19 @@ def process_fbgdata_file( fbg_input_file: str, fbg_needle: FBGNeedle ):
     
     # the empty processed data
     proc_data = pd.DataFrame( index = range( len( data_sheets ) ), columns = proc_header )
-    avg_mask = proc_data.get_level_values( 2 ) == data_head[0]  # for col selection
-    std_mask = proc_data.get_level_values( 2 ) == data_head[1]  # for col selection
+    avg_mask = proc_data.columns.get_level_values( 2 ) == data_head[0]  # for col selection
+    std_mask = proc_data.columns.get_level_values( 2 ) == data_head[1]  # for col selection
     
     # process each frame of data from the trials to create a summary table
     for i, sheet in enumerate( data_sheets ):
-        sheet_data = wb[sheet].astype( float )  # and convert all to floats
-        sheet_data = sheet_data.iloc[:-4]
+        sheet_data = wb[sheet]
+        sheet_data = sheet_data[sheet_data.iloc[:, 0].str.isalpha() == False].astype( float )  # and convert all to floats
         
         # change the headers for better alignment
         sheet_data.columns = proc_header.droplevel( 2 ).drop_duplicates() 
         
         # add the data to the processed data
-        proc_data.iloc[i, 0] = sheet_data.iloc[:, 0].min()[0]  # set the time
+        proc_data.iloc[i, 0] = sheet_data.iloc[:, 0].min()  # set the time
         proc_data.iloc[i, avg_mask] = sheet_data.iloc[:, 1:].mean()  # set the mean
         proc_data.iloc[i, std_mask] = sheet_data.iloc[:, 1:].std()  # set the STD  
     
@@ -768,20 +768,34 @@ def main():
 
 if __name__ == '__main__':    
     # set-up
-    directory = "../FBG_Needle_Calibration_Data/needle_1/"
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
     fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
-    curvature_values = {'cal': [0, .5, 1, 1.6, 2.5, 3.2, 4]}
+    print( fbg_needle )
+    curvature_values = {'cal': [0, 0.5, 1.6, 2.0, 2.5, 3.2, 4],
+                        'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
     
     # process the FBG data directory
-    exp_angle = 0 # the experiment angle of insertion
-    directory += "Jig_Calibration/"
-#     directory += "{:d}_deg/".format(exp_angle) # add the angle here
+    directory += "Jig_Calibration_08-05-20/"
     
-    # iterate through all fbgdata directories processing .txt files
-    directories = glob.glob( directory + '01-*' )
-    directories = [d + '/' if not d.endswith( '/' ) else d for d in directories ]
-    for d in directories:
-        if os.path.isdir( dir ):
+    # gather the directories contatining the .txt files
+    dirs_degs = {}
+    dirs_degs[0] = glob.glob( directory + "0_deg/08*" )
+    dirs_degs[90] = glob.glob( directory + "90_deg/08*" )
+    dirs_degs[180] = glob.glob( directory + "180_deg/08*" )
+    dirs_degs[270] = glob.glob( directory + "270_deg/08*" )
+    
+    # correct the fomatting of the directories
+    for exp_angle, dirs in dirs_degs.items():
+        dirs_degs[exp_angle] = [d.replace( '\\', '/' ) + '/' if not d.endswith( '/' ) else d.replace( '\\', '/' ) for d in dirs]
+        
+    # for
+    
+#     # combine the files for mass
+#     directories = sum( dirs_degs.values(), [] )
+    
+    # iterate through the directories processing the fbg data files individually
+    for d in sum( dirs_degs.values(), [] ):
+        if os.path.isdir( d ):
             print( 'Processing:', d )
             process_fbgdata_directory( d, fbg_needle )
             print()
@@ -790,10 +804,15 @@ if __name__ == '__main__':
     # for
     
     # consolidate the fbgdata_files
-    fbgdata_files = [d + "fbgdata.xlsx" for d in directories]
-    out_fbgresult_file = directory + "FBGResults_{:d}deg.xlsx".format( exp_angle )
-    consolidate_fbgdata_files( fbgdata_files, curvature_values['cal'], fbg_needle,
+    for exp_angle, fbgdata_dir in dirs_degs.items():
+        print( "Handling angle:", exp_angle, "degs" )
+        fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
+        out_fbgresult_file = directory + "FBGResults_{0:d}deg.xlsx".format( exp_angle )
+        consolidate_fbgdata_files( fbgdata_files, curvature_values['cal'], fbg_needle,
                               out_fbgresult_file )
+        print("Saved:", out_fbgresult_file)
+    
+    # for
     
     print( "Program has terminated." )
     

@@ -273,7 +273,7 @@ if __name__ == "__main__" or False:
     
     # create and save the new 
     test = FBGNeedle( length, num_chs, aa_locs )
-    print( str( test ) )
+    print( test )
     
     if save_bool:
         save_file = directory + "needle_params.json"
@@ -282,7 +282,7 @@ if __name__ == "__main__" or False:
         
         test2 = FBGNeedle.load_json( save_file )
         print( "after load" )
-        print( str( test2 ) )
+        print( test2 )
         
     # if
     
