@@ -23,6 +23,7 @@ class FBGNeedle( object ):
             - length: float, of the length of the entire needle (mm)
             - num_channels: int, the number of channels there are
             - sensor_location: list, the arclength locations (mm) of the AA's (default = None)
+                This measurement is from the base of the needle
         '''
 
         # data checking
@@ -142,7 +143,7 @@ class FBGNeedle( object ):
             # if
             
             else:
-                self._sensor_location = sorted( list( set( sensor_locations ) ) )  # remove duplicates
+                self._sensor_location = sorted( list( set( sensor_locations ) ), reverse = True )  # remove duplicates
             
             # else 
         # if
@@ -182,7 +183,7 @@ class FBGNeedle( object ):
         if "Calibration Matrices" in data.keys():
             cal_mats = {}
             for loc, c_mat in data["Calibration Matrices"].items():
-                cal_mats[int(loc)] = np.array(c_mat)
+                cal_mats[int( loc )] = np.array( c_mat )
                 
             # for
         
@@ -258,19 +259,32 @@ class FBGNeedle( object ):
 
 # for debugging purposes
 if __name__ == "__main__" or False:
-
-    directory = "C:/Users/dlezcan1/Desktop/"
-    loc = 10
-    arr = {loc: np.arange( 6 ).reshape( 2, 3 )}
-    print( "before" )
-    test = FBGNeedle( 30, 3, [loc], arr )
+    
+    # directory to save in
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    save_bool = True
+    
+    # needle parameters
+    length = 200  # mm
+    num_chs = 3
+    aa_locs_tip = np.cumsum( [10, 20, 35, 35] ) 
+    aa_locs = sorted( ( 200 - aa_locs_tip ).tolist(), reverse = True )
+    cal_mats = None
+    
+    # create and save the new 
+    test = FBGNeedle( length, num_chs, aa_locs )
     print( str( test ) )
     
-    save_file = directory + "test.json"
-    test.save_json( save_file )
-    print( "Saved file: " + save_file )
+    if save_bool:
+        save_file = directory + "needle_params.json"
+        test.save_json( save_file )
+        print( "Saved file: " + save_file )
+        
+        test2 = FBGNeedle.load_json( save_file )
+        print( "after load" )
+        print( str( test2 ) )
+        
+    # if
     
-    test2 = FBGNeedle.load_json( save_file )
-    print( "after load" )
-    print( str( test2 ) )
+# if: __main__
 
