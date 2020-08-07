@@ -78,10 +78,39 @@ def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
         all_data = all_data.append( pd.concat( [curv_ds, df], axis = 1 ), ignore_index = True )
         
     # for
+    all_data = all_data.astype(float)
+    
+    # summarize the trials by curvature
+    # create the summary table
+    summ_header = all_data.columns[2:]
+    summ_data = pd.DataFrame( index = curvature_values, columns = summ_header )
+    summ_data.index.name = "Curvature (1/m)"
+    
+    # get the AVG and STD for the wavalength values for each trial
+    mask_avg = np.logical_or( all_data.columns.get_level_values( 2 ) == data_head[0],
+                             all_data.columns.get_level_values( 0 ) == "Curvature (1/m)" )
+    summ_mean = all_data.iloc[:, mask_avg].groupby( by = first_head[0] ).mean()  # mean values
+    summ_std = all_data.iloc[:, mask_avg].groupby( by = first_head[0] ).std()  # std values
+    
+    # find the AVG and STD masks in the summary data table
+    mask_avg = summ_data.columns.get_level_values( 2 ) == data_head[0]
+    mask_std = summ_data.columns.get_level_values( 2 ) == data_head[1]
+    
+    # make sure the headers are set correct in head table
+    summ_mean.columns = summ_data.columns[mask_avg]
+    summ_std.columns = summ_data.columns[mask_std]
+    
+    # add the AVG and STD values to the table
+    summ_data.iloc[:, mask_avg] = summ_mean
+    summ_data.iloc[:, mask_std] = summ_std
     
     # save the data
     if outfile is not None:
-        all_data.to_excel( outfile )
+        xlwriter = pd.ExcelWriter( outfile, engine = 'xlsxwriter' )
+        summ_data.to_excel( xlwriter, sheet_name = 'Summary' )
+        all_data.to_excel( xlwriter, sheet_name = 'Trial Data' )
+        
+        xlwriter.save()
         
     return all_data
     
@@ -807,10 +836,10 @@ if __name__ == '__main__':
     for exp_angle, fbgdata_dir in dirs_degs.items():
         print( "Handling angle:", exp_angle, "degs" )
         fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
-        out_fbgresult_file = directory + "FBGResults_{0:d}deg.xlsx".format( exp_angle )
+        out_fbgresult_file = directory + "08-05-20_FBGResults_{0:d}deg.xlsx".format( exp_angle )
         consolidate_fbgdata_files( fbgdata_files, curvature_values['cal'], fbg_needle,
                               out_fbgresult_file )
-        print("Saved:", out_fbgresult_file)
+        print( "Saved:", out_fbgresult_file )
     
     # for
     
