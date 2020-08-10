@@ -78,7 +78,7 @@ def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
         all_data = all_data.append( pd.concat( [curv_ds, df], axis = 1 ), ignore_index = True )
         
     # for
-    all_data = all_data.astype(float)
+    all_data = all_data.astype( float )
     
     # summarize the trials by curvature
     # create the summary table
@@ -115,18 +115,6 @@ def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
     return all_data
     
 # consolidate_fbgdata_files
-
-
-def create_datamatrices( fbg_input_files: list, fbg_needle: FBGNeedle,
-                          outfile: str = None ):
-    """ 
-    This function is used to consolidate the data into a single
-    data matrix for multiple AA from the compiled data. 
-    """
-    
-    raise NotImplementedError( "'create_datamatrices' is not implemented yet." )
-
-# create_datamatrices_file
 
 
 def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):

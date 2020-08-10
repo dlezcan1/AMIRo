@@ -15,231 +15,6 @@ from _pickle import load
 from FBGNeedle import FBGNeedle
 
 
-def load_curvature( directory ):
-    '''loads all the curvature_monofbg text files
-        combines curvature results into one n x 4 numpy array
-        with the first column with the timestamp data
-
-        Output: nx4 numpy array of floats
-    '''
-    curvature = np.empty( [0, 4] )
-
-    name_length = len( directory + "curvature_monofbg_mm_dd_yyyy_" )
-    filenames = glob.glob( directory + "curvature_monofbg*.txt" )
-    print( 'number of files: %s' % len( filenames ) )
-
-    for file in filenames:
-        with open( file, 'r' ) as f:
-            for i, line in enumerate( f ):
-                if i == 3:
-                    timestamp = file[name_length:-4]
-                    hour, minute, sec = timestamp.split( '-' )
-                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
-
-                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
-                    toappend = [float( i ) for i in data[1]]  # convert to floats
-                    toappend.insert( 0, timeInSec )
-                    
-                    curvature = np.vstack( [curvature, toappend] )
-    print( curvature.shape )
-    return curvature
-
-# load_curvature
-
-
-def sync_fbg( directory, curvature, w1, w2 ):
-    '''loads fbgdata text file
-        calculates baseline FBG readings using the first 100 lines
-        finds closest line that matches with each curvature file
-        and takes average wavelength based on window size (2*w+1 points)
-    '''
-#     global startTime
-    name_length = len( directory + "fixed_fbgdata_yyyy_mm_dd_" )
-    filenames = glob.glob( directory + "fixed_fbgdata_*.txt" )
-    curv_idx = 0
-    camera_time_offset = 0.75  # seconds
-
-    # # generate a numpy array of rawFBG data
-    rawFBG = np.empty( [0, 10] )
-    if len( filenames ) == 1:
-        for file in filenames:
-            baseTime = file[name_length:-4]
-            hour, minute, sec = baseTime.split( '-' )
-            baseInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
-
-            with open( file, 'r' ) as f:
-                for i, line in enumerate( f ):
-                    if i == 0:
-                        data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
-                        hour, minute, sec = data[0][0].split( '-' )
-                        timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
-                        offset = baseInSec - timeInSec
-                        print( 'offset: %s' % offset )
-
-                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
-                    hour, minute, sec = data[0][0].split( '-' )
-                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec ) + offset
-
-                    if abs( timeInSec - curvature[curv_idx, 0] - camera_time_offset ) < w1:
-                        # print('appending for %s' %curv_idx)
-                        toappend = [float( i ) for i in data[1]]  # convert to floats
-                        toappend.insert( 0, timeInSec )
-
-                        rawFBG = np.vstack( [rawFBG, toappend] )
-                    
-                    if ( timeInSec - curvature[curv_idx, 0] ) >= w1:
-                        if curv_idx < curvature.shape[0] - 1:
-                            curv_idx += 1
-
-    # # generate baseline
-    numLines = 200
-    baseline = np.sum( rawFBG[0:numLines, 1:], axis = 0 ) / float( numLines )
-
-    # # sync FBG with curvature timestamps
-    avgFBG = np.empty( [0, 10] )
-    for time in curvature[:, 0]:
-        match_idx = np.argmin( abs( rawFBG[:, 0] - time ) )
-        avg = np.sum( rawFBG[match_idx - w2:match_idx + w2, 1:], axis = 0 ) / ( 2 * w2 + 1 )
-        
-        toappend = np.hstack( [rawFBG[match_idx, 0], avg] )
-        avgFBG = np.vstack( [avgFBG, toappend] )
-
-    print( "difference in number of curvatures to average FBG: " )
-    print( curvature.shape[0] - avgFBG.shape[0] )
-
-    return baseline, avgFBG
-
-# sync_fbg
-
-
-def process_fbg( directory ):
-    ''' Loads all FBG files, average_fbg and baseline
-        rawFBG_list is a list of numpy arrays with each array holding the raw data from one file
-    '''
-    name_length = len( directory + "fbgdata_yyyy_mm_dd_" )
-    filenames = glob.glob( directory + "fbgdata*.txt" )
-    print( 'number of files: %s' % len( filenames ) )
-
-    rawFBG = np.empty( [0, 10] )
-    avgFBG = np.empty( [0, 10] )
-    rawFBG_list = []
-
-    for idx, file in enumerate( filenames ):
-        baseTime = file[name_length:-4]
-        hour, minute, sec = baseTime.split( '-' )
-        baseInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
-
-        with open( file, 'r' ) as f:
-            for i, line in enumerate( f ):
-                if i == 0:
-                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
-                    hour, minute, sec = data[0][0].split( '-' )
-                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
-                    offset = baseInSec - np.floor( timeInSec )
-                    print( 'offset: %s' % offset )
-
-                data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
-                hour, minute, sec = data[0][0].split( '-' )
-                timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec ) + offset
-
-                toappend = [float( i ) for i in data[1]]  # convert to floats
-                toappend.insert( 0, timeInSec )
-                rawFBG = np.vstack( [rawFBG, toappend] )
-
-        # # create baseline using first file
-        if idx == 0:
-            baseline = np.mean( rawFBG[:, 1:], axis = 0 )
-
-        rawFBG_list.append( rawFBG )
-        avg = np.mean( rawFBG[:, 1:], axis = 0 )
-        toappend = np.hstack( [baseInSec, avg] )
-        avgFBG = np.vstack( [avgFBG, toappend] )
-        rawFBG = np.empty( [0, 10] )
-    
-    return rawFBG_list, avgFBG, baseline
-
-# process_fbg
-
-
-def wavelength_shift( avg_fbg, baseline ):
-    '''process averaged FBG wavelength readings
-    '''
-    aa1_idxs = [0, 3, 6]
-    aa2_idxs = [1, 4, 7]
-    aa3_idxs = [2, 5, 8]
-    
-#     wl_aa1 = avg_fbg[:, aa1_idxs]
-#     wl_aa2 = avg_fbg[:, aa2_idxs]
-#     wl_aa3 = avg_fbg[:, aa3_idxs]
-
-    deltaFBG = avg_fbg[:, 1:] - baseline  # wavelength shift
-
-    # average shift at each active area
-    mean_aa1 = np.mean( deltaFBG[:, aa1_idxs], axis = 1 )
-    mean_aa2 = np.mean( deltaFBG[:, aa2_idxs], axis = 1 )
-    mean_aa3 = np.mean( deltaFBG[:, aa3_idxs], axis = 1 )
-
-    # subtract contribution from temperature (uniform across each active area)
-    deltaFBG[:, aa1_idxs] -= mean_aa1.reshape( -1, 1 )
-    deltaFBG[:, aa2_idxs] -= mean_aa2.reshape( -1, 1 )
-    deltaFBG[:, aa3_idxs] -= mean_aa3.reshape( -1, 1 )
-    
-    # baselines_aa1 = np.mean( delta_fbg[:, aa1_idxs], axis = 1 )
-    # baselines_aa2 = np.mean( delta_fbg[:, aa2_idxs], axis = 1 )
-    # baselines_aa3 = np.mean( delta_fbg[:, aa3_idxs], axis = 1 )
-    
-    # delta_fbg[:, aa1_idxs] = delta_fbg[:, aa1_idxs] - baselines_aa1.reshape( -1, 1 )
-    # delta_fbg[:, aa2_idxs] = delta_fbg[:, aa2_idxs] - baselines_aa2.reshape( -1, 1 )
-    # delta_fbg[:, aa3_idxs] = delta_fbg[:, aa3_idxs] - baselines_aa3.reshape( -1, 1 )
-    
-    # baselines_aa1 = np.mean( avg_fbg[:, aa1_idxs], axis = 1 )
-    # baselines_aa2 = np.mean( avg_fbg[:, aa2_idxs], axis = 1 )
-    # baselines_aa3 = np.mean( avg_fbg[:, aa3_idxs], axis = 1 )
-    
-    # avg_fbg[:, aa1_idxs] -= baselines_aa1.reshape( -1, 1 )
-    # avg_fbg[:, aa2_idxs] -= baselines_aa2.reshape( -1, 1 )
-    # avg_fbg[:, aa3_idxs] -= baselines_aa3.reshape( -1, 1 )
-    
-    return deltaFBG
-
-# wavelength_shift
-
-
-def get_curvature_vectors( curvature, direction ):
-    """ Computes the curvature vectors for each of the active areas 
-    
-        @param direction: the direction vector of the deformation
-    """
-    ts = np.empty( 0 )
-    aa1 = np.empty( ( 0, 3 ) )
-    aa2 = np.empty( ( 0, 3 ) )
-    aa3 = np.empty( ( 0, 3 ) )
-    
-    for t, k1, k2, k3 in curvature:
-        ts = np.append( ts, t )
-        aa1 = np.vstack( ( aa1, k1 * direction ) )
-        aa2 = np.vstack( ( aa2, k2 * direction ) )
-        aa3 = np.vstack( ( aa3, k3 * direction ) )
-        
-    # for
-    
-    return [ts, aa1, aa2, aa3]
-
-# get_curvature_vectors
-
-
-def load_filteredfbg_data( filename: str ):
-    """ Method to read in the fbg filtered data """
-    inp = np.loadtxt( filename, np.float64 )
-    
-    ts = inp[:, 0]
-    data = inp[:, 1:]
-    
-    return ts, data
-
-# load_filteredfbg_data
-
-
 def _leastsq_fit( delta_fbg, curvature, outfile: str = '' ):
     ''' computes least squares fit between curvature and fbg data
     
@@ -332,6 +107,182 @@ def _leastsq_fit( delta_fbg, curvature, outfile: str = '' ):
 # _leastsq_fit
 
 
+def _read_datamatrices( filename: str, fbg_needle: FBGNeedle ):
+    """ DEPRECATED
+    To read the excel data matrices summary file
+     """
+    wkbook = xlrd.open_workbook( filename )
+    
+#     data_areas = ['AA' + str( i + 1 ) for i in range( num_active_areas )]
+    data_areas = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    
+    retval = {}  # dictionary to return of dictionaries
+    for area in data_areas:
+        area_sheet = wkbook.sheet_by_name( area )
+        rows = area_sheet.get_rows()
+        
+        curvature = np.empty( ( 0, 2 ) , dtype = float )
+#         fbg_signal = np.empty( ( 0, 3 ) , dtype = float )
+        fbg_signal = np.empty( ( 0, fbg_needle.num_channels ) , dtype = float )
+        
+        curvature_read = False
+        fbg_read = False
+        for row in rows:
+            if row[0].value == "Curvature:" and not curvature_read:
+                curvature_read = True
+                fbg_read = False
+            
+            # if
+            
+            elif row[0].value == "Signal:" and not fbg_read:
+                fbg_read = True
+                curvature_read = False
+            
+            # if
+            
+            if curvature_read:
+                data = [d.value for d in row[:2]]
+                if isinstance( data[0], float ):
+                    curvature = np.vstack( ( curvature, data ) )
+                
+            # if
+            
+            if fbg_read:
+                data = [d.value for d in row[:3]]
+                if isinstance( data[0], float ):
+                    fbg_signal = np.vstack( ( fbg_signal, data ) )
+                
+            # if
+            
+        # for
+        
+        retval[area] = {'curvature': curvature, 'signal': fbg_signal}
+        
+    # for
+    
+    return retval
+
+# _read_data_matrices
+
+
+def _write_calibration_matrices( outfile, C1, C2, C3 ):
+    """ DEPRECATED
+    Method to simplify writing the calibration matrices to a file
+    """
+    with open( outfile, 'a' ) as writestream:
+        # format the matrices
+        msg1 = np.array2string( C1, separator = ',' ).replace( '[', '' ).replace( ']', '' )
+        msg2 = np.array2string( C2, separator = ',' ).replace( '[', '' ).replace( ']', '' )
+        msg3 = np.array2string( C3, separator = ',' ).replace( '[', '' ).replace( ']', '' )
+        
+        # write the data
+        writestream.write( "AA1:\n" + msg1 + '\n\n' )
+        writestream.write( "AA2:\n" + msg2 + '\n\n' )
+        writestream.write( "AA3:\n" + msg3 + '\n\n' )
+        
+    # with
+    
+    return 0
+
+# _write_calibration_matrices
+
+
+def create_datamatrices( fbgresult_files: dict, fbg_needle: FBGNeedle,
+                          outfile: str = None ):
+    """ 
+    This function is used to consolidate the data into a single
+    data matrix for multiple AA from the compiled data. 
+    """
+    
+#     raise NotImplementedError( "'create_datamatrices' is not implemented yet." )
+    unit_vec = lambda theta: np.array( [[np.cos( np.deg2rad( theta ) - np.pi / 2 ), np.sin( np.deg2rad( theta ) - np.pi / 2 )]] )
+    
+    # create the total data dict of pandas datasheets
+    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
+    curv_head = ['Curvature x', 'Curvature y', 'Curvature']
+    data_total = {}
+    for aa in range( fbg_needle.num_aa ):
+        data_total[aa + 1] = pd.DataFrame( columns = curv_head + ch_head )
+        
+    # for 
+    
+    # load the data from all of the files
+    for angle, fbgresult in fbgresult_files.items():
+        # the direction of curvature
+        curv_unit_vector = unit_vec( angle ) 
+        
+        # load the data from the FBGresult file
+        data = pd.read_excel( fbgresult, sheet_name = 'Data Summary', header = [0, 1] )
+        
+        # load the curvature values
+        k = data.loc[data['Curvature'].iloc[:, 0].isna() == False, 'Curvature'].iloc[:, 0:fbg_needle.num_aa]
+        
+        # load the active area data and perform T compensation
+        col_list = ['Curvature'] + ['Ch ' + str( i + 1 ) for i in range( fbg_needle.num_channels )]  # for data ref'ing
+        for aa in range( fbg_needle.num_aa ):
+            # not T corrected
+            data_aai_tmp = data['Active Area {:d}'.format( aa + 1 )][col_list].iloc[:k.shape[0]]
+            curv_data_tbl = data_aai_tmp[['Curvature']].dot( curv_unit_vector ).rename( lambda i: curv_head[i],
+                                                                                        axis = 1 )  # curvature vectorization
+            curv_data_tbl = curv_data_tbl.astype( float ).round( 2 )  # remove rounding erros
+            data_aai_tmp = curv_data_tbl.join( data_aai_tmp )  # add the curvature there
+            
+            # perform the T correction
+            mean_wl = data_aai_tmp[col_list[1:]].mean( 1 )
+            data_aai_tmp[col_list[1:]] = data_aai_tmp[col_list[1:]].subtract( mean_wl, axis = 0 ) 
+            
+            # reformat the header
+            data_aai_tmp.columns = data_aai_tmp.columns.str.replace( 'Ch ', 'CH' )
+            
+            # append the data to the total table (per AA)
+            data_total[aa + 1] = data_total[aa + 1].append( data_aai_tmp, ignore_index = True )
+            
+        # for
+    
+    # for
+    
+    # write the outfile
+    if outfile:
+        xl_writer = pd.ExcelWriter( outfile, engine = 'xlsxwriter' )  # the Excel writer
+        
+        # write each AA to it's header file
+        for aa, data in data_total.items():
+            data.to_excel( xl_writer, sheet_name = "AA" + str( aa ) )
+            
+        # for
+        
+        xl_writer.save()  # write and close the Excel file
+        
+    # if
+    
+    return data_total
+
+# create_datamatrices_file
+
+
+def get_curvature_vectors( curvature, direction ):
+    """ Computes the curvature vectors for each of the active areas 
+    
+        @param direction: the direction vector of the deformation
+    """
+    ts = np.empty( 0 )
+    aa1 = np.empty( ( 0, 3 ) )
+    aa2 = np.empty( ( 0, 3 ) )
+    aa3 = np.empty( ( 0, 3 ) )
+    
+    for t, k1, k2, k3 in curvature:
+        ts = np.append( ts, t )
+        aa1 = np.vstack( ( aa1, k1 * direction ) )
+        aa2 = np.vstack( ( aa2, k2 * direction ) )
+        aa3 = np.vstack( ( aa3, k3 * direction ) )
+        
+    # for
+    
+    return [ts, aa1, aa2, aa3]
+
+# get_curvature_vectors
+
+
 def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
     """ 
     Performs least squares fitting of the data of interest.
@@ -386,9 +337,11 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
             writestream.write( f"Relative error\nMin: {min_relerr}\nMean: {mean_relerr}\nMax: {max_relerr}\n\n" )
             
         # if
-        
+    
+        print( aa )
         print( f"Residuals: {resid}\n" )
         print( f"Relative error\nMin: {min_relerr}\nMean: {mean_relerr}\nMax: {max_relerr}\n\n" )
+        print( 75 * '=' )
         
     # for
     
@@ -399,73 +352,254 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
     # if
     
     return retval
-        
 
-def plot( delta_fbg, curvature ):
-    '''plots delta_fbg vs. curvature, just to see
+# leastsq_fit
+
+
+def load_curvature( directory ):
+    '''loads all the curvature_monofbg text files
+        combines curvature results into one n x 4 numpy array
+        with the first column with the timestamp data
+
+        Output: nx4 numpy array of floats
     '''
-    raise NotImplementedError( "'plot' is not implemented yet." )
+    curvature = np.empty( [0, 4] )
 
-# plot
+    name_length = len( directory + "curvature_monofbg_mm_dd_yyyy_" )
+    filenames = glob.glob( directory + "curvature_monofbg*.txt" )
+    print( 'number of files: %s' % len( filenames ) )
+
+    for file in filenames:
+        with open( file, 'r' ) as f:
+            for i, line in enumerate( f ):
+                if i == 3:
+                    timestamp = file[name_length:-4]
+                    hour, minute, sec = timestamp.split( '-' )
+                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+
+                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                    toappend = [float( i ) for i in data[1]]  # convert to floats
+                    toappend.insert( 0, timeInSec )
+                    
+                    curvature = np.vstack( [curvature, toappend] )
+    print( curvature.shape )
+    return curvature
+
+# load_curvature
+
+
+def load_filteredfbg_data( filename: str ):
+    """ Method to read in the fbg filtered data """
+    inp = np.loadtxt( filename, np.float64 )
+    
+    ts = inp[:, 0]
+    data = inp[:, 1:]
+    
+    return ts, data
+
+# load_filteredfbg_data
+
+
+def process_fbg( directory ):
+    ''' Loads all FBG files, average_fbg and baseline
+        rawFBG_list is a list of numpy arrays with each array holding the raw data from one file
+    '''
+    name_length = len( directory + "fbgdata_yyyy_mm_dd_" )
+    filenames = glob.glob( directory + "fbgdata*.txt" )
+    print( 'number of files: %s' % len( filenames ) )
+
+    rawFBG = np.empty( [0, 10] )
+    avgFBG = np.empty( [0, 10] )
+    rawFBG_list = []
+
+    for idx, file in enumerate( filenames ):
+        baseTime = file[name_length:-4]
+        hour, minute, sec = baseTime.split( '-' )
+        baseInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+
+        with open( file, 'r' ) as f:
+            for i, line in enumerate( f ):
+                if i == 0:
+                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                    hour, minute, sec = data[0][0].split( '-' )
+                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+                    offset = baseInSec - np.floor( timeInSec )
+                    print( 'offset: %s' % offset )
+
+                data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                hour, minute, sec = data[0][0].split( '-' )
+                timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec ) + offset
+
+                toappend = [float( i ) for i in data[1]]  # convert to floats
+                toappend.insert( 0, timeInSec )
+                rawFBG = np.vstack( [rawFBG, toappend] )
+
+        # # create baseline using first file
+        if idx == 0:
+            baseline = np.mean( rawFBG[:, 1:], axis = 0 )
+
+        rawFBG_list.append( rawFBG )
+        avg = np.mean( rawFBG[:, 1:], axis = 0 )
+        toappend = np.hstack( [baseInSec, avg] )
+        avgFBG = np.vstack( [avgFBG, toappend] )
+        rawFBG = np.empty( [0, 10] )
+    
+    return rawFBG_list, avgFBG, baseline
+
+# process_fbg
 
 
 def read_datamatrices( filename: str, fbg_needle: FBGNeedle ):
-    """ To read the excel data matrices summary file """
-    wkbook = xlrd.open_workbook( filename )
+    """ This is a function to read the new 'Data Matices.xlsx' file """    
+    raise NotImplementedError( "'read_datamatrices' function is not yet implemeented" )
+
+# read_datamatrices
+
+
+def read_FBGResult_summary( file: str, fbg_needle: FBGNeedle ):
+    """ This is to read in the data summary from the FBGResults Excel workbook """
     
-#     data_areas = ['AA' + str( i + 1 ) for i in range( num_active_areas )]
-    data_areas = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    raise NotImplementedError( "'read_FBGResult_summary' is not implemented yet." )
+
+    # preparation
+    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    ch_head = ['Ch ' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
     
-    retval = {}  # dictionary to return of dictionaries
-    for area in data_areas:
-        area_sheet = wkbook.sheet_by_name( area )
-        rows = area_sheet.get_rows()
+    sheet = pd.read_excel( file, sheet_name = 'Data Summary', header = [0, 1] )
+    
+    # get the curvature values
+    curvature = sheet.loc[sheet['Curvature'].iloc[:, 0].isna() == False, 'Curvature'].iloc[:fbg_needle.num_aa]
+    curvature.columns = pd.MultiIndex.from_product( [['Curvature', aa_head]] )
+    
+    # get the AA data
+    aa_data = {}
+    for i in range( fbg_needle.num_aa ):
+        aa_data_i = {}
         
-        curvature = np.empty( ( 0, 2 ) , dtype = float )
-#         fbg_signal = np.empty( ( 0, 3 ) , dtype = float )
-        fbg_signal = np.empty( ( 0, fbg_needle.num_channels ) , dtype = float )
+        # collect the no T corrected data
+        aa_data_i['No T'] = sheet['Active Area {:d}'.format( i + 1 )].iloc[:curvature.shape[0],
+                                                                                  :-2].set_index( 'Curvature' )
+        aa_data_i['T'] = aa_data_i.sub( aa_data_i.mean( 1 ), axis = 0 )  # subtract mean
         
-        curvature_read = False
-        fbg_read = False
-        for row in rows:
-            if row[0].value == "Curvature:" and not curvature_read:
-                curvature_read = True
-                fbg_read = False
-            
-            # if
-            
-            elif row[0].value == "Signal:" and not fbg_read:
-                fbg_read = True
-                curvature_read = False
-            
-            # if
-            
-            if curvature_read:
-                data = [d.value for d in row[:2]]
-                if isinstance( data[0], float ):
-                    curvature = np.vstack( ( curvature, data ) )
-                
-            # if
-            
-            if fbg_read:
-                data = [d.value for d in row[:3]]
-                if isinstance( data[0], float ):
-                    fbg_signal = np.vstack( ( fbg_signal, data ) )
-                
-            # if
-            
-        # for
-        
-        retval[area] = {'curvature': curvature, 'signal': fbg_signal}
+        aa_data[i + 1] = aa_data_i
         
     # for
     
-    return retval
+    return aa_data
+    
+# read_FBGResult_summary
 
-# read_data_matrices
+
+def sync_fbg( directory, curvature, w1, w2 ):
+    '''loads fbgdata text file
+        calculates baseline FBG readings using the first 100 lines
+        finds closest line that matches with each curvature file
+        and takes average wavelength based on window size (2*w+1 points)
+    '''
+#     global startTime
+    name_length = len( directory + "fixed_fbgdata_yyyy_mm_dd_" )
+    filenames = glob.glob( directory + "fixed_fbgdata_*.txt" )
+    curv_idx = 0
+    camera_time_offset = 0.75  # seconds
+
+    # # generate a numpy array of rawFBG data
+    rawFBG = np.empty( [0, 10] )
+    if len( filenames ) == 1:
+        for file in filenames:
+            baseTime = file[name_length:-4]
+            hour, minute, sec = baseTime.split( '-' )
+            baseInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+
+            with open( file, 'r' ) as f:
+                for i, line in enumerate( f ):
+                    if i == 0:
+                        data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                        hour, minute, sec = data[0][0].split( '-' )
+                        timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec )
+                        offset = baseInSec - timeInSec
+                        print( 'offset: %s' % offset )
+
+                    data = [number.strip().split( ',' ) for number in line.strip().split( ":" )]
+                    hour, minute, sec = data[0][0].split( '-' )
+                    timeInSec = float( hour ) * 3600 + float( minute ) * 60 + float( sec ) + offset
+
+                    if abs( timeInSec - curvature[curv_idx, 0] - camera_time_offset ) < w1:
+                        # print('appending for %s' %curv_idx)
+                        toappend = [float( i ) for i in data[1]]  # convert to floats
+                        toappend.insert( 0, timeInSec )
+
+                        rawFBG = np.vstack( [rawFBG, toappend] )
+                    
+                    if ( timeInSec - curvature[curv_idx, 0] ) >= w1:
+                        if curv_idx < curvature.shape[0] - 1:
+                            curv_idx += 1
+
+    # # generate baseline
+    numLines = 200
+    baseline = np.sum( rawFBG[0:numLines, 1:], axis = 0 ) / float( numLines )
+
+    # # sync FBG with curvature timestamps
+    avgFBG = np.empty( [0, 10] )
+    for time in curvature[:, 0]:
+        match_idx = np.argmin( abs( rawFBG[:, 0] - time ) )
+        avg = np.sum( rawFBG[match_idx - w2:match_idx + w2, 1:], axis = 0 ) / ( 2 * w2 + 1 )
+        
+        toappend = np.hstack( [rawFBG[match_idx, 0], avg] )
+        avgFBG = np.vstack( [avgFBG, toappend] )
+
+    print( "difference in number of curvatures to average FBG: " )
+    print( curvature.shape[0] - avgFBG.shape[0] )
+
+    return baseline, avgFBG
+
+# sync_fbg
 
 
-def write_calibration_matrices( outfile: str, C_list: list ):
+def wavelength_shift( avg_fbg, baseline ):
+    '''process averaged FBG wavelength readings
+    '''
+    aa1_idxs = [0, 3, 6]
+    aa2_idxs = [1, 4, 7]
+    aa3_idxs = [2, 5, 8]
+    
+#     wl_aa1 = avg_fbg[:, aa1_idxs]
+#     wl_aa2 = avg_fbg[:, aa2_idxs]
+#     wl_aa3 = avg_fbg[:, aa3_idxs]
+
+    deltaFBG = avg_fbg[:, 1:] - baseline  # wavelength shift
+
+    # average shift at each active area
+    mean_aa1 = np.mean( deltaFBG[:, aa1_idxs], axis = 1 )
+    mean_aa2 = np.mean( deltaFBG[:, aa2_idxs], axis = 1 )
+    mean_aa3 = np.mean( deltaFBG[:, aa3_idxs], axis = 1 )
+
+    # subtract contribution from temperature (uniform across each active area)
+    deltaFBG[:, aa1_idxs] -= mean_aa1.reshape( -1, 1 )
+    deltaFBG[:, aa2_idxs] -= mean_aa2.reshape( -1, 1 )
+    deltaFBG[:, aa3_idxs] -= mean_aa3.reshape( -1, 1 )
+    
+    # baselines_aa1 = np.mean( delta_fbg[:, aa1_idxs], axis = 1 )
+    # baselines_aa2 = np.mean( delta_fbg[:, aa2_idxs], axis = 1 )
+    # baselines_aa3 = np.mean( delta_fbg[:, aa3_idxs], axis = 1 )
+    
+    # delta_fbg[:, aa1_idxs] = delta_fbg[:, aa1_idxs] - baselines_aa1.reshape( -1, 1 )
+    # delta_fbg[:, aa2_idxs] = delta_fbg[:, aa2_idxs] - baselines_aa2.reshape( -1, 1 )
+    # delta_fbg[:, aa3_idxs] = delta_fbg[:, aa3_idxs] - baselines_aa3.reshape( -1, 1 )
+    
+    # baselines_aa1 = np.mean( avg_fbg[:, aa1_idxs], axis = 1 )
+    # baselines_aa2 = np.mean( avg_fbg[:, aa2_idxs], axis = 1 )
+    # baselines_aa3 = np.mean( avg_fbg[:, aa3_idxs], axis = 1 )
+    
+    # avg_fbg[:, aa1_idxs] -= baselines_aa1.reshape( -1, 1 )
+    # avg_fbg[:, aa2_idxs] -= baselines_aa2.reshape( -1, 1 )
+    # avg_fbg[:, aa3_idxs] -= baselines_aa3.reshape( -1, 1 )
+    
+    return deltaFBG
+
+# wavelength_shift
+
+
+def write_calibration_matrices( outfile: str, C_list: dict, fbg_needle: FBGNeedle, fbg_outjson_file: str = None ):
     """ Appends the calibration matrices to a file """
     with open( outfile, 'a' ) as writestream:
         for aa, C in C_list.items():
@@ -478,31 +612,13 @@ def write_calibration_matrices( outfile: str, C_list: list ):
         
     # with
     
-    return 0
-
-# write_calibration_matrices
-
-
-def _write_calibration_matrices( outfile, C1, C2, C3 ):
-    """ DEPRECATED
-    Method to simplify writing the calibration matrices to a file
-    """
-    with open( outfile, 'a' ) as writestream:
-        # format the matrices
-        msg1 = np.array2string( C1, separator = ',' ).replace( '[', '' ).replace( ']', '' )
-        msg2 = np.array2string( C2, separator = ',' ).replace( '[', '' ).replace( ']', '' )
-        msg3 = np.array2string( C3, separator = ',' ).replace( '[', '' ).replace( ']', '' )
-        
-        # write the data
-        writestream.write( "AA1:\n" + msg1 + '\n\n' )
-        writestream.write( "AA2:\n" + msg2 + '\n\n' )
-        writestream.write( "AA3:\n" + msg3 + '\n\n' )
-        
-    # with
+    if fbg_outjson_file:
+        fbg_needle.cal_matrices = C_list
+        fbg_needle.save_json( fbg_outjson_file )
     
     return 0
 
-# _write_calibration_matrices
+# write_calibration_matrices
 
 
 def main():
@@ -638,39 +754,60 @@ def main_test():
 
 
 def main_calmat():
-    directory = "../FBG_Needle_Calibration_Data/needle_1/"
-    datadir = directory + "Jig_Calibration/"
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    needlejsonfile = "needle_params.json"
+    
+    datadir = directory + "Jig_Calibration_08-05-20/"
     datafile = "Data Matrices.xlsx"
     needleparamfile = "needle_params.csv"
-    needlejsonfile = "needle_params.json"
     out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
+    
     lstsq_logfile = "least_sq.log"
 
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
-    calibration_data = read_datamatrices( datadir + datafile, fbg_needle )
+    calibration_data = _read_datamatrices( datadir + datafile, fbg_needle )
     
-#     # check if data is being read in correctly
-#     for a in calibration_data.keys():
-#         print( a )
-#         print( "curvature:" )
-#         print( calibration_data[a]['curvature'], '\n' )
-#         print( "signal" )
-#         print( calibration_data[a]['signal'], '\n' )
-#         print( 75 * '=' )
-#         
-#     # for
+    # check if data is being read in correctly
+    for a in []:  # calibration_data.keys():
+        print( a )
+        print( "curvature:" )
+        print( calibration_data[a]['curvature'], '\n' )
+        print( "signal" )
+        print( calibration_data[a]['signal'], '\n' )
+        print( 75 * '=' )
+         
+    # for
 
     calibration_matrices = leastsq_fit( calibration_data, directory + lstsq_logfile )
-    write_calibration_matrices( datadir + needleparamfile, calibration_matrices )
+    write_calibration_matrices( datadir + needleparamfile, calibration_matrices, fbg_needle,
+                                out_needlejsonfile )
     print( f"Wrote calibration matrices to '{needleparamfile}'" )
     
 # main_calmat
 
 
+def main_dbg():
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    needlejsonfile = "needle_params.json"
+    
+    datadir = directory + "Jig_Calibration_08-05-20/"
+    datafile = "Data Matrices 2.xlsx"
+    
+    # test the create_datamatrices function
+    fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
+    fbgresult_list = glob.glob( datadir + "*JigCalibration_Results*.xlsx" )
+    fbgresult_files = {0: fbgresult_list[0], 90: fbgresult_list[-1]}
+    
+    create_datamatrices( fbgresult_files, fbg_needle, datadir + datafile )
+
+# main_dbg
+
+
 if __name__ == '__main__':
     # main()
 #     main_test()
-    main_calmat()
+#     main_calmat()
+    main_dbg()
     print( "Program Terminated." )
 
 # if
