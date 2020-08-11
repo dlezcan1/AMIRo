@@ -283,7 +283,7 @@ def get_curvature_vectors( curvature, direction ):
 # get_curvature_vectors
 
 
-def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
+def leastsq_fit ( dict_of_data: dict, outfile: str = None, curv_wgt_rule = lambda k: 1 )    :
     """ 
     Performs least squares fitting of the data of interest.
     
@@ -294,6 +294,9 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
                 - data: Data matrix of FBG signal/2-D XY curvatures
                 
     @param outfile, str (Optional, Default = None): Output file path.
+    
+    @param curv_wgt_rule(Optional, Default = 1 for all weights, function to provide
+             weighting of lst squares based on curvature 
                 
     @return: Dictionary of 'AAX' calibration matrices
      
@@ -319,6 +322,11 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
         if curvature.dtype != np.float64:
             curvature = np.asarray( curvature, dtype = np.float64 )
         
+        # perform the weighting
+        weights = np.sqrt( np.diag( [curv_wgt_rule( k ) for k in np.linalg.norm( curvature, axis = 1 )] ) )
+        signal_w = signal.dot( weights )
+        curvature_w = curvature.dot( weights )
+        
         C, resid, rnk, sng = np.linalg.lstsq( signal, curvature, None )
         retval[aa] = C
 
@@ -329,7 +337,7 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None ):
         rel_err = delta / curvature
         rel_err[np.logical_or( rel_err == -np.inf, rel_err == np.inf )] = np.nan
         min_relerr = np.nanmin( rel_err , axis = 0 )
-        mean_relerr = np.nanmean( rel_err, axis = 0 )
+        mean_relerr = np.nanmean( np.abs( rel_err ), axis = 0 )
         max_relerr = np.nanmax( rel_err , axis = 0 )
         
         if outfile is not None:
@@ -806,8 +814,8 @@ def main_dbg():
 if __name__ == '__main__':
     # main()
 #     main_test()
-#     main_calmat()
-    main_dbg()
+    main_calmat()
+#     main_dbg()
     print( "Program Terminated." )
 
 # if
