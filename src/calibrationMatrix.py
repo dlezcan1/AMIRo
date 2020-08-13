@@ -324,11 +324,11 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None, curv_wgt_rule = lambd
         
         # perform the weighting
         weights = np.sqrt( np.diag( [curv_wgt_rule( k ) for k in np.linalg.norm( curvature, axis = 1 )] ) )
-        signal_w = signal.dot( weights )
-        curvature_w = curvature.dot( weights )
+        signal_w = weights.dot( signal )
+        curvature_w = weights.dot( curvature )
         
-        C, resid, rnk, sng = np.linalg.lstsq( signal, curvature, None )
-        retval[aa] = C
+        C, resid, rnk, sng = np.linalg.lstsq( signal_w, curvature_w, None )
+        retval[aa] = C.T
 
         # run statistics
         
@@ -408,6 +408,53 @@ def load_filteredfbg_data( filename: str ):
 # load_filteredfbg_data
 
 
+def perform_validation( valid_data_file: str, fbg_needle: FBGNeedle, out_fmt = "dict" ):
+    """ This is to perform the validation given a calibrated FBGNeedle """
+    # valid arguments
+    valid_out_fmt_args = ["dict", "pandas"]
+    
+    # check input arguments for validity
+    if not out_fmt in valid_out_fmt_args:
+        raise ValueError( "'{:s}' is not a valid out_fmt argument.".format( out_fmt ) )
+    
+    # if
+    
+    # validation data matrices
+    valid_data = read_datamatrices( valid_data_file, fbg_needle )
+    
+    # iterate through each AA to see projected calibration
+    retval = {}
+    for key, data_aa in valid_data.items():
+        # load the calibration matrices and data
+        C_aa = fbg_needle.aa_cal( key ).T  # calib. matrix (transpose for row-based)
+        signal = data_aa['signal']  # fbg signal
+        curv_exp = data_aa['curvature']  # curvature
+        
+        # perform the fit
+        curv_pred = signal.dot( C_aa )
+        
+        # append the data expected vs. predicted data
+        if out_fmt == valid_out_fmt_args[0]:
+            retval[key] = {'expected': curv_exp, 'predicted': curv_pred}
+        
+        # if        
+        elif out_fmt == valid_out_fmt_args[1]:
+            tbl_head = pd.MultiIndex.from_product( [['Expected', 'Predicted'],
+                                                   ['Curvature x', 'Curvature y']] )
+            tbl_data = np.hstack( ( curv_exp, curv_pred ) )
+            tbl = pd.DataFrame( tbl_data , columns = tbl_head )
+            
+            retval[key] = tbl
+            
+        # elif
+        
+    # for
+    
+    return retval
+    
+# perform_validation
+
+
 def process_fbg( directory ):
     ''' Loads all FBG files, average_fbg and baseline
         rawFBG_list is a list of numpy arrays with each array holding the raw data from one file
@@ -458,8 +505,28 @@ def process_fbg( directory ):
 
 
 def read_datamatrices( filename: str, fbg_needle: FBGNeedle ):
-    """ This is a function to read the new 'Data Matices.xlsx' file """    
-    raise NotImplementedError( "'read_datamatrices' function is not yet implemeented" )
+    """ This is a function to read the new 'Data Matices.xlsx' file as pandas table"""    
+#     raise NotImplementedError( "'read_datamatrices' is not yet implemented." )
+    sheets = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    curv_head = ['Curvature x', 'Curvature y']
+    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
+    
+    retval = {}
+    # process each AA sheet in the Data Matrices file 
+    for sheet_aa in sheets:
+        # read in the data sheet
+        data_aa = pd.read_excel( filename, sheet_name = sheet_aa, index_col = 0 )
+        
+        # get the numpy array so f the curvature and signal values
+        curvature = data_aa[curv_head].values
+        signal = data_aa[ch_head].values
+        
+        # append the data to the retval dict
+        retval[sheet_aa] = {'curvature': curvature, 'signal': signal}
+        
+    # for
+    
+    return retval
 
 # read_datamatrices
 
@@ -607,22 +674,25 @@ def wavelength_shift( avg_fbg, baseline ):
 # wavelength_shift
 
 
-def write_calibration_matrices( outfile: str, C_list: dict, fbg_needle: FBGNeedle, fbg_outjson_file: str = None ):
+def write_calibration_matrices( C_list: dict, fbg_needle: FBGNeedle, outfile: str = None, fbg_outjson_file: str = None ):
     """ Appends the calibration matrices to a file """
-    with open( outfile, 'a' ) as writestream:
-        for aa, C in C_list.items():
-            msg = np.array2string( C.T, separator = ',' ).replace( '[', '' ).replace( ']', '' )
-            
-            writestream.write( aa + ":\n" )  # write AAi:
-            writestream.write( msg + '\n\n' )  # write the calibration matrix
-            
-        # for
-        
-    # with
+    if outfile:
+        with open( outfile, 'a' ) as writestream:
+            for aa, C in C_list.items():
+                C_list[aa] = C
+                msg = np.array2string( C, separator = ',' ).replace( '[', '' ).replace( ']', '' )
+                
+                writestream.write( aa + ":\n" )  # write AAi:
+                writestream.write( msg + '\n\n' )  # write the calibration matrix
+                
+            # for    
+        # with
+    # if
     
     if fbg_outjson_file:
         fbg_needle.cal_matrices = C_list
         fbg_needle.save_json( fbg_outjson_file )
+    # if
     
     return 0
 
@@ -787,8 +857,8 @@ def main_calmat():
     # for
 
     calibration_matrices = leastsq_fit( calibration_data, directory + lstsq_logfile )
-    write_calibration_matrices( datadir + needleparamfile, calibration_matrices, fbg_needle,
-                                out_needlejsonfile )
+    write_calibration_matrices( calibration_matrices, fbg_needle,
+                                fbg_outjson_file = directory + out_needlejsonfile )
     print( f"Wrote calibration matrices to '{needleparamfile}'" )
     
 # main_calmat
@@ -799,23 +869,79 @@ def main_dbg():
     needlejsonfile = "needle_params.json"
     
     datadir = directory + "Jig_Calibration_08-05-20/"
-    datafile = "Data Matrices 2.xlsx"
+    datadir = directory + "Validation_Temperature_08-12-20/"
+    datafile = "Data Matrices.xlsx"
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
-    fbgresult_list = glob.glob( datadir + "*JigCalibration_Results*.xlsx" )
+    fbgresult_list = glob.glob( datadir + "*JigValidation-Temperature_results*.xlsx" )
     fbgresult_files = {0: fbgresult_list[0], 90: fbgresult_list[-1]}
     
     create_datamatrices( fbgresult_files, fbg_needle, datadir + datafile )
+    print( "Saved file: ", datadir + datafile )
 
 # main_dbg
+
+
+def main_validation():
+    # load the file information needed
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    needlejsonfile = "needle_params-Jig_Calibration_08-05-20.json"
+    
+    datadir = directory + "Validation_Temperature_08-12-20/"
+    datafile = "Data Matrices.xlsx"
+    
+    out_file = datadir + "Validation_Error.xlsx"
+    
+    # load the json file
+    fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
+    
+    # get the validation-prediction data
+    valid_pred = perform_validation( datadir + datafile, fbg_needle, out_fmt = 'pandas' )
+    
+    # perform the analysis
+    for key, prediction_aa in valid_pred.items():
+        # pred - exp 
+        dev = prediction_aa['Expected'] - prediction_aa['Predicted']  # deviation
+        prediction_aa[[('Error', 'Curvature x'), ('Error','Curvature y')]] = dev
+        
+        # | norm(pred) - norm(exp) | amount of curvature error 
+        norms = np.vstack( prediction_aa.groupby( axis = 1, level = 0 ).apply( np.linalg.norm, axis = 1 ) )
+        prediction_aa[( 'Error', 'norm (1/m)' )] = np.abs( norms[0] - norms[1] ).T
+        prediction_aa[( 'Error', 'rel. norm' )] = prediction_aa[( 'Error', 'norm (1/m)' )] / norms[0]
+        
+        # norm(pred - exp) L2 
+        prediction_aa[( 'Error', 'L2 (1/m)' )] = np.linalg.norm( dev , axis = 1 ) 
+        prediction_aa[( 'Error', 'rel. L2' )] = prediction_aa[( 'Error', 'L2 (1/m)' )] / norms[0] 
+        
+        # arg( pred - exp ) angular deviation
+        prediction_aa[( 'Error', 'Arg (rads)' )] = np.arctan2( dev['Curvature y'], dev['Curvature x'] )
+        prediction_aa[( 'Error', 'Arg (degs)' )] = np.rad2deg( prediction_aa[( 'Error', 'Arg (rads)' )] )
+        
+        # change the data table
+#         valid_pred[key] = prediction_aa
+        
+    # for
+    
+    # write the processed data
+    xlwriter = pd.ExcelWriter( out_file, engine = 'xlsxwriter' )
+    for key, prediction_aa in valid_pred.items():
+        prediction_aa.to_excel( xlwriter, sheet_name = key )
+        
+    # for
+    
+    xlwriter.save()
+    print( "Saved file:", out_file )
+    
+# main_validation
 
 
 if __name__ == '__main__':
     # main()
 #     main_test()
-    main_calmat()
+#     main_calmat()
 #     main_dbg()
+    main_validation()
     print( "Program Terminated." )
 
 # if

@@ -7,6 +7,7 @@ This is a class file for FBG Needle parameterizations
 '''
 import json
 import numpy as np
+from builtins import property
 
 
 class FBGNeedle( object ):
@@ -15,7 +16,7 @@ class FBGNeedle( object ):
     '''
 
     def __init__( self, length: float, num_channels: int, sensor_location: list = [],
-                  calibration_mats: dict = None ):
+                  calibration_mats: dict = {} ):
         '''
         Constructor
         
@@ -54,6 +55,7 @@ class FBGNeedle( object ):
         self._length = None
         self._num_channels = None
         self._sensor_location = None
+        self._cal_matrices = {}
         
         # assignments
         self.length = length
@@ -149,6 +151,65 @@ class FBGNeedle( object ):
         # if
     # sensor_location: setter
     
+    @property
+    def cal_matrices( self ):
+        return self._cal_matrices
+    
+    # cal_matrices
+    
+    @cal_matrices.setter
+    def cal_matrices( self, C_dict: dict ):
+        for key, C in C_dict.items():
+            # get the sensor location
+            # check of 'AAX' format
+            if isinstance( key, str ):
+                loc = self.aa_loc( key )
+                
+            # if
+            
+            elif isinstance( key, int ):
+                # check if it is alrady a sensor location
+                if key in self.sensor_location:
+                    loc = key
+                
+                # if
+                
+                # if not, check to see if it is an AA index [1, #AA]
+                elif key in range( 1, self.num_aa + 1 ):
+                    loc = self.sensor_location[key - 1]
+                    
+                # elif
+                    
+            # elif
+            
+            else:
+                raise ValueError( "'{}' is not recognized as a valid key.".format( key ) )
+            
+            # else
+            
+            self._cal_matrices[loc] = C
+            
+        # for          
+    # cal_matrices: setter
+    
+    def aa_cal ( self, aa_num: str ):
+        """ Function to get calibration matrix from AAX indexing """
+        return self.cal_matrices[self.aa_loc( aa_num )]
+    
+    # aa_cal
+    
+    def aa_idx( self, aa_num: str ):
+        """ Function to get value from AAX indexing """        
+        return int( "".join( filter( str.isdigit, aa_num ) ) ) - 1
+        
+    # get_aa
+    
+    def aa_loc ( self, aa_num:str ):
+        """ Function to get location from AAX indexing """
+        return self.sensor_location[self.aa_idx( aa_num )]
+    
+    # aa_loc
+    
 ############################## FUNCTIONS ######################################
     @staticmethod
     def load_json( filename: str ):
@@ -183,14 +244,16 @@ class FBGNeedle( object ):
         if "Calibration Matrices" in data.keys():
             cal_mats = {}
             for loc, c_mat in data["Calibration Matrices"].items():
-                cal_mats[int( loc )] = np.array( c_mat )
+                if isinstance( loc, str ):
+                    loc = int( "".join( filter( str.isdigit, loc ) ) )
+                cal_mats[loc] = np.array( c_mat )
                 
             # for
         
         # if
         
         else:
-            cal_mats = None
+            cal_mats = {}
             
         # else
         
