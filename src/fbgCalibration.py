@@ -792,14 +792,15 @@ if __name__ == '__main__':
                         'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
     
     # process the FBG data directory
-    directory += "Jig_Calibration_08-05-20/"
+#     directory += "Jig_Calibration_08-05-20/"
+    directory += "Validation_Temperature_08-12-20/"
     
     # gather the directories contatining the .txt files
     dirs_degs = {}
     dirs_degs[0] = glob.glob( directory + "0_deg/08*" )
     dirs_degs[90] = glob.glob( directory + "90_deg/08*" )
-    dirs_degs[180] = glob.glob( directory + "180_deg/08*" )
-    dirs_degs[270] = glob.glob( directory + "270_deg/08*" )
+#     dirs_degs[180] = glob.glob( directory + "180_deg/08*" )
+#     dirs_degs[270] = glob.glob( directory + "270_deg/08*" )
     
     # correct the fomatting of the directories
     for exp_angle, dirs in dirs_degs.items():
@@ -825,7 +826,7 @@ if __name__ == '__main__':
         print( "Handling angle:", exp_angle, "degs" )
         fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
         out_fbgresult_file = directory + "08-05-20_FBGResults_{0:d}deg.xlsx".format( exp_angle )
-        consolidate_fbgdata_files( fbgdata_files, curvature_values['cal'], fbg_needle,
+        consolidate_fbgdata_files( fbgdata_files, curvature_values['val'], fbg_needle,
                               out_fbgresult_file )
         print( "Saved:", out_fbgresult_file )
     
