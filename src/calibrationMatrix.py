@@ -224,7 +224,7 @@ def create_datamatrices( fbgresult_files: dict, fbg_needle: FBGNeedle,
             data_aai_tmp = data['Active Area {:d}'.format( aa + 1 )][col_list].iloc[:k.shape[0]]
             curv_data_tbl = data_aai_tmp[['Curvature']].dot( curv_unit_vector ).rename( lambda i: curv_head[i],
                                                                                         axis = 1 )  # curvature vectorization
-            curv_data_tbl = curv_data_tbl.astype( float ).round( 2 )  # remove rounding erros
+            curv_data_tbl = curv_data_tbl.astype( float ).round( 3 )  # remove rounding erros
             data_aai_tmp = curv_data_tbl.join( data_aai_tmp )  # add the curvature there
             
             # perform the T correction
@@ -864,23 +864,22 @@ def main_calmat():
 # main_calmat
 
 
-def main_dbg():
+def main_datamatrices():
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
     needlejsonfile = "needle_params.json"
     
-    datadir = directory + "Jig_Calibration_08-05-20/"
-    datadir = directory + "Validation_Temperature_08-12-20/"
+    datadir = directory + "Validation_Jig_Calibration_08-19-20/"
     datafile = "Data Matrices.xlsx"
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
-    fbgresult_list = glob.glob( datadir + "*JigValidation-Temperature_results*.xlsx" )
+    fbgresult_list = glob.glob( datadir + "*_results*.xlsx" )
     fbgresult_files = {0: fbgresult_list[0], 90: fbgresult_list[-1]}
     
     create_datamatrices( fbgresult_files, fbg_needle, datadir + datafile )
     print( "Saved file: ", datadir + datafile )
 
-# main_dbg
+# main_datamatrices
 
 
 def main_validation():
@@ -888,10 +887,10 @@ def main_validation():
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
     needlejsonfile = "needle_params-Jig_Calibration_08-05-20.json"
     
-    datadir = directory + "Validation_Temperature_08-12-20/"
+    datadir = directory + "Validation_Jig_Calibration_08-19-20/"
     datafile = "Data Matrices.xlsx"
     
-    out_file = datadir + "Validation_Error.xlsx"
+    out_file = datadir + "Validation_Error_raw.xlsx"
     
     # load the json file
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
@@ -901,32 +900,40 @@ def main_validation():
     
     # perform the analysis
     for key, prediction_aa in valid_pred.items():
-        # pred - exp 
-        dev = prediction_aa['Expected'] - prediction_aa['Predicted']  # deviation
-        prediction_aa[[('Error', 'Curvature x'), ('Error','Curvature y')]] = dev
-        
-        # | norm(pred) - norm(exp) | amount of curvature error 
+        # calculations
+        dev = prediction_aa['Expected'] - prediction_aa['Predicted']  # Euclid. deviation
+        ang_dev = np.arctan2( prediction_aa['Predicted'].iloc[:, 1], prediction_aa['Predicted'].iloc[:, 0] ) - np.arctan2( 
+            prediction_aa['Expected'].iloc[:, 1], prediction_aa['Expected'].iloc[:, 0] ) 
         norms = np.vstack( prediction_aa.groupby( axis = 1, level = 0 ).apply( np.linalg.norm, axis = 1 ) )
+                
+        # | norm(pred) - norm(exp) | amount of curvature error 
+        
+        prediction_aa[( 'Expected', 'Curvature' )] = norms[0]
+        prediction_aa[( 'Predicted', 'Curvature' )] = norms[1]
         prediction_aa[( 'Error', 'norm (1/m)' )] = np.abs( norms[0] - norms[1] ).T
         prediction_aa[( 'Error', 'rel. norm' )] = prediction_aa[( 'Error', 'norm (1/m)' )] / norms[0]
+        
+        # pred - exp 
+        prediction_aa[[( 'Error', 'Curvature x' ), ( 'Error', 'Curvature y' )]] = dev
         
         # norm(pred - exp) L2 
         prediction_aa[( 'Error', 'L2 (1/m)' )] = np.linalg.norm( dev , axis = 1 ) 
         prediction_aa[( 'Error', 'rel. L2' )] = prediction_aa[( 'Error', 'L2 (1/m)' )] / norms[0] 
         
         # arg( pred - exp ) angular deviation
-        prediction_aa[( 'Error', 'Arg (rads)' )] = np.arctan2( dev['Curvature y'], dev['Curvature x'] )
+#         prediction_aa[( 'Error', 'Arg (rads)' )] = np.arctan2( dev['Curvature y'], dev['Curvature x'] )
+        prediction_aa[( 'Error', 'Arg (rads)' )] = ang_dev
         prediction_aa[( 'Error', 'Arg (degs)' )] = np.rad2deg( prediction_aa[( 'Error', 'Arg (rads)' )] )
         
-        # change the data table
-#         valid_pred[key] = prediction_aa
+        # change NaN values to 0
+        prediction_aa.fillna( 0, inplace = True )
         
     # for
     
     # write the processed data
     xlwriter = pd.ExcelWriter( out_file, engine = 'xlsxwriter' )
     for key, prediction_aa in valid_pred.items():
-        prediction_aa.to_excel( xlwriter, sheet_name = key )
+        prediction_aa[['Expected', 'Predicted', 'Error']].to_excel( xlwriter, sheet_name = key )
         
     # for
     
@@ -940,7 +947,7 @@ if __name__ == '__main__':
     # main()
 #     main_test()
 #     main_calmat()
-#     main_dbg()
+    main_datamatrices()
     main_validation()
     print( "Program Terminated." )
 

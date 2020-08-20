@@ -787,13 +787,15 @@ if __name__ == '__main__':
     # set-up
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
     fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
+
     print( fbg_needle )
     curvature_values = {'cal': [0, 0.5, 1.6, 2.0, 2.5, 3.2, 4],
                         'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
     
     # process the FBG data directory
 #     directory += "Jig_Calibration_08-05-20/"
-    directory += "Validation_Temperature_08-12-20/"
+#     directory += "Validation_Temperature_08-12-20/"
+    directory += "Validation_Jig_Calibration_08-19-20/"
     
     # gather the directories contatining the .txt files
     dirs_degs = {}
@@ -807,10 +809,7 @@ if __name__ == '__main__':
         dirs_degs[exp_angle] = [d.replace( '\\', '/' ) + '/' if not d.endswith( '/' ) else d.replace( '\\', '/' ) for d in dirs]
         
     # for
-    
-#     # combine the files for mass
-#     directories = sum( dirs_degs.values(), [] )
-    
+        
     # iterate through the directories processing the fbg data files individually
     for d in sum( dirs_degs.values(), [] ):
         if os.path.isdir( d ):
@@ -825,10 +824,11 @@ if __name__ == '__main__':
     for exp_angle, fbgdata_dir in dirs_degs.items():
         print( "Handling angle:", exp_angle, "degs" )
         fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
-        out_fbgresult_file = directory + "08-05-20_FBGResults_{0:d}deg.xlsx".format( exp_angle )
+        out_fbgresult_file = directory + "08-19-20_FBGResults_{0:d}deg.xlsx".format( exp_angle )
         consolidate_fbgdata_files( fbgdata_files, curvature_values['val'], fbg_needle,
                               out_fbgresult_file )
         print( "Saved:", out_fbgresult_file )
+        print()
     
     # for
     
