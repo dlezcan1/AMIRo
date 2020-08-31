@@ -112,9 +112,114 @@ def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
         
         xlwriter.save()
         
-    return all_data
+    # if
+        
+    return summ_data, all_data
     
 # consolidate_fbgdata_files
+
+
+def consolidate_fbgdata_files_stepped( fbg_input_files: list, curvature_values: list,
+                                      step_trials: list, ref_trials: int,
+                                      fbg_needle: FBGNeedle, outfile: str = None ):
+    """
+    This function is used to consolidate the FBGdata file lists for progressive insertion
+    
+    @param fbg_input_files, list: list of fbgdata.xlsx files to be processed.
+    
+    @param curvature_values, list: list of associated curvatures induced in
+                fbgdata.xlsx files list.
+                
+    @param step_trials, list: list of insertion length for stepped insertion
+    
+    @param ref_trials, int: the number of reference trials taken
+    
+    @param fbg_needle, FBGNeedle: the FBGNeedle class param object
+    
+    @param outfile, str (Optional, Default = None): Output file path. If is 'None',
+                then no file will be saved.
+
+    @return:    - The summary over all trials of the data with curvature and processed
+                    fbgdata.xlsx averages and std.
+                - the summary for each trial of the data with curvature and processed
+                    fbgdata.xlsx averages and std.
+                -The entire pandas Dataframe consolidated with curvature and processed
+                    fbgdata.xlsx averages and std.
+    """
+    # data checking
+    if len( curvature_values ) != len( fbg_input_files ):
+        raise IndexError( "The curvature values and fbg files must be of the same length." )
+    
+    # reg-exp for directory
+    pattern = re.compile( ".*/([0-9]+)_deg/Trial_([0-9]+)/.*/*.xlsx" )  # used to get expmnt. angle & trial #
+    pattern = re.compile( ".*/Trial_([0-9]+)/.*/.*\.xlsx" )
+    
+    # initialize the array with the first sheet
+    first_head_arr = ['Trial', 'Curvature (1/m)', 'time (s)', 'Insertion Length (m)']
+    first_head = pd.MultiIndex.from_arrays( [first_head_arr,
+                                            len( first_head_arr ) * ['empty 2'],
+                                            len( first_head_arr ) * ['empty 3']] )
+    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
+    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    data_head = ['Average (nm)', 'STD (nm)']
+        
+    all_data_header = pd.MultiIndex.from_product( [ch_head, aa_head, data_head] )
+    all_data_header = first_head.append( all_data_header )
+    
+    all_data = pd.DataFrame( columns = all_data_header )  # all data sheet
+    mask_avg = all_data.columns.get_level_values( 2 ) == data_head[0]
+    mask_std = all_data.columns.get_level_values( 2 ) == data_head[1]
+    
+    # Begin collecting data from the fbgdata.xlsx files
+    for fbg_file, curvature in zip( fbg_input_files, curvature_values ):
+        # run the curvatures
+        trial_num = int( re.match( pattern, fbg_file ).group( 1 ) )
+        df = process_fbgdata_file_stepped( fbg_file, step_trials, ref_trials, fbg_needle ).astype( float )  # get the processsed df
+        trial_ds = pd.Series( trial_num * np.ones( df.shape[0] ), name = first_head[0] ).astype( int )
+        curv_ds = pd.Series( curvature * np.ones( df.shape[0] ), name = first_head[1] ).astype( float )
+        
+        # concatenate the data
+        all_data = all_data.append( pd.concat( [trial_ds, curv_ds, df], axis = 1 ), ignore_index = True )
+        
+    # for
+    all_data = all_data[all_data_header].convert_dtypes()
+    
+    # temp table for processing
+    tmp_tbl = all_data.drop( labels = [first_head_arr[2]], axis = 1, level = 0 ).drop( labels = ['STD (nm)'], axis = 1, level = 2 )  # all data w/o time & STD
+    
+    # summarize the trials by curvature 
+    # avg and std for each trial
+    summ_trial_avg_data = tmp_tbl.groupby( [first_head[1], first_head[3], first_head[0]] ).mean()
+    summ_trial_std_data = tmp_tbl.groupby( [first_head[1], first_head[3], first_head[0]] ).std()
+    summ_trial_avg_data.columns = all_data.columns[mask_avg]
+    summ_trial_std_data.columns = all_data.columns[mask_std]
+    summ_trial_data = summ_trial_avg_data.join( summ_trial_std_data )
+    summ_trial_data.index.names = [indx[0] for indx in summ_trial_data.index.names]
+    summ_trial_data = summ_trial_data.reindex( columns = sorted( summ_trial_data.columns ), copy = False )
+    
+    # avg and std over all trials
+    summ_avg_data = tmp_tbl.drop( labels = [first_head_arr[0]], axis = 1, level = 0 ).groupby( [first_head[1], first_head[3]] ).mean()
+    summ_std_data = tmp_tbl.drop( labels = [first_head_arr[0]], axis = 1, level = 0 ).groupby( [first_head[1], first_head[3]] ).std()
+    summ_avg_data.columns = all_data.columns[mask_avg]
+    summ_std_data.columns = all_data.columns[mask_std]
+    summ_data = summ_avg_data.join( summ_std_data )
+    summ_data.index.names = [indx[0] for indx in summ_data.index.names]
+    summ_data = summ_data.reindex( columns = sorted( summ_data.columns ), copy = False )
+    
+    # save the data
+    if outfile is not None:
+        xlwriter = pd.ExcelWriter( outfile, engine = 'xlsxwriter' )
+        summ_data.to_excel( xlwriter, sheet_name = 'Summary' )
+        summ_trial_data.to_excel( xlwriter, sheet_name = 'Summary Trial' )
+        all_data.to_excel( xlwriter, sheet_name = 'Trial Data' )
+        
+        xlwriter.save()
+        
+    # if
+        
+    return summ_data, summ_trial_data, all_data
+    
+# consolidate_fbgdata_files_stepped
 
 
 def load_curvature( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
@@ -520,6 +625,46 @@ def read_needleparam( filename: str ):
 # read_needleparam
 
 
+def process_curvature_directory( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
+    """ Function to parse the curvature directory as to an Excel file."""
+    col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    
+    # get files and output file
+    outfile = directory + 'curvature_data.xlsx'
+#     curvfiles = glob.glob( directory + filefmt ) # not needed, implmented in function already
+    
+    # get the Excel workbook open
+    workbook = xlsxwriter.Workbook( outfile )
+    result = workbook.add_worksheet( "Summary" )
+    
+    # get the curvature data
+    curv_data = load_curvature( directory )
+    
+    if 0 in curv_data.shape:
+        return -1  # no data
+    
+    # if
+    
+    # write the header to the file
+    header = ["time (s)", "AA1 Curvature (1/mm)", "AA2 Curvature (1/mm)",
+              "AA3 Curvature (1/mm)"]
+    result.write_row( 0, 0, header )
+    row_start_idx = 1
+    
+    # write the curvature data to the file
+    for idx, row in enumerate( curv_data ):
+        result.write_row( idx + row_start_idx, 0, row )
+        
+    # for
+    
+    # close and save the excel workbook
+    workbook.close()
+    print( f"Summary file written: '{outfile}'" )
+
+    return 0
+# process_curvature_directory
+
+
 def process_fbgdata_directory( directory: str, fbg_needle: FBGNeedle, filefmt: str = "fbgdata*.txt", ):
     """ Process fbgdata text files """
 #     time_fmt = 'fbgdata_%h'
@@ -686,44 +831,85 @@ def process_fbgdata_file( fbg_input_file: str, fbg_needle: FBGNeedle ):
 # process_fbgdata_file
 
 
-def process_curvature_directory( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
-    """ Function to parse the curvature directory as to an Excel file."""
-    col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+def process_fbgdata_file_stepped( fbg_input_file: str, step_trials: list, ref_trials: int, fbg_needle: FBGNeedle ):
+    """ 
+    This function is to handle the fbgdata.xlsx files and combine them into a single file.
     
-    # get files and output file
-    outfile = directory + 'curvature_data.xlsx'
-#     curvfiles = glob.glob( directory + filefmt ) # not needed, implmented in function already
+    @param fbg_input_file, str: The fbgdata file to be processed
     
-    # get the Excel workbook open
-    workbook = xlsxwriter.Workbook( outfile )
-    result = workbook.add_worksheet( "Summary" )
+    @param step_trials, list: list of insertion length for stepped insertion
     
-    # get the curvature data
-    curv_data = load_curvature( directory )
+    @param ref_trials, the reference number of trials (0 curvature)
     
-    if 0 in curv_data.shape:
-        return -1  # no data
+    @param fbg_needle, FBGNeedle: The FBGNeedle param class object
     
+    @return: The Pandas Dataframe of the Avg. and STD for the fbg_input_file 
+    """
+    wb = pd.read_excel( fbg_input_file, None )  # read all sheets from wkbook
+    data_sheets = [k for k in wb.keys() if k != 'Summary']  # only count the data sheets
+    
+    # Note: remove the end parts of the files (remove the bottom 4 when processing Avg. Std. Min. Max.)
+    
+    # initialize the DataFrame for all the processed data
+    first_head = ['Insertion Length (m)', 'time (s)']
+    time_head = pd.MultiIndex.from_arrays( [first_head, len( first_head ) * ['empty 2'],
+                                            len( first_head ) * ['empty 3']] )
+    ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
+    aa_head = ['AA' + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    data_head = ['Average (nm)', 'STD (nm)']
+    proc_header = pd.MultiIndex.from_product( [ch_head, aa_head, data_head] )
+    read_header = time_head[0:1].append( proc_header )
+    proc_header = time_head.append( proc_header )
+    
+    # the empty processed data
+    proc_data = pd.DataFrame( index = range( len( data_sheets ) ), columns = proc_header )
+    avg_mask = proc_data.columns.get_level_values( 2 ) == data_head[0]  # for col selection
+    std_mask = proc_data.columns.get_level_values( 2 ) == data_head[1]  # for col selection
+    
+    # process each frame of data from the trials to create a summary table
+    if len( data_sheets ) == ref_trials:  # reference full insertion trial
+        for i, sheet in enumerate( data_sheets ):
+            sheet_data = wb[sheet]
+            sheet_data = sheet_data[sheet_data.iloc[:, 0].str.isalpha() == False].astype( float )  # and convert all to floats
+            
+            # change the headers for better alignment
+            sheet_data.columns = read_header.droplevel( 2 ).drop_duplicates() 
+            
+            # add the data to the processed data
+            proc_data.iloc[i, 0] = fbg_needle.length  # set the insertion length
+            proc_data.iloc[i, 1] = sheet_data.iloc[:, 0].min()  # set the time
+            proc_data.iloc[i, avg_mask] = sheet_data.iloc[:, 1:].mean()  # set the mean
+            proc_data.iloc[i, std_mask] = sheet_data.iloc[:, 1:].std()  # set the STD  
+        
+        # for
     # if
     
-    # write the header to the file
-    header = ["time (s)", "AA1 Curvature (1/mm)", "AA2 Curvature (1/mm)",
-              "AA3 Curvature (1/mm)"]
-    result.write_row( 0, 0, header )
-    row_start_idx = 1
+    elif len( data_sheets ) == len( step_trials ):  # non-zero curvature w/ correct num of trials
+        # the columns for each step
+        for i, sheet in enumerate( data_sheets ):
+            sheet_data = wb[sheet]
+            sheet_data = sheet_data[sheet_data.iloc[:, 0].str.isalpha() == False].astype( float )  # and convert all to floats
+            
+            # change the headers for better alignment
+            sheet_data.columns = read_header.droplevel( 2 ).drop_duplicates() 
+            
+            # add the data to the processed data
+            proc_data.iloc[i, 0] = step_trials[i]  # set the insertion length
+            proc_data.iloc[i, 1] = sheet_data.iloc[:, 0].min()  # set the time
+            proc_data.iloc[i, avg_mask] = sheet_data.iloc[:, 1:].mean()  # set the mean
+            proc_data.iloc[i, std_mask] = sheet_data.iloc[:, 1:].std()  # set the STD  
+            
+        # for
+    # elif
     
-    # write the curvature data to the file
-    for idx, row in enumerate( curv_data ):
-        result.write_row( idx + row_start_idx, 0, row )
-        
-    # for
+    else:
+        raise IndexError( "The number of data frames don't match the expected amount." )  
     
-    # close and save the excel workbook
-    workbook.close()
-    print( f"Summary file written: '{outfile}'" )
+    # else
+          
+    return proc_data
 
-    return 0
-# process_curvature_directory
+# process_fbgdata_file
 
 
 def main():
@@ -792,17 +978,20 @@ if __name__ == '__main__':
     curvature_values = {'cal': [0, 0.5, 1.6, 2.0, 2.5, 3.2, 4],
                         'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
     
+    # AA1, AA1-2, AA1-3, AA1-4, Full Insertion dict (length: # trials)
+    prog_insertion = True
+    ref_trials = 5
+    step_trial_dict = {15: 5, 48: 5, 83: 5, 110: 5, fbg_needle.length: 5}
+    step_trials = [[v] * k for v, k in step_trial_dict.items()]  # list-ify the dict
+    step_trials = sum( step_trials, [] )  # flatten
+    
     # process the FBG data directory
-#     directory += "Jig_Calibration_08-05-20/"
-#     directory += "Validation_Temperature_08-12-20/"
-    directory += "Validation_Jig_Calibration_08-19-20/"
+    directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
     
     # gather the directories contatining the .txt files
     dirs_degs = {}
-    dirs_degs[0] = glob.glob( directory + "0_deg/08*" )
-    dirs_degs[90] = glob.glob( directory + "90_deg/08*" )
-#     dirs_degs[180] = glob.glob( directory + "180_deg/08*" )
-#     dirs_degs[270] = glob.glob( directory + "270_deg/08*" )
+    dirs_degs[0] = glob.glob( directory + "0_deg/Trial_*/08*" )
+    dirs_degs[90] = glob.glob( directory + "90_deg/Trial_*/08*" )
     
     # correct the fomatting of the directories
     for exp_angle, dirs in dirs_degs.items():
@@ -824,9 +1013,18 @@ if __name__ == '__main__':
     for exp_angle, fbgdata_dir in dirs_degs.items():
         print( "Handling angle:", exp_angle, "degs" )
         fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
-        out_fbgresult_file = directory + "08-19-20_FBGResults_{0:d}deg.xlsx".format( exp_angle )
-        consolidate_fbgdata_files( fbgdata_files, curvature_values['val'], fbg_needle,
-                              out_fbgresult_file )
+        out_fbgresult_file = directory + "08-26_29-20_Prog_Insertion_FBGResults_{0:d}deg.xlsx".format( exp_angle )
+        
+        if prog_insertion:  # progressive insertion
+            consolidate_fbgdata_files_stepped( fbgdata_files, curvature_values['val'] * 10, step_trials, ref_trials,
+                                              fbg_needle, out_fbgresult_file ) 
+        # if
+        
+        else:  # non-progressive insertion
+            consolidate_fbgdata_files( fbgdata_files, curvature_values['val'], fbg_needle,
+                              out_fbgresult_file )  
+        # else
+        
         print( "Saved:", out_fbgresult_file )
         print()
     
