@@ -1,0 +1,7 @@
+curvature 0.25 1/m
+Trial 1
+0 degree (bevel up, clockwise)
+Temperature: room temperature
+
+Data:
+Full Insertion (All AA's activated)      x5 times

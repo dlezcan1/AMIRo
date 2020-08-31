@@ -1,0 +1,11 @@
+curvature 0.8 1/m
+Trial 7
+0 degree (bevel up, clockwise)
+Temperature: room temperature
+
+Data:
+Insert 15mm    (AA1 activated)           x5 times
+Insert 48mm    (AA1 & AA2 activated)     x5 times
+Insert 83mm    (AA1, AA2, AA3 activated) x5 times
+Insert 110mm   (All AA's activated)      x5 times
+Full Insertion (All AA's activated)      x5 times
