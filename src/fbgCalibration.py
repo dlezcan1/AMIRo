@@ -34,6 +34,32 @@ BO_REGIONS.append( ( 950, 0, -1, 68 ) )
 BO_REGIONS.append( ( 0, 170, -1, -1 ) )
 
 
+def calculate_shift_stepped( summ_data: pd.DataFrame, fbg_needle: FBGNeedle, Tcorr: bool = True ):
+    """ This function is to calculate the (T corrected) signal shift """
+    # get the CH's and AA's
+    aa_list = summ_data.columns.unique( 1 )
+    
+    # the reference wavelength
+    ref_wl = summ_data.loc[0, pd.IndexSlice[:, :, 'Average (nm)']].iloc[0]
+    
+    # calculate the wavelength shift
+    shift_mean_data = summ_data.loc[:, pd.IndexSlice[:, :, 'Average (nm)']].subtract( ref_wl, axis = 1 )
+    shift_std_data = summ_data.loc[:, pd.IndexSlice[:, :, 'STD (nm)']]
+        
+    if Tcorr:  # perform temperature compensation (through averaging
+        mean_aa_shift = shift_mean_data.droplevel( 2, axis = 1 ).groupby( axis = 1, level = 1 ).mean()
+        # subtract the mean AA shift for each row
+        for aa in aa_list:
+            shift_mean_data.loc[:, pd.IndexSlice[:, aa, 'Average (nm)']] = shift_mean_data.loc[:, pd.IndexSlice[:, aa, 'Average (nm)']].subtract( mean_aa_shift.loc[:, aa], axis = 0 )
+            
+        # for
+    # if
+    
+    return shift_mean_data.join( shift_std_data ).sort_index( axis = 1, level = 0 )
+    
+# calculate_shift_stepped
+
+
 def consolidate_fbgdata_files( fbg_input_files: list, curvature_values: list,
                                fbg_needle: FBGNeedle, outfile: str = None ):
     """
@@ -155,7 +181,7 @@ def consolidate_fbgdata_files_stepped( fbg_input_files: list, curvature_values: 
     pattern = re.compile( ".*/Trial_([0-9]+)/.*/.*\.xlsx" )
     
     # initialize the array with the first sheet
-    first_head_arr = ['Trial', 'Curvature (1/m)', 'time (s)', 'Insertion Length (m)']
+    first_head_arr = ['Trial', 'Curvature (1/m)', 'time (s)', 'Insertion Length (mm)']
     first_head = pd.MultiIndex.from_arrays( [first_head_arr,
                                             len( first_head_arr ) * ['empty 2'],
                                             len( first_head_arr ) * ['empty 3']] )
@@ -197,7 +223,7 @@ def consolidate_fbgdata_files_stepped( fbg_input_files: list, curvature_values: 
     summ_trial_data.index.names = [indx[0] for indx in summ_trial_data.index.names]
     summ_trial_data = summ_trial_data.reindex( columns = sorted( summ_trial_data.columns ), copy = False )
     
-    # avg and std over all trials
+    # avg and std over all trials (curvature | insertion length)
     summ_avg_data = tmp_tbl.drop( labels = [first_head_arr[0]], axis = 1, level = 0 ).groupby( [first_head[1], first_head[3]] ).mean()
     summ_std_data = tmp_tbl.drop( labels = [first_head_arr[0]], axis = 1, level = 0 ).groupby( [first_head[1], first_head[3]] ).std()
     summ_avg_data.columns = all_data.columns[mask_avg]
@@ -206,10 +232,13 @@ def consolidate_fbgdata_files_stepped( fbg_input_files: list, curvature_values: 
     summ_data.index.names = [indx[0] for indx in summ_data.index.names]
     summ_data = summ_data.reindex( columns = sorted( summ_data.columns ), copy = False )
     
+    summ_data_flip = summ_data.reorder_levels( [1, 0], axis = 0 )
+    
     # save the data
     if outfile is not None:
         xlwriter = pd.ExcelWriter( outfile, engine = 'xlsxwriter' )
         summ_data.to_excel( xlwriter, sheet_name = 'Summary' )
+        summ_data_flip.to_excel( xlwriter, sheet_name = 'Summary Reindexed' )
         summ_trial_data.to_excel( xlwriter, sheet_name = 'Summary Trial' )
         all_data.to_excel( xlwriter, sheet_name = 'Trial Data' )
         
@@ -217,7 +246,7 @@ def consolidate_fbgdata_files_stepped( fbg_input_files: list, curvature_values: 
         
     # if
         
-    return summ_data, summ_trial_data, all_data
+    return summ_data, summ_data_flip, summ_trial_data, all_data
     
 # consolidate_fbgdata_files_stepped
 
@@ -625,6 +654,84 @@ def read_needleparam( filename: str ):
 # read_needleparam
 
 
+def plot_results_stepped( shift_data: pd.DataFrame, fbg_needle: FBGNeedle,
+                          title: str = "", outfile_base: str = None, show_plots: bool = False ):
+    """ This is a function to plot the results for stepped insertions
+    
+        @param summ_data: the summary results of stepped insertion (curvature | insert. length)
+        
+        @param all_data: the entire data
+        
+        @param fbg_needle, FBGNeedle: the FBG needle parameter object
+        
+    """
+    # get the indices
+    curvature = sorted( np.array( shift_data.index.unique( level = 0 ) ) )
+    step_trials = sorted( np.array( shift_data.index.unique( level = 1 ) ) )
+    ch_list = list( shift_data.columns.unique( level = 0 ) )
+    aa_list = list( shift_data.columns.unique( level = 1 ) )
+    
+    # rename indices for insertion length
+    aa_active_list = ['AA1'] + ['AA1-' + aa for aa in aa_list[1:]] + ['Full Insertion']
+    rn_inslength = {ins_len: aa_active for ins_len, aa_active in zip( step_trials, aa_active_list )}
+    
+    # reorganize per AA and prepare for plotting
+    plot_shift_data = shift_data.stack( 1 ).swaplevel( 0, 2, 0 ).swaplevel( 1, 2, 0 ).sort_index( 0 )
+    plot_shift_data = plot_shift_data.rename( rn_inslength, axis = 'index', level = 2 )
+    plot_shift_data = plot_shift_data.loc[pd.IndexSlice[:, 0.25:, :], :].unstack( 2 ).swaplevel( 0, 1, 1 )
+        
+    # separate into AVG and STD
+    plot_mean_shift_data = plot_shift_data.loc[:, 'Average (nm)']
+    plot_std_shift_data = plot_shift_data.loc[:, 'STD (nm)']
+    # plotting font size
+    plt.rcParams.update( {'font.size': 16} )
+    
+    # plot for each aa
+    for aa in aa_list:
+        # subplot figure and axes over channels
+        fig_aa, axs = plt.subplots( len( ch_list ), 1, sharex = True, figsize = ( 10.0, 10.0 ) )
+        fig_aa.suptitle( title + " | " + aa )  
+        
+        # grab the aa data
+        plot_mean_shift_data_aa = plot_mean_shift_data.loc[aa, :]
+        plot_std_shift_data_aa = plot_std_shift_data.loc[aa, :]
+        
+        # plot the aa data in bars over each channel for the subplots
+        for ch_i, ax_i in zip( ch_list, axs ):
+            # data per channel
+            plot_mean_shift_data_aa_ch = plot_mean_shift_data_aa.loc[:, ch_i]
+            plot_std_shift_data_aa_ch = plot_std_shift_data_aa.loc[:, ch_i]
+            
+            # plot the channel data
+            plot_mean_shift_data_aa_ch.plot( kind = 'bar', ax = ax_i, legend = False,
+                                             yerr = plot_std_shift_data_aa_ch, capsize = 4 )
+            ax_i.set_xlabel( 'Curvature (1/m)' )
+            ax_i.set_ylabel( 'Signal Response (nm)' )
+            ax_i.set_title( ch_i )
+            
+        # for
+        
+        handles, labels = ax_i.get_legend_handles_labels()
+        fig_aa.legend( handles, labels, loc = 'upper left' )    
+        
+        if outfile_base is not None:
+            plt.savefig( outfile_base + "_" + aa + ".png", fig = fig_aa )
+            plt.close( 'all' )
+            print( "Saved figure:", outfile_base + "_" + aa + ".png" )
+            
+        # if
+            
+    # for
+    
+    # show all the plots if we aren't saving
+    if show_plots:
+        plt.show()
+        
+    # if
+    
+# plot_results_stepped
+
+
 def process_curvature_directory( directory: str, filefmt: str = "curvature_monofbg*.txt" ):
     """ Function to parse the curvature directory as to an Excel file."""
     col_letts = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -851,7 +958,7 @@ def process_fbgdata_file_stepped( fbg_input_file: str, step_trials: list, ref_tr
     # Note: remove the end parts of the files (remove the bottom 4 when processing Avg. Std. Min. Max.)
     
     # initialize the DataFrame for all the processed data
-    first_head = ['Insertion Length (m)', 'time (s)']
+    first_head = ['Insertion Length (mm)', 'time (s)']
     time_head = pd.MultiIndex.from_arrays( [first_head, len( first_head ) * ['empty 2'],
                                             len( first_head ) * ['empty 3']] )
     ch_head = ['CH' + str( i + 1 ) for i in range( fbg_needle.num_channels )]
@@ -912,7 +1019,7 @@ def process_fbgdata_file_stepped( fbg_input_file: str, step_trials: list, ref_tr
 # process_fbgdata_file
 
 
-def main():
+def main_camera():
     skip_prev = True
     show_imgp = True
     correct_firstlast = False
@@ -966,34 +1073,15 @@ def main():
         
     # if
         
-# main
+# main_camera
 
 
-if __name__ == '__main__':    
-    # set-up
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
-    fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
-
-    print( fbg_needle )
-    curvature_values = {'cal': [0, 0.5, 1.6, 2.0, 2.5, 3.2, 4],
-                        'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
-    
-    # AA1, AA1-2, AA1-3, AA1-4, Full Insertion dict (length: # trials)
-    prog_insertion = True
-    ref_trials = 5
-    step_trial_dict = {15: 5, 48: 5, 83: 5, 110: 5, fbg_needle.length: 5}
-    step_trials = [[v] * k for v, k in step_trial_dict.items()]  # list-ify the dict
-    step_trials = sum( step_trials, [] )  # flatten
-    
-    # process the FBG data directory
-    directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
-    
-    # gather the directories contatining the .txt files
-    dirs_degs = {}
-    dirs_degs[0] = glob.glob( directory + "0_deg/Trial_*/08*" )
-    dirs_degs[90] = glob.glob( directory + "90_deg/Trial_*/08*" )
-    
-    # correct the fomatting of the directories
+def main_jig_stepped( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvature_values: list,
+              ref_trials: int, step_trials: list, num_trials: int, savefile_base: str, Tcorr: bool = True ):
+    """ Progressive jig calibration/validation """
+    # SET-UP
+        
+    # correct the formatting of the directories
     for exp_angle, dirs in dirs_degs.items():
         dirs_degs[exp_angle] = [d.replace( '\\', '/' ) + '/' if not d.endswith( '/' ) else d.replace( '\\', '/' ) for d in dirs]
         
@@ -1013,24 +1101,158 @@ if __name__ == '__main__':
     for exp_angle, fbgdata_dir in dirs_degs.items():
         print( "Handling angle:", exp_angle, "degs" )
         fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
-        out_fbgresult_file = directory + "08-26_29-20_Prog_Insertion_FBGResults_{0:d}deg.xlsx".format( exp_angle )
+        outfile_base = directory + savefile_base + "_{0:d}deg".format( exp_angle )
+        out_fbgresult_file = outfile_base + '.xlsx'
         
-        if prog_insertion:  # progressive insertion
-            consolidate_fbgdata_files_stepped( fbgdata_files, curvature_values['val'] * 10, step_trials, ref_trials,
-                                              fbg_needle, out_fbgresult_file ) 
-        # if
-        
-        else:  # non-progressive insertion
-            consolidate_fbgdata_files( fbgdata_files, curvature_values['val'], fbg_needle,
-                              out_fbgresult_file )  
-        # else
-        
+        # consolidate the stepped fbgdata files
+        summ_data, *_ = consolidate_fbgdata_files_stepped( fbgdata_files, curvature_values * num_trials,
+                                                                    step_trials, ref_trials,
+                                                                    fbg_needle, out_fbgresult_file ) 
         print( "Saved:", out_fbgresult_file )
+        
+        # calculate the wavelength shifts
+        shift_data = calculate_shift_stepped( summ_data, fbg_needle, Tcorr = Tcorr )
+        
+        # plot and save the results
+        plt_title = "T Corr Signal Response" if Tcorr else "Signal Response"
+        plot_results_stepped( shift_data, fbg_needle, plt_title, outfile_base, False )
+        
         print()
     
     # for
     
-    print( "Program has terminated." )
+# main_jig_stepped
+
+
+def main_jig( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvature_values: list,
+              savefile_base: str ):
+    """ Non-progressive jig calibration/validation """
+    # SET-UP
+    
+    # correct the formatting of the directories
+    for exp_angle, dirs in dirs_degs.items():
+        dirs_degs[exp_angle] = [d.replace( '\\', '/' ) + '/' if not d.endswith( '/' ) else d.replace( '\\', '/' ) for d in dirs]
+        
+    # for
+    
+    # iterate through the directories processing the fbg data files individually
+    for d in sum( dirs_degs.values(), [] ):
+        if os.path.isdir( d ):
+            print( 'Processing:', d )
+            process_fbgdata_directory( d, fbg_needle )
+            print()
+            
+        # if
+    # for
+    
+    for exp_angle, fbgdata_dir in dirs_degs.items():
+        print( "Handling angle:", exp_angle, "degs" )
+        
+        # set up the fbg data files and output file
+        fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
+        outfile_base = directory + savefile_base + "_{0:d}deg".format( exp_angle )
+        out_fbgresult_file = outfile_base + '.xlsx'
+        
+        # consolidate the fbgdata files
+        consolidate_fbgdata_files( fbgdata_files, curvature_values, fbg_needle,
+                              out_fbgresult_file )
+        print( "Saved:", out_fbgresult_file )
+        print()
+        
+    # for
+    
+# main_jig
+
+
+if __name__ == '__main__':    
+    # SET-UP 
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
+    
+    print( "FBG Needle Parmeters:" )
+    print( fbg_needle )
+    print( 75 * '=' )
+    print()
+    
+    # curvatures for each jig
+    curvature_values = {'cal': [0, 0.5, 1.6, 2.0, 2.5, 3.2, 4],
+                        'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
+    
+    # progressive insertion: AA1, AA1-2, AA1-3, AA1-4, Full Insertion dict (length: # trials)
+    prog_insertion = True
+    num_trials = 10
+    ref_trials = 5
+    step_trial_dict = {15: 5, 48: 5, 83: 5, 110: 5, fbg_needle.length: 5}
+    step_trials = [[v] * k for v, k in step_trial_dict.items()]  # list-ify the dict
+    step_trials = sum( step_trials, [] )  # flatten
+    
+    # FBG data experiment directory for processing
+    directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
+    
+    # gather the directories contatining the fbgdata .txt files
+    dirs_degs = {}
+    dirs_degs[0] = glob.glob( directory + "0_deg/Trial_*/08*" )
+    dirs_degs[90] = glob.glob( directory + "90_deg/Trial_*/08*" )
+    
+    # correct the formatting of the directories \ (or '\\') -> /
+    for exp_angle, dirs in dirs_degs.items():
+        dirs_degs[exp_angle] = [d.replace( '\\', '/' ) + '/' if not d.endswith( '/' ) else d.replace( '\\', '/' ) for d in dirs]
+        
+    # for
+    
+    # main method 
+    if prog_insertion:
+        main_jig_stepped( directory, dirs_degs, fbg_needle, curvature_values['val'], ref_trials, step_trials, num_trials,
+                     savefile_base = "08-26_29-20_Prog_Insertion_FBGResults", Tcorr = True )
+    
+    # if    
+        
+    else:
+        main_jig( directory, dirs_degs, fbg_needle, curvature_values['val'],
+                  savefile_base = "08-26_29-20_Prog_Insertion_FBGResults" )
+        
+    # else
+    
+    print( "Program has terminated." )  
+    
+    #===========================================================================
+    # # iterate through the directories processing the fbg data files individually
+    # for d in []:  # sum( dirs_degs.values(), [] ):
+    #     if os.path.isdir( d ):
+    #         print( 'Processing:', d )
+    #         process_fbgdata_directory( d, fbg_needle )
+    #         print()
+    #         
+    #     # if
+    # # for
+    # 
+    # # consolidate the fbgdata_files
+    # for exp_angle, fbgdata_dir in []:  # dirs_degs.items():
+    #     print( "Handling angle:", exp_angle, "degs" )
+    #     fbgdata_files = [d + "fbgdata.xlsx" for d in fbgdata_dir]
+    #     outfile_base = directory + "08-26_29-20_Prog_Insertion_FBGResults_{0:d}deg".format( exp_angle )
+    #     out_fbgresult_file = outfile_base + '.xlsx'
+    #     
+    #     if prog_insertion:  # progressive insertion
+    #         summ_data, _, all_data = consolidate_fbgdata_files_stepped( fbgdata_files, curvature_values['val'] * 10,
+    #                                                                     step_trials, ref_trials,
+    #                                                                     fbg_needle, out_fbgresult_file ) 
+    #         shift_data = calculate_shift_stepped( summ_data, fbg_needle, Tcorr = True )
+    #         plot_results_stepped( shift_data, fbg_needle, "T Corr. Signal Response", outfile_base, False )
+    #         
+    #     # if
+    #     
+    #     else:  # non-progressive insertion
+    #         consolidate_fbgdata_files( fbgdata_files, curvature_values['val'], fbg_needle,
+    #                           out_fbgresult_file ) 
+    #         
+    #     # else
+    #     
+    #     print( "Saved:", out_fbgresult_file )
+    #     print()
+    # 
+    # # for
+    #===========================================================================
     
 # if
     
