@@ -692,6 +692,7 @@ def write_calibration_matrices( C_list: dict, fbg_needle: FBGNeedle, outfile: st
     if fbg_outjson_file:
         fbg_needle.cal_matrices = C_list
         fbg_needle.save_json( fbg_outjson_file )
+        print("Wrote FBGNeedle json file:", fbg_outjson_file)
     # if
     
     return 0
@@ -843,7 +844,8 @@ def main_calmat():
     lstsq_logfile = "least_sq.log"
 
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
-    calibration_data = _read_datamatrices( datadir + datafile, fbg_needle )
+#     calibration_data = _read_datamatrices( datadir + datafile, fbg_needle ) # deprecated
+    calibration_data = read_datamatrices( datadir + datafile, fbg_needle ) 
     
     # check if data is being read in correctly
     for a in []:  # calibration_data.keys():
@@ -868,13 +870,16 @@ def main_datamatrices():
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
     needlejsonfile = "needle_params.json"
     
-    datadir = directory + "Validation_Jig_Calibration_08-19-20/"
+#     datadir = directory + "Validation_Jig_Calibration_08-19-20/"
+    datadir = directory + "Jig_Calibration_08-05-20/"
     datafile = "Data Matrices.xlsx"
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
     fbgresult_list = glob.glob( datadir + "*_results*.xlsx" )
-    fbgresult_files = {0: fbgresult_list[0], 90: fbgresult_list[-1]}
+    fbgresult_0deg = glob.glob(datadir + "*_results_0deg.xlsx")
+    fbgresult_90deg = glob.glob(datadir + "*_results_90deg.xlsx")
+    fbgresult_files = {0: fbgresult_0deg[0], 90: fbgresult_90deg[0]}
     
     create_datamatrices( fbgresult_files, fbg_needle, datadir + datafile )
     print( "Saved file: ", datadir + datafile )
@@ -946,9 +951,10 @@ def main_validation():
 if __name__ == '__main__':
     # main()
 #     main_test()
-#     main_calmat()
     main_datamatrices()
-    main_validation()
+    main_calmat()
+
+#     main_validation()
     print( "Program Terminated." )
 
 # if

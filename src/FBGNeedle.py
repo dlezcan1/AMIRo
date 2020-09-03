@@ -137,7 +137,7 @@ class FBGNeedle( object ):
     # sensor_locations
     
     @sensor_location.setter
-    def sensor_location( self, sensor_locations ):
+    def sensor_location( self, sensor_locations: list ):
         if not self._sensor_location:
             if sensor_locations is None:
                 self._sensor_location = None
@@ -145,7 +145,8 @@ class FBGNeedle( object ):
             # if
             
             else:
-                self._sensor_location = sorted( list( set( sensor_locations ) ), reverse = True )  # remove duplicates
+#                 self._sensor_location = sorted( list( set( sensor_locations ) ), reverse = True )  # remove duplicates and reorder
+                self._sensor_location = np.unique(sensor_locations).tolist() #
             
             # else 
         # if
@@ -330,8 +331,9 @@ if __name__ == "__main__" or False:
     # needle parameters
     length = 200  # mm
     num_chs = 3
-    aa_locs_tip = np.cumsum( [10, 20, 35, 35] ) 
-    aa_locs = sorted( ( 200 - aa_locs_tip ).tolist(), reverse = True )
+    aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1]
+    aa_locs = ( length - aa_locs_tip ).tolist()
+    print("locations:", aa_locs)
     cal_mats = None
     
     # create and save the new 
@@ -346,6 +348,12 @@ if __name__ == "__main__" or False:
         test2 = FBGNeedle.load_json( save_file )
         print( "after load" )
         print( test2 )
+        
+        for i in range(test2.num_aa):
+            s = "AA" + str(i + 1)
+            print(s, ":", test2.aa_loc(s))
+            
+        # for
         
     # if
     
