@@ -4,9 +4,12 @@
 %
 % - written by: Dimitri Lezcano
 
-%% Set-up
+%% Set-up 
+% options
+save_bool = false;
+
 % python set-up
-pydir = "..\";
+pydir = "../";
 if count(py.sys.path, pydir) == 0
     insert(py.sys.path, int32(0), pydir);
 end
@@ -51,16 +54,51 @@ end
 disp(" ");
 
 %% Save the data as a processed data matrices file
-for AA_i = AA_list
-    writetable(data_mats.(AA_i),data_mats_proc_file, 'Sheet', AA_i, ...
-        'WriteRowNames', true);
+if save_bool
+    for AA_i = AA_list
+        writetable(data_mats.(AA_i),data_mats_proc_file, 'Sheet', AA_i, ...
+            'WriteRowNames', true);
+
+    end
+
+    fprintf("Wrote processed data file: %s\n\n", data_mats_proc_file);
+
+end
+
+%% Functions 
+% jig (constant curvature) shape model
+function r = const_curv_shape(w, s)
+% function to get the constant curvature shape t
+%
+% constant curvature is 1/k * v | k = curvature, v = "torque" vector
+% 
+% Input:
+%   - w: the angular deformation vector (constant)
+%   - s: the arclength coordinates N-vector
+
+    wv = w * ones(3, length(s));
+    
+    r = wv2r(wv, max(s));
     
 end
 
-fprintf("Wrote processed data file: %s\n\n", data_mats_proc_file);
+% get the constant curvature vector from AA data
+function w = const_curv_approx(w_aa, weights)
+% function to approximate the constant curvature vector from AA data
+%
+% returns the mean vector across the 3-axes
+%
+% Input:
+%   - w_aa a 3 x #AA matrix for each AA
+%
+    if ~exist('weights', 'var')
+        weigths = 1
+    end
+    
+    w = sum(w.*weights, 2)/sum(weights);
+    
+end
 
-%% Functions 
-% TODO: jig (constant curvature) shape model
 % TODO: error in positions as a function of arclength (s)
 % TODO: error in positions as a function of z-position (z)
 %           - will need some sort of interpolation
