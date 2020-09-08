@@ -892,10 +892,12 @@ def main_validation():
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
     needlejsonfile = "needle_params-Jig_Calibration_08-05-20.json"
     
-    datadir = directory + "Validation_Jig_Calibration_08-19-20/"
+#     datadir = directory + "Validation_Jig_Calibration_08-19-20/"
+    datadir = directory + "Jig_Calibration_08-05-20/"
     datafile = "Data Matrices.xlsx"
     
-    out_file = datadir + "Validation_Error_raw.xlsx"
+#     out_file = datadir + "Validation_Error_raw.xlsx"
+    out_file = datadir + "Calibration_Error_raw.xlsx"
     
     # load the json file
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
@@ -951,9 +953,9 @@ def main_validation():
 if __name__ == '__main__':
     # main()
 #     main_test()
-    main_datamatrices()
-    main_calmat()
-
+#     main_datamatrices()
+#     main_calmat()
+    main_validation()
 #     main_validation()
     print( "Program Terminated." )
 

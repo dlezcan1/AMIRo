@@ -4,6 +4,8 @@
 %
 % - written by: Dimitri Lezcano
 
+set(0,'DefaultAxesFontSize',26);
+
 %% Set-up 
 % options
 save_bool = false;
@@ -18,9 +20,19 @@ end
 directory = "../../FBG_Needle_Calibration_Data/needle_3CH_4AA/";
 fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20.json";
 
-datadir = directory + "Validation_Jig_Calibration_08-19-20/";
+% datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
+datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
 data_mats_file = datadir + "Data Matrices.xlsx";
 data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_proc.xlsx');
+fig_save_file = datadir + "Jig_Shape_fit";
+
+% paramteter set-up
+jig_offset = 26.0; % the jig offset of full insertion
+AA_weights = [1, 0.9, 0.3, 0.0]; % [AA1, AA2, AA3, AA4] reliability weighting
+if ~isempty(AA_weights)
+    fig_save_file = fig_save_file + "_weighted";
+    
+end
 
 %% Load FBGNeedle python class
 fbg_needle = py.FBGNeedle.FBGNeedle.load_json(fbgneedle_param);
@@ -55,15 +67,104 @@ disp(" ");
 
 %% Save the data as a processed data matrices file
 if save_bool
+    % the AA processed data
     for AA_i = AA_list
         writetable(data_mats.(AA_i),data_mats_proc_file, 'Sheet', AA_i, ...
             'WriteRowNames', true);
-
     end
 
-    fprintf("Wrote processed data file: %s\n\n", data_mats_proc_file);
+    fprintf("Wrote processed data file: %s\n", data_mats_proc_file);
+    
+    % the AA weighting for shape analaysis
+    if ~isempty(AA_weights)
+        writematrix([AA_list; AA_weights], fig_save_file + "_weights.csv");
+        disp("Wrote file: " + fig_save_file + "_weights.csv");
 
+    end
+    
+    disp(" ");
 end
+
+%% Process the data shapes
+s = 0:0.5:(double(fbg_needle.length) - jig_offset); % the arclength points
+num_expmts = length(data_mats.AA1.Curvature);
+
+% iterate over all of the experiments
+shape_results = cell(num_expmts, 1);
+for exp_num = 1:num_expmts
+    EXPMT_i.curvature = data_mats.AA1.Curvature(exp_num);
+    EXPMT_i.curv_act = [data_mats.AA1{exp_num,["CurvatureX", "CurvatureY"]}'; 0]/1000; % actual curvature vector
+    EXPMT_i.ref_angle = rad2deg(atan2(EXPMT_i.curv_act(2), EXPMT_i.curv_act(1)));
+    
+    
+    % get the measured curvatures @ each AA
+    EXPMT_i.w_AA = zeros(3, length(AA_list));
+    for i = 1:length(AA_list)
+        AA_i = AA_list(i);
+        EXPMT_i.w_AA(1:2, i) = [data_mats.(AA_i){exp_num, ["PredCurvX", "PredCurvY"]}']/1000;
+        
+    end
+    
+    % compute the approximate curvature
+    EXPMT_i.w_AA_approx = const_curv_approx(EXPMT_i.w_AA, AA_weights);
+    
+    % compute the shapes
+    EXPMT_i.r_act = const_curv_shape(EXPMT_i.curv_act, s); % the reference shape
+    EXPMT_i.r_meas = const_curv_shape(EXPMT_i.w_AA_approx, s); % the measured shape
+    
+    shape_results{exp_num} = EXPMT_i;
+end
+
+%% Plotting
+close all;
+for exp_num = 1:num_expmts
+    % grab the data
+    expmt_i = shape_results{exp_num};
+    r_act = expmt_i.r_act;
+    r_meas = expmt_i.r_meas;
+    err_r = error_s_positions(r_act, r_meas);
+    
+    % start plotting
+    figure('WindowStyle', 'docked');
+    
+%     set(gcf,'units', 'normalized', 'position', [1/8, 0.2/8, 6/8, 7/8]);
+    
+    % plot the z-x deformation
+    subplot(3,1,1);
+    plot(r_act(3,:), r_act(1,:), 'DisplayName', 'Reference', 'LineWidth', 2); hold on;
+    plot(r_meas(3,:), r_meas(1,:), 'DisplayName', 'Measured', 'LineWidth', 2); hold off;
+    ylabel('x [mm]', 'fontweight', 'bold'); % xlabel('z [mm]', 'fontweight', 'bold'); 
+    grid on; %axis equal;
+    legend();    
+    
+    % plot the z-y deformation
+    subplot(3,1,2);
+    plot(r_act(3,:), r_act(2,:), 'DisplayName', 'Reference', 'LineWidth', 2); hold on;
+    plot(r_meas(3,:), r_meas(2,:), 'DisplayName', 'Measured', 'LineWidth', 2); hold off;
+    ylabel('y [mm]', 'fontweight', 'bold'); xlabel('z [mm]', 'fontweight', 'bold'); 
+    grid on; %axis equal;
+    
+    % plot the error
+    subplot(3,1,3);
+    plot(s, err_r, 'k', 'LineWidth', 2); hold on;
+    plot([0, max(s)], [0.5, 0.5], 'r--', 'LineWidth', 1.5); hold off;
+    title('Error: L2 Distance');
+    ylabel('error [mm]', 'fontweight', 'bold'); xlabel('s [mm]', 'fontweight', 'bold'); 
+    grid on;
+    ylim([0, max([1.1 * err_r, 1])]);
+    
+    sgtitle("\kappa = " + sprintf("%.3f at %d^o about z-axis", expmt_i.curvature, expmt_i.ref_angle), ...
+        'fontsize', 30, 'fontweight', 'bold');
+    
+    % saving
+    if save_bool
+        saveas(gcf, fig_save_file + sprintf("_k_%.3f_ang_%ddeg.png", expmt_i.curvature, expmt_i.ref_angle));
+        disp("Saved figure: " + fig_save_file + sprintf("_k_%.3f_ang_%ddeg.png", expmt_i.curvature, expmt_i.ref_angle));
+    end
+end
+
+%% Termination
+disp("Program Terminated.");
 
 %% Functions 
 % jig (constant curvature) shape model
@@ -76,7 +177,7 @@ function r = const_curv_shape(w, s)
 %   - w: the angular deformation vector (constant)
 %   - s: the arclength coordinates N-vector
 
-    wv = w * ones(3, length(s));
+    wv = w .* ones(3, length(s));
     
     r = wv2r(wv, max(s));
     
@@ -91,15 +192,29 @@ function w = const_curv_approx(w_aa, weights)
 % Input:
 %   - w_aa a 3 x #AA matrix for each AA
 %
-    if ~exist('weights', 'var')
-        weigths = 1
+    if ~exist('weights', 'var') 
+        weights = ones(1, size(w_aa, 2));
+    
+    elseif isempty(weights)
+        weights = ones(1, size(w_aa, 2));
+    
     end
     
-    w = sum(w.*weights, 2)/sum(weights);
+    w = sum(w_aa.*weights, 2)/sum(weights);
     
 end
 
-% TODO: error in positions as a function of arclength (s)
+% error in positions as a function of arclength (s)
+function err = error_s_positions(r_1, r_2)
+% function to determine the error for each arclength position between two shapes
+%
+% returns err(i) = || r_1(:,i) - r_2(:,i) ||
+
+    err = vecnorm(r_1 - r_2);
+    
+end
+
+
 % TODO: error in positions as a function of z-position (z)
 %           - will need some sort of interpolation
 
