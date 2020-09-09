@@ -692,7 +692,7 @@ def write_calibration_matrices( C_list: dict, fbg_needle: FBGNeedle, outfile: st
     if fbg_outjson_file:
         fbg_needle.cal_matrices = C_list
         fbg_needle.save_json( fbg_outjson_file )
-        print("Wrote FBGNeedle json file:", fbg_outjson_file)
+        print( "Wrote FBGNeedle json file:", fbg_outjson_file )
     # if
     
     return 0
@@ -877,14 +877,141 @@ def main_datamatrices():
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
     fbgresult_list = glob.glob( datadir + "*_results*.xlsx" )
-    fbgresult_0deg = glob.glob(datadir + "*_results_0deg.xlsx")
-    fbgresult_90deg = glob.glob(datadir + "*_results_90deg.xlsx")
+    fbgresult_0deg = glob.glob( datadir + "*_results_0deg.xlsx" )
+    fbgresult_90deg = glob.glob( datadir + "*_results_90deg.xlsx" )
     fbgresult_files = {0: fbgresult_0deg[0], 90: fbgresult_90deg[0]}
     
     create_datamatrices( fbgresult_files, fbg_needle, datadir + datafile )
     print( "Saved file: ", datadir + datafile )
 
 # main_datamatrices
+
+
+def main_join_calval():
+    # load the directories
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    needlejsonfile = "needle_params-Jig_Calibration_08-05-20.json"
+    
+    datadir_cal = directory + "Jig_Calibration_08-05-20/"
+    datadir_val = directory + "Validation_Jig_Calibration_08-19-20/"
+    
+    datafile_cal = datadir_cal + "Data Matrices_proc.xlsx"
+    datafile_val = datadir_val + "Data Matrices_proc.xlsx"
+    datafile_out = datadir_val + "Data Matrices_proc_calval"
+    datafile_comb = datafile_out + ".xlsx"
+    
+    # load the FBGNeedle
+    fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
+    AA_list = ["AA" + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    
+    # combine the data into a data file
+    data = {}
+    for AA in AA_list:
+        # read in the Excel files
+        data_cal = pd.read_excel( datafile_cal, sheet_name = AA, index_col = 0 )
+        data_val = pd.read_excel( datafile_val, sheet_name = AA, index_col = 0 )
+        
+        # append column for each row
+        data_cal['Type'] = 'calibration'
+        data_val['Type'] = 'validation'
+        
+        # append the data 
+        data_comb = data_cal.append( data_val, ignore_index = True )
+        
+        # reorder the cols so 'Type' comes first
+        cols = data_comb.columns.to_list()
+        data_comb = data_comb[['Type'] + cols[:-1]]
+        
+        # add the table to the dict
+        data[AA] = data_comb
+        
+        # print the results
+        print( AA + ")" )
+        print( data_comb )
+        print()
+        
+    # for
+    
+    # plot the results
+    colors = ['b', 'g', 'r', 'm']  # plt.plot colors
+    markers = ['o', 'D']  # plt.plot markers
+    for aa, data_comb in data.items():
+        ch_list = [col for col in data_comb.columns if "CH" in col]  # find the channels
+        
+        # set-up the figure and subplots
+        fig_aa_1 = plt.figure( num = aa + "_1", figsize = ( 10, 12 ) )
+        fig_aa_2 = plt.figure( num = aa + "_2", figsize = ( 10, 6 ) )
+        fig_aa_1.suptitle( aa + " | Signal Response and Curvature" )
+        fig_aa_2.suptitle( aa + " | Signal Response and Curvature" )
+        ax_arr = fig_aa_1.subplots( 3, 2, sharex = True )
+        ax_x, ax_y = fig_aa_2.subplots( 1, 2, sharey = True )
+        
+        groups = data_comb.groupby( 'Type' )
+        for i, ch in enumerate( ch_list ):
+            for j, ( name, df ) in enumerate( groups ):
+                # separate out the values
+                df_x = df.loc[df['CurvatureX'] != 0]
+                df_y = df.loc[df['CurvatureY'] != 0]
+                
+                # plot the curvature X and Y on separate plots
+                ax_arr[i, 0].plot( df_x['CurvatureX'], df_x[ch], label = name,
+                           linestyle = '', marker = 'o' )
+                ax_arr[i, 1].plot( df_y['CurvatureY'], df_y[ch], label = name,
+                           linestyle = '', marker = 'o' )
+                
+                # add the axis labeling to separate plots
+                ax_arr[i, 0].set_title( ch + " | Curvature X" )
+                ax_arr[i, 1].set_title( ch + " | Curvature Y" )
+                ax_arr[i, 0].set_ylabel( 'T Corr. Signal Response (nm)' )
+                
+                # plot curvatue X and Y on individual plts
+                ax_x.plot( df_x['CurvatureX'], df_x[ch], colors[i] + markers[j],
+                            label = ch + " | " + name )
+                ax_y.plot( df_y['CurvatureY'], df_y[ch], colors[i] + markers[j],
+                            label = ch + " | " + name )
+                
+                # add the axis labeling to the combined plots
+                ax_x.set_title( "Curvature X" )
+                ax_y.set_title( 'Curvature Y' )
+                ax_x.set_ylabel( 'T Corr. Signal Response (nm)' )
+                ax_y.set_ylabel( 'T Corr. Signal Response (nm)' )
+                ax_x.set_xlabel( "Curvature X (1/m)" )
+                ax_y.set_xlabel( "Curvature Y (1/m)" )
+                ax_x.grid()
+                ax_y.grid()
+                ax_x.legend()
+
+        # for
+        
+        # add the subplot labeling
+        [ax.grid() for ax in np.append( ax_arr.reshape( -1 ), [ax_x, ax_y] )]  # add grids
+        ax_arr[-1, 0].set_xlabel( 'Curvature X (1/m)' )
+        ax_arr[-1, 1].set_xlabel( 'Curvature Y (1/m)' )
+        ax_arr[0, 1].legend()
+        
+        fig_aa_1.savefig( datafile_out + "_" + aa + '.png' )
+        print( "Saved figure:", datafile_out + "_" + aa + '.png' )
+        
+        fig_aa_2.savefig( datafile_out + "_" + aa + '_combined.png' )
+        print( "Saved figure:", datafile_out + "_" + aa + '_combined.png' )
+        
+    # for
+
+    plt.show()
+
+    # write the results        
+    with pd.ExcelWriter( datafile_comb, engine = 'xlsxwriter' ) as xlwriter:
+        for aa, data_comb in data.items():
+            data_comb.to_excel( xlwriter, sheet_name = aa )
+            
+        # for
+    # with
+    
+    # start with plottomg
+    
+    print( "Wrote out data file:", datafile_comb )
+    
+# main_join_calval
 
 
 def main_validation():
@@ -955,8 +1082,8 @@ if __name__ == '__main__':
 #     main_test()
 #     main_datamatrices()
 #     main_calmat()
-    main_validation()
 #     main_validation()
+    main_join_calval()
     print( "Program Terminated." )
 
 # if
