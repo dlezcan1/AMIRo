@@ -872,14 +872,17 @@ def main_datamatrices():
     
 #     datadir = directory + "Validation_Jig_Calibration_08-19-20/"
     datadir = directory + "Jig_Calibration_08-05-20/"
-    datafile = "Data Matrices.xlsx"
+    datafile = "Data Matrices (All).xlsx"
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
     fbgresult_list = glob.glob( datadir + "*_results*.xlsx" )
     fbgresult_0deg = glob.glob( datadir + "*_results_0deg.xlsx" )
     fbgresult_90deg = glob.glob( datadir + "*_results_90deg.xlsx" )
-    fbgresult_files = {0: fbgresult_0deg[0], 90: fbgresult_90deg[0]}
+    fbgresult_180deg = glob.glob( datadir + "*_results_180deg.xlsx" )
+    fbgresult_270deg = glob.glob( datadir + "*_results_270deg.xlsx" )
+    fbgresult_files = {0: fbgresult_0deg[0], 90: fbgresult_90deg[0],
+                       180: fbgresult_180deg[0], 270: fbgresult_270deg[0]}
     
     create_datamatrices( fbgresult_files, fbg_needle, datadir + datafile )
     print( "Saved file: ", datadir + datafile )
@@ -895,14 +898,18 @@ def main_join_calval():
     datadir_cal = directory + "Jig_Calibration_08-05-20/"
     datadir_val = directory + "Validation_Jig_Calibration_08-19-20/"
     
-    datafile_cal = datadir_cal + "Data Matrices_proc.xlsx"
-    datafile_val = datadir_val + "Data Matrices_proc.xlsx"
-    datafile_out = datadir_val + "Data Matrices_proc_calval"
+    datafile_cal = datadir_cal + "Data Matrices (All).xlsx"
+    datafile_val = datadir_val + "Data Matrices.xlsx"
+    datafile_out = datadir_val + "Data Matrices_all_calval"
     datafile_comb = datafile_out + ".xlsx"
     
     # load the FBGNeedle
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
     AA_list = ["AA" + str( i + 1 ) for i in range( fbg_needle.num_aa )]
+    
+    # column name mapper
+    rename_col = {'CurvatureX': "Curvature x", "CurvatureY": "Curvature y",
+                  "Curvature X": "Curvature x", "Curvature Y": "Curvature y"}
     
     # combine the data into a data file
     data = {}
@@ -921,10 +928,13 @@ def main_join_calval():
         # reorder the cols so 'Type' comes first
         cols = data_comb.columns.to_list()
         data_comb = data_comb[['Type'] + cols[:-1]]
+
+        # rename the columns
+        data_comb.rename( columns = rename_col, inplace = True )
         
         # add the table to the dict
         data[AA] = data_comb
-        
+
         # print the results
         print( AA + ")" )
         print( data_comb )
@@ -949,14 +959,18 @@ def main_join_calval():
         groups = data_comb.groupby( 'Type' )
         for i, ch in enumerate( ch_list ):
             for j, ( name, df ) in enumerate( groups ):
-                # separate out the values
-                df_x = df.loc[df['CurvatureX'] != 0]
-                df_y = df.loc[df['CurvatureY'] != 0]
+                # separate out the values between X and Y
+                mask_zero = ( df['Curvature x'] == 0 ) & ( df['Curvature y'] == 0 )
+                mask_x = mask_zero | ( df['Curvature x'] != 0 )
+                mask_y = mask_zero | ( df['Curvature y'] != 0 )
+
+                df_x = df.loc[mask_x]
+                df_y = df.loc[mask_y]
                 
                 # plot the curvature X and Y on separate plots
-                ax_arr[i, 0].plot( df_x['CurvatureX'], df_x[ch], label = name,
+                ax_arr[i, 0].plot( df_x['Curvature x'], df_x[ch], label = name,
                            linestyle = '', marker = 'o' )
-                ax_arr[i, 1].plot( df_y['CurvatureY'], df_y[ch], label = name,
+                ax_arr[i, 1].plot( df_y['Curvature y'], df_y[ch], label = name,
                            linestyle = '', marker = 'o' )
                 
                 # add the axis labeling to separate plots
@@ -965,9 +979,9 @@ def main_join_calval():
                 ax_arr[i, 0].set_ylabel( 'T Corr. Signal Response (nm)' )
                 
                 # plot curvatue X and Y on individual plts
-                ax_x.plot( df_x['CurvatureX'], df_x[ch], colors[i] + markers[j],
+                ax_x.plot( df_x['Curvature x'], df_x[ch], colors[i] + markers[j],
                             label = ch + " | " + name )
-                ax_y.plot( df_y['CurvatureY'], df_y[ch], colors[i] + markers[j],
+                ax_y.plot( df_y['Curvature y'], df_y[ch], colors[i] + markers[j],
                             label = ch + " | " + name )
                 
                 # add the axis labeling to the combined plots

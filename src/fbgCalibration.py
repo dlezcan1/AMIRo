@@ -1174,6 +1174,8 @@ if __name__ == '__main__':
     print( 75 * '=' )
     print()
     
+    pass
+    
     # curvatures for each jig
     curvature_values = {'cal': [0, 0.5, 1.6, 2.0, 2.5, 3.2, 4],
                         'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
@@ -1187,12 +1189,15 @@ if __name__ == '__main__':
     step_trials = sum( step_trials, [] )  # flatten
     
     # FBG data experiment directory for processing
-    directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
+#     directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
+    directory += "Jig_Calibration_08-05-20/"
     
     # gather the directories contatining the fbgdata .txt files
     dirs_degs = {}
     dirs_degs[0] = glob.glob( directory + "0_deg/Trial_*/08*" )
     dirs_degs[90] = glob.glob( directory + "90_deg/Trial_*/08*" )
+    dirs_degs[180] = glob.glob( directory + "180_deg/Trial_*/08*" )
+    dirs_degs[270] = glob.glob( directory + "270_deg/Trial_*/08*" )
     
     # correct the formatting of the directories \ (or '\\') -> /
     for exp_angle, dirs in dirs_degs.items():
@@ -1202,7 +1207,7 @@ if __name__ == '__main__':
     
     # main method 
     if prog_insertion:
-        main_jig_stepped( directory, dirs_degs, fbg_needle, curvature_values['val'], ref_trials, step_trials, num_trials,
+        main_jig_stepped( directory, dirs_degs, fbg_needle, curvature_values['cal'], ref_trials, step_trials, num_trials,
                      savefile_base = "08-26_29-20_Prog_Insertion_FBGResults", Tcorr = True )
     
     # if    

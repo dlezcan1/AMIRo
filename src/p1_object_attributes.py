@@ -5,7 +5,7 @@ import sys
 
 
 def binarize(gray_image, thresh_val):
-  # TODO: 255 if intensity >= thresh_val else 0
+  # 255 if intensity >= thresh_val else 0
 
   binary_image = np.copy(gray_image)
   binary_image[binary_image >= thresh_val] = 255
