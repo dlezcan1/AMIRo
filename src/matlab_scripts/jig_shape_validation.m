@@ -4,11 +4,11 @@
 %
 % - written by: Dimitri Lezcano
 
-set(0,'DefaultAxesFontSize',26);
+set(0,'DefaultAxesFontSize',24);
 
 %% Set-up 
 % options
-save_bool = false;
+save_bool = true;
 
 % python set-up
 pydir = "../";
@@ -20,9 +20,9 @@ end
 directory = "../../FBG_Needle_Calibration_Data/needle_3CH_4AA/";
 fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20.json";
 
-% datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
-data_mats_file = datadir + "Data Matrices.xlsx";
+datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
+% datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
+data_mats_file = datadir + "Data Matrices_new.xlsx";
 data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_proc.xlsx');
 fig_save_file = datadir + "Jig_Shape_fit";
 
@@ -123,6 +123,7 @@ for exp_num = 1:num_expmts
     r_act = expmt_i.r_act;
     r_meas = expmt_i.r_meas;
     err_r = error_s_positions(r_act, r_meas);
+    err_inplane = error_s_positions_inplane(r_act, r_meas, expmt_i.curv_act);
     
     % start plotting
     figure('WindowStyle', 'docked');
@@ -135,7 +136,7 @@ for exp_num = 1:num_expmts
     plot(r_meas(3,:), r_meas(1,:), 'DisplayName', 'Measured', 'LineWidth', 2); hold off;
     ylabel('x [mm]', 'fontweight', 'bold'); % xlabel('z [mm]', 'fontweight', 'bold'); 
     grid on; %axis equal;
-    legend();    
+    legend('Location', 'southwest');    
     
     % plot the z-y deformation
     subplot(3,1,2);
@@ -146,12 +147,14 @@ for exp_num = 1:num_expmts
     
     % plot the error
     subplot(3,1,3);
-    plot(s, err_r, 'k', 'LineWidth', 2); hold on;
-    plot([0, max(s)], [0.5, 0.5], 'r--', 'LineWidth', 1.5); hold off;
+    plot(s, err_r, 'k', 'LineWidth', 2, 'DisplayName', 'Total Distance'); hold on;
+    plot(s, err_inplane, 'b', 'LineWidth', 2, 'DisplayName', 'In-Plane'); hold on;
+    plot([0, max(s)], [0.5, 0.5], 'r--', 'LineWidth', 1.5, 'DisplayName', '0.5 mm'); hold off;
     title('Error: L2 Distance');
     ylabel('error [mm]', 'fontweight', 'bold'); xlabel('s [mm]', 'fontweight', 'bold'); 
     grid on;
-    ylim([0, max([1.1 * err_r, 1])]);
+    xlim([0, 1.1*max(s)]); ylim([0, max([1.1 * err_r, 1])]);
+    legend('Location', 'northwest')
     
     sgtitle("\kappa = " + sprintf("%.3f at %d^o about z-axis", expmt_i.curvature, expmt_i.ref_angle), ...
         'fontsize', 30, 'fontweight', 'bold');
@@ -215,6 +218,26 @@ function err = error_s_positions(r_1, r_2)
 end
 
 
-% TODO: error in positions as a function of z-position (z)
-%           - will need some sort of interpolation
-
+% error in-plane deformaiton positions as a function of arclenth (s)
+% TODO: Need to add the normal (w_act) to define the plane
+function err = error_s_positions_inplane(r_1, r_2, w_act)
+    % calculate the positional deviation
+    dr = r_1 - r_2;
+    
+    % subtract out the out-of-plane deformation
+    if vecnorm(w_act) > 0
+        n = w_act./vecnorm(w_act);
+    else
+        n = zeros(3,1);
+    end
+    dr_inplane = dr - ((dr'*n)*n')';
+    
+    % calculate the error
+    err = vecnorm(dr_inplane);
+    
+end
+    
+    
+        
+        
+    
