@@ -16,7 +16,7 @@ class FBGNeedle( object ):
     '''
 
     def __init__( self, length: float, num_channels: int, sensor_location: list = [],
-                  calibration_mats: dict = {} ):
+                  calibration_mats: dict = {}, weights: dict = {} ):
         '''
         Constructor
         
@@ -37,18 +37,12 @@ class FBGNeedle( object ):
             raise ValueError( "'num_channels' must be > 0." )
         
         # if
+        
         if len( sensor_location ) > 0:
             sensor_loc_invalid = [loc > length or loc < 0 for loc in sensor_location]
             if any( sensor_loc_invalid ):
                 raise ValueError( "all sensor locations must be in [0, 'length']" )
             
-            # if
-            if calibration_mats:
-                if not set( calibration_mats.keys() ).issubset( set( sensor_location ) ):
-                    raise IndexError( "There is a mismatch in the calibration matrices to sensor locations." )
-                    
-                # if
-            # if
         # if
         
         # property set-up (None so that they are set once)
@@ -56,12 +50,14 @@ class FBGNeedle( object ):
         self._num_channels = None
         self._sensor_location = None
         self._cal_matrices = {}
+        self._weights = {}
         
         # assignments
         self.length = length
         self.num_channels = num_channels
         self.sensor_location = sensor_location        
         self.cal_matrices = calibration_mats
+        self.weights = weights
         
     # __init__
     
@@ -86,6 +82,11 @@ class FBGNeedle( object ):
             msg += "\nCalibration Matrices:"
             for loc, cal_mat in self.cal_matrices.items():
                 msg += "\n\t{}: ".format( loc ) + str( cal_mat.tolist() )
+                
+                if self.weights:
+                    msg += " | weight: " + str( self.weights[loc] )
+                    
+                # if
             
             # for
             
@@ -145,8 +146,7 @@ class FBGNeedle( object ):
             # if
             
             else:
-#                 self._sensor_location = sorted( list( set( sensor_locations ) ), reverse = True )  # remove duplicates and reorder
-                self._sensor_location = np.unique(sensor_locations).tolist() #
+                self._sensor_location = np.unique( sensor_locations ).tolist()  #
             
             # else 
         # if
@@ -192,6 +192,49 @@ class FBGNeedle( object ):
             
         # for          
     # cal_matrices: setter
+    
+    @property
+    def weights( self ):
+        return self._weights
+    
+    # weights
+    
+    @weights.setter
+    def weights( self, weights: dict ):
+        for key, weight in weights.items():
+            # get the sensor location
+            if isinstance( key, str ):
+                loc = self.aa_loc( key )
+                
+            # if
+            
+            elif isinstance( key, int ):
+                # check if it is alrady a sensor location
+                if key in self.sensor_location:
+                    loc = key
+                
+                # if
+                
+                # if not, check to see if it is an AA index [1, #AA]
+                elif key in range( 1, self.num_aa + 1 ):
+                    loc = self.sensor_location[key - 1]
+                    
+                # elif
+                    
+            # elif
+            
+            else:
+                raise ValueError( "'{}' is not recognized as a valid key.".format( key ) )
+            
+            # else
+            
+            # add the weight to weights
+            self._weights[loc] = weight
+            
+        # for
+    # weights setter
+    
+######################## FUNCTIONS ######################################
     
     def aa_cal ( self, aa_num: str ):
         """ Function to get calibration matrix from AAX indexing """
@@ -258,8 +301,24 @@ class FBGNeedle( object ):
             
         # else
         
+        if "weights" in data.keys():
+            weights = {}
+            for loc, weight in data['weights'].items():
+                if isinstance( loc, str ):
+                    loc = int( "".join( filter( str.isdigit, loc ) ) )
+                    
+                weights[loc] = int( weight )    
+            # for
+        # if
+        
+        else: 
+            weights = {}
+            
+        # else
+            
         # instantiate the FBGNeedle class object
-        fbg_needle = FBGNeedle( data['length'], data['# channels'], sensor_locations, cal_mats )
+        fbg_needle = FBGNeedle( data['length'], data['# channels'], sensor_locations,
+                                cal_mats, weights )
         
         # return the instantiation
         return fbg_needle
@@ -295,7 +354,14 @@ class FBGNeedle( object ):
                 data["Calibration Matrices"][k] = cal_mat.tolist()
                 
             # for
-            
+        # if
+        
+        if self.weights:
+            data['weights'] = {}
+            for k, weight in self.weights.items():
+                data['weights'][k] = weight
+                
+            # for
         # if
         
         # write the data
@@ -308,15 +374,17 @@ class FBGNeedle( object ):
     
     def set_calibration_matrices( self, cal_mats: dict ):
         """ This function is to set the calibration matrices after instantiation """
-        # data checking
-        if not set( cal_mats.keys() ).issubset( set( self.sensor_location ) ):
-            raise IndexError( "There is a mismatch in the calibration matrices to sensor locations." )
-            
-        # if
         
         self.cal_matrices = cal_mats
         
     # set_calibration_matrices
+    
+    def set_weights( self, weights: dict ):
+        """ This function is to set the weighting of their measurements """
+        
+        self.weights = weights
+        
+    # set_weights
     
 # class: FBGNeedle
 
@@ -326,6 +394,7 @@ if __name__ == "__main__" or False:
     
     # directory to save in
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    directory = './'
     save_bool = True
     
     # needle parameters
@@ -333,12 +402,25 @@ if __name__ == "__main__" or False:
     num_chs = 3
     aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1]
     aa_locs = ( length - aa_locs_tip ).tolist()
-    print("locations:", aa_locs)
-    cal_mats = None
+    
+    AA_list = ['AA' + str( i + 1 ) for i in range( len( aa_locs ) )]
+    
+    print( "locations:", aa_locs )
+    cal_mats = {}
+    weights = {}
+    
+    for i in range(len(AA_list)):
+        aa_loc = AA_list[i]
+        cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
+        weights[aa_loc] = i
+        
+    # for
     
     # create and save the new 
-    test = FBGNeedle( length, num_chs, aa_locs )
-    print( test )
+    test = FBGNeedle( length, num_chs, aa_locs, cal_mats )
+    print( 'before set:', test )
+    test.weights = weights
+    print( 'after set', test )
     
     if save_bool:
         save_file = directory + "needle_params.json"
@@ -349,9 +431,9 @@ if __name__ == "__main__" or False:
         print( "after load" )
         print( test2 )
         
-        for i in range(test2.num_aa):
-            s = "AA" + str(i + 1)
-            print(s, ":", test2.aa_loc(s))
+        for i in range( test2.num_aa ):
+            s = "AA" + str( i + 1 )
+            print( s, ":", test2.aa_loc( s ) )
             
         # for
         
