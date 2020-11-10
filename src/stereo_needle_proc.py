@@ -16,23 +16,24 @@ from skimage.morphology import skeletonize, thin, medial_axis
 from sklearn.cluster import MeanShift, estimate_bandwidth
 
 
-def roi( img, roi ):
-    ''' return region of interest 
-    
-        @param roi: [tuple of top-left point, tuple of bottom-right point]
-    '''
-    # TODO
-    pass
-
-# roi
-
-
 def blackout( img, tl, br ):
     img[tl[0]:br[0], tl[1]:br[1]] = 0
     
     return img
     
 # blackout
+
+
+def blackout_regions( img, bo_regions: list ):
+    
+    for tl, br in bo_regions:
+        img = blackout( img, tl, br )
+        
+    # for
+    
+    return img
+
+# blackout_regions
 
 
 def bin_close( left_bin, right_bin, ksize = ( 6, 6 ) ):
@@ -86,6 +87,42 @@ def contours( left_skel, right_skel ):
     return conts_l, conts_r
 
 # contours
+
+
+def gridproc_stereo( left_img, right_img,
+                     bor_l: list = [], bor_r: list = [],
+                     proc_show: bool = False ):
+    ''' wrapper function to segment the grid out of a stereo pair '''
+    # TODO
+    
+    # convert to grayscale if not already
+    if left_img.ndim > 2:
+        left_img = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+        right_img = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+
+    # if
+    
+    # start the image qprocessing
+    left_thresh, right_thresh = thresh( left_img, right_img )
+    
+    left_thresh_bo = blackout_regions( left_thresh, bor_l )
+    right_thresh_bo = blackout_regions( right_thresh, bor_r )
+    
+    # plotting
+    if proc_show:
+        plt.ion()
+        
+        plt.figure()
+        plt.imshow( imconcat( left_thresh, right_thresh, 150 ), cmap = 'gray' )
+        plt.title( 'adaptive thresholding' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
+        plt.title( 'region suppression: after thresholding' )
+        
+    # if
+
+# gridproc_stereo
 
 
 def hough_quadratic( img ):
@@ -183,6 +220,136 @@ def meanshift( left_bin, right_bin, q = 0.3, n_samps:int = 200, plot_lbls:bool =
 # meanshift
 
 
+def needleproc_stereo( left_img, right_img,
+                         bor_l:list = [], bor_r:list = [],
+                         proc_show: bool = False ):
+    ''' wrapper function to process the left and right image pair for needle
+        centerline identification
+        
+     '''
+    
+    # convert to grayscale if not already
+    if left_img.ndim > 2:
+        left_img = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+        right_img = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+
+    # if
+    
+    # start the image qprocessing
+    left_thresh, right_thresh = thresh( left_img, right_img )
+    
+    left_thresh_bo = blackout_regions( left_thresh, bor_l )
+    right_thresh_bo = blackout_regions( right_thresh, bor_r )
+    
+    left_tmed, right_tmed = median_blur( left_thresh_bo, right_thresh_bo, ksize = 5 )
+    
+    left_open, right_open = bin_open( left_tmed, right_tmed, ksize = ( 7, 7 ) )
+    
+    left_close, right_close = bin_close( left_open, right_open, ksize = ( 16, 16 ) )
+    
+    left_dil, right_dil = bin_dilate( left_close, right_close, ksize = ( 0, 0 ) )
+    
+    left_skel, right_skel = skeleton( left_dil, right_dil )
+    
+    # get the contours ( sorted by length)
+    conts_l, conts_r = contours( left_skel, right_skel )
+    
+    if proc_show:
+        plt.ion()
+        
+        plt.figure()
+        plt.imshow( imconcat( left_thresh, right_thresh, 150 ), cmap = 'gray' )
+        plt.title( 'adaptive thresholding' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
+        plt.title( 'region suppression: after thresholding' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_tmed, right_tmed, 150 ), cmap = 'gray' )
+        plt.title( 'median filtering: after region suppression' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_close, right_close, 150 ), cmap = 'gray' )
+        plt.title( 'opening: after median' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
+        plt.title( 'closing: after opening' )
+
+        plt.figure()
+        plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
+        plt.title( 'dilation: after closing' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_skel, right_skel, 150 ), cmap = 'gray' )
+        plt.title( 'skeletization: after dilation' )
+        
+        cont_left = left_img.copy().astype( np.uint8 )
+        cont_right = right_img.copy().astype( np.uint8 )
+        
+        cont_left = cv2.cvtColor( cont_left, cv2.COLOR_GRAY2RGB )
+        cont_right = cv2.cvtColor( cont_right, cv2.COLOR_GRAY2RGB )
+        
+        cv2.drawContours( cont_left, conts_l, 0, ( 255, 0, 0 ), 3 )
+        cv2.drawContours( cont_right, conts_r, 0, ( 255, 0, 0 ), 3 )
+        
+        plt.figure()
+        plt.imshow( imconcat( cont_left, cont_right, 150 ), cmap = 'gray' )
+        plt.title( 'contour: the longest 1' )
+        
+        plt.show()
+        while True:
+            if plt.waitforbuttonpress( 0 ):
+                break
+            
+        # while
+        plt.close( 'all' )
+        
+    # if
+    
+    return left_skel, right_skel, conts_l, conts_r
+    
+# needleproc_stereo
+
+
+def roi( img, roi, full:bool = False ):
+    ''' return region of interest 
+    
+        @param roi: [tuple of top-left point, tuple of bottom-right point]
+        
+        @return: subimage of the within the roi
+    '''
+    # TODO
+    
+    tl_i, tl_j = roi[0]
+    br_i, br_j = roi[1]
+    
+    # zero-out value
+    zval = 0 if img.ndim == 2 else np.array( [0, 0, 0] )
+    
+    if full:
+        img_roi = img.copy()
+        
+        # zero out values
+        img_roi [:tl_i, :] = zval
+        img_roi [br_i + 1:, :] = zval
+        
+        img_roi [:, :tl_j] = zval
+        img_roi [:, br_j + 1:] = zval
+        
+    # if
+        
+    else:
+        img_roi = img[tl_i:br_i, tl_j:br_j].copy()
+        
+    # else
+        
+    return img_roi 
+
+# roi
+
+
 def skeleton( left_bin, right_bin ):
     ''' skeletonize the left and right binary images'''
     
@@ -211,7 +378,7 @@ def thresh( left_img, right_img ):
 # thresh
 
 
-if __name__ == '__main__':
+def main_dbg():
     # directory settings
     stereo_dir = "../Test Images/stereo_needle/"
     needle_dir = stereo_dir + "needle_examples/"
@@ -222,8 +389,10 @@ if __name__ == '__main__':
     left_fimg = needle_dir + f"left-{num:04d}.png"
     right_fimg = needle_dir + f"right-{num:04d}.png"
     
-    left_gray = cv2.imread( left_fimg, cv2.IMREAD_GRAYSCALE )
-    right_gray = cv2.imread( right_fimg, cv2.IMREAD_GRAYSCALE )
+    left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
+    right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
+    left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+    right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
     
     # blackout regions
     bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
@@ -250,10 +419,10 @@ if __name__ == '__main__':
     cv2.drawContours( right_conts, conts_r[0:2], -1, ( 255, 255, 255 ), 3 )
     
     # plot finished contour
-    left_im = cv2.cvtColor( left_gray, cv2.COLOR_GRAY2BGR )
-    right_im = cv2.cvtColor( right_gray, cv2.COLOR_GRAY2BGR )
-    cv2.drawContours( left_im, conts_l[0:3], -1, ( 0, 0, 255 ), 3 )
-    cv2.drawContours( right_im, conts_r[0:3], -1, ( 0, 0, 255 ), 3 )
+    left_im = left_img.copy()
+    right_im = right_img.copy()
+    cv2.drawContours( left_im, conts_l[0:3], 0, ( 255, 0, 0 ), 3 )
+    cv2.drawContours( right_im, conts_r[0:3], 0, ( 255, 0, 0 ), 3 )
     
     plt.ion()
     plt.figure()
@@ -305,6 +474,74 @@ if __name__ == '__main__':
     # while
     
     plt.close( 'all' )
+    
+# main_dbg
+
+
+def main_needleproc( file_num, img_dir, save_dir ):
+    ''' main method for segmenting the needle centerline in stereo images'''
+    # the left and right image to test
+    num = 5
+    left_fimg = img_dir + f"left-{num:04d}.png"
+    right_fimg = img_dir + f"right-{num:04d}.png"
+    
+    left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
+    right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
+    left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+    right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+    
+    # blackout regions
+    bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
+    bor_r = bor_l
+    
+    left_skel, right_skel, conts_l, conts_r = needleproc_stereo( left_img, right_img,
+                                                                 [bor_l], [bor_r],
+                                                                 proc_show = False )
+    
+    left_cont = left_img.copy()
+    left_cont = cv2.drawContours( left_cont, conts_l, 0, ( 255, 0, 0 ), 3 )
+    
+    right_cont = right_img.copy()
+    right_cont = cv2.drawContours( right_cont, conts_r, 0, ( 255, 0, 0 ), 3 )
+    
+    # save the processed images
+    save_fbase = save_dir + f"left-right-{num:04d}" + "_{:s}.png"
+    # # skeletons
+    plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
+                cmap = 'gray' )
+    print( 'Saved figure:', save_fbase.format( 'skel' ) )
+    
+    # # contours
+    plt.imsave( save_fbase.format( 'cont' ), imconcat( left_cont, right_cont ) )
+    print( 'Saved figure:', save_fbase.format( 'cont' ) )
+
+# main_needleproc
+
+
+def main_gridproc( num, img_dir, save_dir ):
+    ''' main method to segment the grid in a stereo pair of images'''
+    # the left and right image to test    
+    num = 5
+    left_fimg = img_dir + f"left-{num:04d}.png"
+    right_fimg = img_dir + f"right-{num:04d}.png"
+    
+    left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
+    right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
+    left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+    right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+    
+    # TODO
+
+# main_gridproc
+
+
+if __name__ == '__main__':
+    # directory settings
+    stereo_dir = "../Test Images/stereo_needle/"
+    needle_dir = stereo_dir + "needle_examples/"
+    grid_dir = stereo_dir + "grid_only/"
+    
+    main_needleproc( 5, needle_dir, needle_dir )
     
     print( 'Program complete.' )
 
