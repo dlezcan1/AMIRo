@@ -15,6 +15,12 @@ from matplotlib import colors as pltcolors
 from skimage.morphology import skeletonize, thin, medial_axis
 from sklearn.cluster import MeanShift, estimate_bandwidth
 
+# color HSV ranges
+COLOR_HSVRANGE_RED = ( ( 0, 50, 50 ), ( 10, 255, 255 ) )
+COLOR_HSVRANGE_BLUE = ( ( 110, 50, 50 ), ( 130, 255, 255 ) )
+COLOR_HSVRANGE_GREEN = ( ( 40, 50, 50 ), ( 75, 255, 255 ) )
+COLOR_HSVRANGE_YELLOW = ( ( 25, 50, 50 ), ( 35, 255, 255 ) )
+
 
 def blackout( img, tl, br ):
     img[tl[0]:br[0], tl[1]:br[1]] = 0
@@ -77,6 +83,32 @@ def canny( left_img, right_img, lo_thresh = 150, hi_thresh = 200 ):
 # canny
 
 
+def color_segmentation( left_img, right_img, color ):
+    ''' get the pixels of a specific color'''
+    # testing on red only
+    if color.lower() == 'red':
+        lb = COLOR_HSVRANGE_RED[0] 
+        ub = COLOR_HSVRANGE_RED[1] 
+    
+    # if
+    
+    # convert into HSV color space 
+    left_hsv = cv2.cvtColor( left_img, cv2.COLOR_BGR2HSV )
+    right_hsv = cv2.cvtColor( right_img, cv2.COLOR_BGR2HSV )
+    
+    # determine which colors are within the bounds
+    left_mask = cv2.inRange( left_hsv, lb, ub )
+    right_mask = cv2.inRange( right_hsv, lb, ub )
+    
+    # masked images
+    left_color = cv2.bitwise_and( left_img, left_img, mask = left_mask )
+    right_color = cv2.bitwise_and( right_img, right_img, mask = right_mask )
+    
+    return left_mask, right_mask, left_color, right_color
+    
+# color_segmentation
+    
+
 def contours( left_skel, right_skel ):
     conts_l, *_ = cv2.findContours( left_skel.astype( np.uint8 ), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE )
     conts_r, *_ = cv2.findContours( right_skel.astype( np.uint8 ), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE )
@@ -108,6 +140,10 @@ def gridproc_stereo( left_img, right_img,
     left_thresh_bo = blackout_regions( left_thresh, bor_l )
     right_thresh_bo = blackout_regions( right_thresh, bor_r )
     
+    left_med, right_med = median_blur( left_thresh_bo, right_thresh_bo, 5 )
+    
+    left_canny, right_canny = canny( left_med, right_med, 180, 200 )
+    
     # plotting
     if proc_show:
         plt.ion()
@@ -120,10 +156,26 @@ def gridproc_stereo( left_img, right_img,
         plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
         plt.title( 'region suppression: after thresholding' )
         
-    # if
+        plt.figure()
+        plt.imshow( imconcat( left_med, right_med, 150 ), cmap = 'gray' )
+        plt.title( 'median: after region suppression' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_canny, right_canny, 150 ), cmap = 'gray' )
+        plt.title( 'canny: after median filtering' )
+        
+    # ifl
 
 # gridproc_stereo
 
+
+def houghlines( left_img, right_img ):
+    ''' function for performing hough lines transform on a stereo pair '''
+    
+    # TODO
+    
+# houghlines
+    
 
 def hough_quadratic( img ):
     ''' hough transform to fit a quadratic 
@@ -366,6 +418,13 @@ def skeleton( left_bin, right_bin ):
 # skeleton
 
 
+def stereomatch_needle( left_img, right_img, start_location = "tip" ):
+    ''' stereo matching needle arclength points for the needle '''
+    pass
+
+# stereomatch_needle
+
+
 def thresh( left_img, right_img ):
     ''' image thresholding'''
     left_thresh = cv2.adaptiveThreshold( left_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -521,7 +580,6 @@ def main_needleproc( file_num, img_dir, save_dir ):
 def main_gridproc( num, img_dir, save_dir ):
     ''' main method to segment the grid in a stereo pair of images'''
     # the left and right image to test    
-    num = 5
     left_fimg = img_dir + f"left-{num:04d}.png"
     right_fimg = img_dir + f"right-{num:04d}.png"
     
@@ -529,8 +587,41 @@ def main_gridproc( num, img_dir, save_dir ):
     right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
     left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
     right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+    left_img2 = cv2.cvtColor( left_img, cv2.COLOR_RGB2BGR )
+    right_img2 = cv2.cvtColor( right_img, cv2.COLOR_RGB2BGR )
     
     # TODO
+    # color segmentation
+    lmask, rmask, lcolor2, rcolor2 = color_segmentation( left_img2, right_img2, "red" )
+    lcolor = cv2.cvtColor( lcolor2, cv2.COLOR_BGR2RGB )
+    rcolor = cv2.cvtColor( rcolor2, cv2.COLOR_BGR2RGB )
+    
+    # find the grid
+    gridproc_stereo( left_gray, right_gray, proc_show = True )
+    
+    # plotting
+    plt.ion()
+    plt.figure()
+    plt.imshow( imconcat( left_img, right_img ) )
+    plt.title( 'Original images' )
+    
+#     plt.figure()
+#     plt.imshow( imconcat( lmask.astype( np.uint8 ), rmask.astype( np.uint8 ), 150 ), cmap = 'gray' )
+#     plt.title( 'red mask' )
+    
+    plt.figure()
+    plt.imshow( imconcat( lcolor, rcolor ) )
+    plt.title( 'masked red color' )
+    
+    # close on enter
+    plt.show()
+    while True:
+        if plt.waitforbuttonpress( 0 ):
+            break
+        
+    # while
+    
+    plt.close( 'all' )
 
 # main_gridproc
 
@@ -541,7 +632,9 @@ if __name__ == '__main__':
     needle_dir = stereo_dir + "needle_examples/"
     grid_dir = stereo_dir + "grid_only/"
     
-    main_needleproc( 5, needle_dir, needle_dir )
+#     main_needleproc( 5, needle_dir, needle_dir )
+    
+    main_gridproc( 2, needle_dir, needle_dir )
     
     print( 'Program complete.' )
 
