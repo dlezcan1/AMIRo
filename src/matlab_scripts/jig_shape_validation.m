@@ -9,6 +9,7 @@ set(0,'DefaultAxesFontSize',24);
 %% Set-up 
 % options
 save_bool = true;
+process_only = false;
 
 % python set-up
 if ispc % windows file system
@@ -25,18 +26,27 @@ end
 
 % file set-up
 directory = "../../FBG_Needle_Calibration_Data/needle_3CH_4AA/";
-fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20.json";
-% fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weighted.json'); % weighted fbg parmeters
+% fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20.json";
+fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20_weighted.json"; % weighted calibration
+fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
-datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-% datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
-data_mats_file = datadir + "Data Matrices_new.xlsx";
-data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_proc.xlsx');
-fig_save_file = datadir + "Jig_Shape_fit";
+% datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
+datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
+data_mats_file = datadir + "Data Matrices_calval.xlsx"; % all data
+% data_mats_file = datadir + "Calibration_Test_Data_Matrices.xlsx";
+
+if contains(fbgneedle_param, 'weighted')
+    data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
+    fig_save_file = datadir + "CalWeight_Jig_Shape_fit";
+else
+    data_mats_proc_file = data_mats_file;
+    fig_save_file = datadir + "Jig_Shape_fit";
+end
+data_mats_proc_file = strrep(data_mats_proc_file, '.xlsx', '_proc.xlsx');
 
 % paramteter set-up
 jig_offset = 26.0; % the jig offset of full insertion
-AA_weights = [ 0.3424, 0.6576, 0, 0 ]; % [AA1, AA2, AA3, AA4] reliability weighting
+AA_weights = [ 0.638028, 0.250019, 0.000000, 0.111952 ]; %[ 0.3424, 0.6576, 0, 0 ]; % [AA1, AA2, AA3, AA4] reliability weighting
 if ~isempty(AA_weights)
     fig_save_file = fig_save_file + "_weighted";
     
@@ -93,6 +103,10 @@ if save_bool
     disp(" ");
 end
 
+if process_only
+    disp('Program Terminated.');
+    return;
+end
 %% Process the data shapes
 s = 0:0.5:(double(fbg_needle.length) - jig_offset); % the arclength points
 num_expmts = length(data_mats.AA1.Curvature);

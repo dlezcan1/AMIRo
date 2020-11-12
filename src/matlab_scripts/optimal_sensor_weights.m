@@ -24,22 +24,30 @@ end
 
 % file set-up
 directory = "../../FBG_Needle_Calibration_Data/needle_3CH_4AA/";
-fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20.json";
-fbgneedle_param_out = strrep(fbgneedle_param, '.json', '_weighted.json');
+fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20_weighted.json";
+fbgneedle_param_out = strrep(fbgneedle_param, '.json', '_weights.json');
 
-datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-% datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
-data_mats_file = datadir + "Data Matrices_new.xlsx";
-data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_proc.xlsx');
-fig_save_file = datadir + "Jig_Shape_fit";
+% datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
+datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
+data_mats_file = datadir + "Calibration_Test_Data_Matrices.xlsx";
+
+if contains(fbgneedle_param, 'weighted')
+    data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
+    fig_save_file = datadir + "CalWeight_Jig_Shape_fit";
+else
+    data_mats_proc_file = data_mats_file;
+    fig_save_file = datadir + "Jig_Shape_fit";
+end
+
+data_mats_proc_file = strrep(data_mats_proc_file, '.xlsx', '_proc.xlsx');
 
 % paramteter set-up
 jig_offset = 26.0; % the jig offset of full insertion
-AA_weights = [];% [1, 0.9, 0.3, 0.0]; % [AA1, AA2, AA3, AA4] reliability weighting
-if ~isempty(AA_weights)
-    fig_save_file = fig_save_file + "_weighted";
-    
-end
+% AA_weights = [];% [1, 0.9, 0.3, 0.0]; % [AA1, AA2, AA3, AA4] reliability weighting
+% if ~isempty(AA_weights)
+%     fig_save_file = fig_save_file + "_weighted";
+%     
+% end
 
 %% Load FBGNeedle python class
 fbg_needle = py.FBGNeedle.FBGNeedle.load_json(fbgneedle_param);
@@ -79,16 +87,20 @@ for i = 1:length(AA_list)
     
 end
 
-% append the 'sum(weights) = 1' constraint ( eta := weights)
-W = [W; ones(1, size(W, 2))];
-w_act = [w_act; 1];
+% % append the 'sum(weights) = 1' constraint ( eta := weights)
+% W = [W; ones(1, size(W, 2))];
+% w_act = [w_act; 1];
 
 %% perform the non-negative least squares fit
-weights = lsqnonneg(W, w_act);
+curv_weight = curv_weight_rule(abs(w_act),false);
+D = sqrt(diag(curv_weight));
+weights = lsqlin(D*W, D*w_act, [], [], ones(1, size(W, 2)), [1], 0.0*ones(size(W, 2),1), []); % set lower bound
 weights = weights./sum(weights); % normalize just in case
 
 disp("Weights:");
 disp([AA_list; reshape(weights, 1, [])] )
+base_print = ['[ ', repmat('%f, ', 1, size(W, 2) - 1), '%f ]\n\n'];
+fprintf(base_print, weights);
 
 disp('Total error');
 disp(norm((W * weights - w_act)))
@@ -104,4 +116,21 @@ fbg_needle.set_weights(py_dict_weights);
 fbg_needle.save_json(fbgneedle_param_out);
 fprintf('Saved json parmater file: %s\n', fbgneedle_param_out);
 
+%% Functions
+% function for performing weighted least squares in curvature
+function curv_weight = curv_weight_rule(k, trivial)
+    disp(nargin)
+    curv_weight = ones(length(k), 1);
+    
+    if ~trivial 
+        for i = 1:length(k)
+            if abs(k(i)) <= 1
+                curv_weight(i) = 1;
 
+            else
+                curv_weight(i) = 0.05;
+
+            end
+        end
+    end
+end
