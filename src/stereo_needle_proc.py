@@ -135,7 +135,7 @@ def gridproc_stereo( left_img, right_img,
     # if
     
     # start the image qprocessing
-    left_thresh, right_thresh = thresh( left_img, right_img )
+    left_thresh, right_thresh = thresh( 2 * left_img, 2 * right_img )
     
     left_thresh_bo = blackout_regions( left_thresh, bor_l )
     right_thresh_bo = blackout_regions( right_thresh, bor_r )
@@ -143,6 +143,24 @@ def gridproc_stereo( left_img, right_img,
     left_med, right_med = median_blur( left_thresh_bo, right_thresh_bo, 5 )
     
     left_canny, right_canny = canny( left_med, right_med, 180, 200 )
+    
+    # harris corner detection
+    left_centroid = cv2.cornerHarris( left_thresh_bo, 2, 5, 0.04 )
+    left_centroid = cv2.dilate( left_centroid, None )
+    _, left_corners = cv2.threshold( left_centroid, 0.01 * left_centroid.max(),
+                                255, 0 )
+    left_corners = np.int0( left_corners )
+     
+    right_centroid = cv2.cornerHarris( right_thresh_bo, 2, 5, 0.04 )
+    right_centroid = cv2.dilate( right_centroid, None )
+    _, right_corners = cv2.threshold( right_centroid, 0.01 * right_centroid.max(),
+                                255, 0 )
+    right_corners = np.int0( right_corners )
+    
+    left_crnr = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
+    right_crnr = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
+    left_crnr[left_corners] = [255, 0, 0]
+    right_crnr[right_corners] = [255, 0, 0]
     
     # plotting
     if proc_show:
@@ -164,7 +182,15 @@ def gridproc_stereo( left_img, right_img,
         plt.imshow( imconcat( left_canny, right_canny, 150 ), cmap = 'gray' )
         plt.title( 'canny: after median filtering' )
         
-    # ifl
+        plt.figure()
+        plt.imshow( imconcat( left_centroid, right_centroid ), cmap = 'gray' )
+        plt.title('dilated harris corner respon0se')
+        
+        plt.figure()
+        plt.imshow( imconcat( left_crnr, right_crnr ) )
+        plt.title( 'corner detection' )
+        
+    # if
 
 # gridproc_stereo
 
@@ -418,9 +444,33 @@ def skeleton( left_bin, right_bin ):
 # skeleton
 
 
-def stereomatch_needle( left_img, right_img, start_location = "tip" ):
-    ''' stereo matching needle arclength points for the needle '''
-    pass
+def stereomatch_needle( left_conts, right_conts, start_location = "tip", axis = 1 ):
+    ''' stereo matching needle arclength points for the needle
+        
+        
+        Args:
+            (left/right)_conts: a nx2 array of pixel coordinates
+                                for the contours in the (left/right) image
+            
+            start_location (Default: "tip"): a string of where to start counting.
+                                             tip is only implemented.
+    
+     '''
+    n = min( left_conts.shape[0], right_conts.shape[0] )
+    
+    if start_location.lower() == "tip":
+        left_idx = np.argsort( left_conts[:, axis] )[-n:]
+        right_idx = np.argsort( right_conts[:, axis] )[-n:]
+        
+        left_matches = left_conts[left_idx]
+        right_matches = right_conts[right_idx]
+        
+    # if
+    
+    else:
+        raise ValueError( f"start_location = {start_location} not valid." )
+    
+    return left_matches, right_matches
 
 # stereomatch_needle
 
