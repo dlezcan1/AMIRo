@@ -62,6 +62,16 @@ def bin_dilate( left_bin, right_bin, ksize = ( 3, 3 ) ):
 # bin_dilate
 
 
+def bin_erode( left_bin, right_bin, ksize = ( 3, 3 ) ):
+    kernel = np.ones( ksize )
+    left_erode = cv2.erode( left_bin, kernel )
+    right_erode = cv2.erode( right_bin, kernel )
+    
+    return left_erode, right_erode
+
+# bin_erode
+
+
 def bin_open( left_bin, right_bin, ksize = ( 6, 6 ) ):
     kernel = np.ones( ksize )
     left_open = cv2.morphologyEx( left_bin, cv2.MORPH_OPEN, kernel )
@@ -121,12 +131,20 @@ def contours( left_skel, right_skel ):
 # contours
 
 
-def gridproc_stereo( left_img, right_img,
+def gauss_blur( left_img, right_img, ksize, sigma:tuple = ( 0, 0 ) ):
+    ''' gaussian blur '''
+    left_blur = cv2.GaussianBlur( left_img, ksize, sigmaX = sigma[0], sigmaY = sigma[0] )
+    right_blur = cv2.GaussianBlur( right_img, ksize, sigmaX = sigma[0], sigmaY = sigma[0] )
+    
+    return left_blur, right_blur
+
+# gauss_blur
+
+
+def _gridproc_stereo( left_img, right_img,
                      bor_l: list = [], bor_r: list = [],
                      proc_show: bool = False ):
-    ''' wrapper function to segment the grid out of a stereo pair '''
-    # TODO
-    
+    ''' DEPRECATED wrapper function to segment the grid out of a stereo pair '''
     # convert to grayscale if not already
     if left_img.ndim > 2:
         left_img = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
@@ -135,40 +153,87 @@ def gridproc_stereo( left_img, right_img,
     # if
     
     # start the image qprocessing
-    left_thresh, right_thresh = thresh( 2 * left_img, 2 * right_img )
+    left_blur, right_blur = gauss_blur( left_img, right_img, ( 5, 5 ) )
+    left_thresh, right_thresh = thresh( 2.5 * left_blur, 2.5 * right_blur )
     
     left_thresh_bo = blackout_regions( left_thresh, bor_l )
     right_thresh_bo = blackout_regions( right_thresh, bor_r )
     
     left_med, right_med = median_blur( left_thresh_bo, right_thresh_bo, 5 )
     
-    left_canny, right_canny = canny( left_med, right_med, 180, 200 )
+    left_close, right_close = bin_close( left_med, right_med, ksize = ( 5, 5 ) )
+    left_open, right_open = bin_open( left_close, right_close, ksize = ( 3, 3 ) )
+    left_close2, right_close2 = bin_close( left_open, right_open, ksize = ( 7, 7 ) )
+    left_skel, right_skel = skeleton( left_close2, right_close2 )
+    
+    # hough line transform
+    hough_thresh = 200
+    left_lines = np.squeeze( cv2.HoughLines( left_skel.astype( np.uint8 ), 2, np.pi / 180, hough_thresh ) )
+    right_lines = np.squeeze( cv2.HoughLines( right_skel.astype( np.uint8 ), 2, np.pi / 180, hough_thresh ) )
+    
+    print( '# left lines:', len( left_lines ) )
+    print( '# right lines:', len( right_lines ) )
+    
+    # # draw the hough lines
+    left_im_lines = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
+    for rho, theta in left_lines:
+        a = np.cos( theta )
+        b = np.sin( theta )
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int( x0 + 1000 * ( -b ) )
+        y1 = int( y0 + 1000 * ( a ) )
+        x2 = int( x0 - 1000 * ( -b ) )
+        y2 = int( y0 - 1000 * ( a ) )
+
+        cv2.line( left_im_lines, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+        
+    # for
+    
+    right_im_lines = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
+    for rho, theta in right_lines:
+        a = np.cos( theta )
+        b = np.sin( theta )
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int( x0 + 1000 * ( -b ) )
+        y1 = int( y0 + 1000 * ( a ) )
+        x2 = int( x0 - 1000 * ( -b ) )
+        y2 = int( y0 - 1000 * ( a ) )
+
+        cv2.line( right_im_lines, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+        
+    # for
     
     # harris corner detection
-    left_centroid = cv2.cornerHarris( left_thresh_bo, 2, 5, 0.04 )
-    left_centroid = cv2.dilate( left_centroid, None )
-    _, left_corners = cv2.threshold( left_centroid, 0.01 * left_centroid.max(),
-                                255, 0 )
-    left_corners = np.int0( left_corners )
-     
-    right_centroid = cv2.cornerHarris( right_thresh_bo, 2, 5, 0.04 )
-    right_centroid = cv2.dilate( right_centroid, None )
-    _, right_corners = cv2.threshold( right_centroid, 0.01 * right_centroid.max(),
-                                255, 0 )
-    right_corners = np.int0( right_corners )
-    
-    left_crnr = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
-    right_crnr = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
-    left_crnr[left_corners] = [255, 0, 0]
-    right_crnr[right_corners] = [255, 0, 0]
+#     left_centroid = cv2.cornerHarris( left_open, 2, 5, 0.04 )
+#     left_centroid = cv2.dilate( left_centroid, None )
+#     _, left_corners = cv2.threshold( left_centroid, 0.2 * left_centroid.max(),
+#                                 255, 0 )
+#     left_corners = np.int0( left_corners )
+#      
+#     right_centroid = cv2.cornerHarris( right_open, 2, 5, 0.04 )
+#     right_centroid = cv2.dilate( right_centroid, None )
+#     _, right_corners = cv2.threshold( right_centroid, 0.2 * right_centroid.max(),
+#                                 255, 0 )
+#     right_corners = np.int0( right_corners )
+#     
+#     left_crnr = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
+#     right_crnr = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
+#     left_crnr[left_corners] = [255, 0, 0]
+#     right_crnr[right_corners] = [255, 0, 0]
     
     # plotting
     if proc_show:
         plt.ion()
         
         plt.figure()
+        plt.imshow( imconcat( left_blur, right_blur ), cmap = 'gray' )
+        plt.title( "gaussian blurring" )
+        
+        plt.figure()
         plt.imshow( imconcat( left_thresh, right_thresh, 150 ), cmap = 'gray' )
-        plt.title( 'adaptive thresholding' )
+        plt.title( 'adaptive thresholding: after blurring' )
         
         plt.figure()
         plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
@@ -177,18 +242,186 @@ def gridproc_stereo( left_img, right_img,
         plt.figure()
         plt.imshow( imconcat( left_med, right_med, 150 ), cmap = 'gray' )
         plt.title( 'median: after region suppression' )
+
+        plt.figure()
+        plt.imshow( imconcat( left_close, right_close, 150 ), cmap = 'gray' )
+        plt.title( 'closing: after median' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
+        plt.title( 'opening: after closing' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_close2, right_close2, 150 ), cmap = 'gray' )
+        plt.title( 'closing 2: after opening' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_skel, right_skel, 150 ), cmap = 'gray' )
+        plt.title( 'skeletonize: after closing 2' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_im_lines, right_im_lines ) )
+        plt.title( 'hough lines transform' )
+        
+    # if
+
+# _gridproc_stereo
+
+
+def gridproc_stereo( left_img, right_img,
+                     bor_l: list = [], bor_r: list = [],
+                     proc_show: bool = False ):
+    ''' wrapper function to segment the grid out of a stereo pair '''
+    # convert to grayscale if not already
+    if left_img.ndim > 2:
+        left_img = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+        right_img = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+
+    # if
+    
+    # start the image processing
+    left_canny, right_canny = canny( left_img, right_img, 20, 60 )
+    left_bo = blackout_regions( left_canny, bor_l )
+    right_bo = blackout_regions( right_canny, bor_r )
+    
+#====================== STANDARD HOUGH TRANSFORM  ==============================
+#     # hough line transform
+#     hough_thresh = 450
+#     left_lines = np.squeeze( cv2.HoughLines( left_bo, 2, np.pi / 180, hough_thresh ) )
+#     right_lines = np.squeeze( cv2.HoughLines( right_bo, 2, np.pi / 180, hough_thresh ) )
+#     
+#     print( 'Hough Transform' )
+#     print( '# left lines:', len( left_lines ) )
+#     print( '# right lines:', len( right_lines ) )
+#     print()
+#     
+#     # # draw the hough lines
+#     left_im_lines = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
+#     for rho, theta in left_lines:
+#         a = np.cos( theta )
+#         b = np.sin( theta )
+#         x0 = a * rho
+#         y0 = b * rho
+#         x1 = int( x0 + 1000 * ( -b ) )
+#         y1 = int( y0 + 1000 * ( a ) )
+#         x2 = int( x0 - 1000 * ( -b ) )
+#         y2 = int( y0 - 1000 * ( a ) )
+# 
+#         cv2.line( left_im_lines, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+#         
+#     # for
+#     
+#     right_im_lines = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
+#     for rho, theta in right_lines:
+#         a = np.cos( theta )
+#         b = np.sin( theta )
+#         x0 = a * rho
+#         y0 = b * rho
+#         x1 = int( x0 + 1000 * ( -b ) )
+#         y1 = int( y0 + 1000 * ( a ) )
+#         x2 = int( x0 - 1000 * ( -b ) )
+#         y2 = int( y0 - 1000 * ( a ) )
+# 
+#         cv2.line( right_im_lines, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+#         
+#     # for
+#===============================================================================
+
+    # prob. hough line transform
+    minlinelength = int( 0.8 * left_img.shape[1] )
+    maxlinegap = 20
+    hough_thresh = 100
+    left_linesp = np.squeeze( cv2.HoughLinesP( left_bo, 1, np.pi / 180, hough_thresh, minlinelength, maxlinegap ) )
+    right_linesp = np.squeeze( cv2.HoughLinesP( right_bo, 1, np.pi / 180, hough_thresh, minlinelength, maxlinegap ) )
+    
+    print( 'Probabilisitic Hough Transform' )
+    print( "min. line length, max line gap: ", minlinelength, maxlinegap )
+    print( '# left lines:', left_linesp.shape )
+    print( '# right lines:', right_linesp.shape )
+    print()
+    
+    # # Draw probabilistic hough lines 
+    left_im_linesp = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
+    left_houghp = np.zeros( left_im_linesp.shape[0:2], dtype = np.uint8 )
+    for x1, y1, x2, y2 in left_linesp:
+        cv2.line( left_im_linesp, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+        cv2.line( left_houghp, ( x1, y1 ), ( x2, y2 ), ( 255, 255, 255 ), 1 )
+        
+    # for
+    
+    right_im_linesp = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
+    right_houghp = np.zeros( right_im_linesp.shape[0:2], dtype = np.uint8 )
+    for x1, y1, x2, y2 in right_linesp:
+        cv2.line( right_im_linesp, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+        cv2.line( right_houghp, ( x1, y1 ), ( x2, y2 ), ( 255, 255, 255 ), 1 )
+        
+    # for
+    
+    # hough lines on prob. hough lines image
+    # hough line transform
+    hough_thresh = 100
+    left_lines2 = np.squeeze( cv2.HoughLines( left_houghp, 1, np.pi / 180, hough_thresh ) )
+    right_lines2 = np.squeeze( cv2.HoughLines( right_houghp, 1, np.pi / 180, hough_thresh ) )
+    
+    print( 'Hough Transform (2)' )
+    print( '# left lines:', len( left_lines2 ) )
+    print( '# right lines:', len( right_lines2 ) )
+    print()
+    
+    # # draw the hough lines
+    left_im_lines2 = cv2.cvtColor( left_img, cv2.COLOR_GRAY2RGB )
+    for rho, theta in left_lines2:
+        a = np.cos( theta )
+        b = np.sin( theta )
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int( x0 + 1000 * ( -b ) )
+        y1 = int( y0 + 1000 * ( a ) )
+        x2 = int( x0 - 1000 * ( -b ) )
+        y2 = int( y0 - 1000 * ( a ) )
+
+        cv2.line( left_im_lines2, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+        
+    # for
+    
+    right_im_lines2 = cv2.cvtColor( right_img, cv2.COLOR_GRAY2RGB )
+    for rho, theta in right_lines2:
+        a = np.cos( theta )
+        b = np.sin( theta )
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int( x0 + 1000 * ( -b ) )
+        y1 = int( y0 + 1000 * ( a ) )
+        x2 = int( x0 - 1000 * ( -b ) )
+        y2 = int( y0 - 1000 * ( a ) )
+
+        cv2.line( right_im_lines2, ( x1, y1 ), ( x2, y2 ), ( 255, 0, 0 ), 2 )
+        
+    # for
+    
+    # plotting
+    if proc_show:
+        plt.ion()
         
         plt.figure()
         plt.imshow( imconcat( left_canny, right_canny, 150 ), cmap = 'gray' )
-        plt.title( 'canny: after median filtering' )
+        plt.title( 'canny' )
         
         plt.figure()
-        plt.imshow( imconcat( left_centroid, right_centroid ), cmap = 'gray' )
-        plt.title('dilated harris corner respon0se')
+        plt.imshow( imconcat( left_bo, right_bo, 150 ), cmap = 'gray' )
+        plt.title( 'region suppression: after thresholding' )
         
         plt.figure()
-        plt.imshow( imconcat( left_crnr, right_crnr ) )
-        plt.title( 'corner detection' )
+        plt.imshow( imconcat( left_im_linesp, right_im_linesp ) )
+        plt.title( 'probabilistic hough lines transform' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_houghp, right_houghp, 150 ), cmap = 'gray' )
+        plt.title( 'prob. hough lines transform (2)' )
+        
+        plt.figure()
+        plt.imshow( imconcat( left_im_lines2, right_im_lines2 ) )
+        plt.title( 'hough lines transform: after prob. hough. lines (2)' )
         
     # if
 
@@ -216,14 +449,19 @@ def hough_quadratic( img ):
 # hough_quadratic
     
 
-def imconcat( left_im, right_im, pad_val = 0 ):
+def imconcat( left_im, right_im, pad_val = 0, pad_size = 20 ):
     ''' wrapper for concatenating images'''
     
     if left_im.ndim == 2:
-        pad_left_im = np.pad( left_im, ( ( 0, 0 ), ( 0, 20 ) ), constant_values = pad_val )
+        pad_left_im = np.pad( left_im, ( ( 0, 0 ), ( 0, pad_size ) ), constant_values = pad_val )
     
     elif left_im.ndim == 3:
-        pad_left_im = np.pad( left_im, ( ( 0, 0 ), ( 0, 0 ), ( 0, 0 ) ), constant_values = pad_val )
+        if np.ndim( pad_val ) > 0:  # color img
+            pad_val = ( ( pad_val, pad_val ), ( pad_val, pad_val ), ( 0, 0 ) )
+        
+        # if
+        
+        pad_left_im = np.pad( left_im, ( ( 0, 0 ), ( 0, pad_size ), ( 0, 0 ) ), constant_values = pad_val )
     
     return np.concatenate( ( pad_left_im, right_im ), axis = 1 )
 
@@ -300,6 +538,7 @@ def meanshift( left_bin, right_bin, q = 0.3, n_samps:int = 200, plot_lbls:bool =
 
 def needleproc_stereo( left_img, right_img,
                          bor_l:list = [], bor_r:list = [],
+                         roi_l:tuple = (), roi_r:tuple = (),
                          proc_show: bool = False ):
     ''' wrapper function to process the left and right image pair for needle
         centerline identification
@@ -316,14 +555,17 @@ def needleproc_stereo( left_img, right_img,
     # start the image qprocessing
     left_thresh, right_thresh = thresh( left_img, right_img )
     
-    left_thresh_bo = blackout_regions( left_thresh, bor_l )
-    right_thresh_bo = blackout_regions( right_thresh, bor_r )
+    left_roi = roi( left_thresh, roi_l, full = True )
+    right_roi = roi( right_thresh, roi_r, full = True )
+    
+    left_thresh_bo = blackout_regions( left_roi, bor_l )
+    right_thresh_bo = blackout_regions( right_roi, bor_r )
     
     left_tmed, right_tmed = median_blur( left_thresh_bo, right_thresh_bo, ksize = 5 )
     
-    left_open, right_open = bin_open( left_tmed, right_tmed, ksize = ( 7, 7 ) )
+    left_open, right_open = bin_open( left_tmed, right_tmed, ksize = ( 5, 5 ) )
     
-    left_close, right_close = bin_close( left_open, right_open, ksize = ( 16, 16 ) )
+    left_close, right_close = bin_close( left_open, right_open, ksize = ( 7, 7 ) )
     
     left_dil, right_dil = bin_dilate( left_close, right_close, ksize = ( 0, 0 ) )
     
@@ -340,8 +582,12 @@ def needleproc_stereo( left_img, right_img,
         plt.title( 'adaptive thresholding' )
         
         plt.figure()
+        plt.imshow( imconcat( left_roi, right_roi, 150 ), cmap='gray' )
+        plt.title( 'roi: after thresholding' )
+        
+        plt.figure()
         plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
-        plt.title( 'region suppression: after thresholding' )
+        plt.title( 'region suppression: roi' )
         
         plt.figure()
         plt.imshow( imconcat( left_tmed, right_tmed, 150 ), cmap = 'gray' )
@@ -391,7 +637,7 @@ def needleproc_stereo( left_img, right_img,
 # needleproc_stereo
 
 
-def roi( img, roi, full:bool = False ):
+def roi( img, roi, full:bool = True ):
     ''' return region of interest 
     
         @param roi: [tuple of top-left point, tuple of bottom-right point]
@@ -403,18 +649,18 @@ def roi( img, roi, full:bool = False ):
     tl_i, tl_j = roi[0]
     br_i, br_j = roi[1]
     
-    # zero-out value
-    zval = 0 if img.ndim == 2 else np.array( [0, 0, 0] )
-    
     if full:
         img_roi = img.copy()
         
+        # zero-out value
+        zval = 0 if img.ndim == 2 else np.array( [0, 0, 0] )
+        
         # zero out values
         img_roi [:tl_i, :] = zval
-        img_roi [br_i + 1:, :] = zval
+        img_roi [br_i:, :] = zval
         
         img_roi [:, :tl_j] = zval
-        img_roi [:, br_j + 1:] = zval
+        img_roi [:, br_j:] = zval
         
     # if
         
@@ -444,7 +690,7 @@ def skeleton( left_bin, right_bin ):
 # skeleton
 
 
-def stereomatch_needle( left_conts, right_conts, start_location = "tip", axis = 1 ):
+def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int = 1 ):
     ''' stereo matching needle arclength points for the needle
         
         
@@ -454,13 +700,24 @@ def stereomatch_needle( left_conts, right_conts, start_location = "tip", axis = 
             
             start_location (Default: "tip"): a string of where to start counting.
                                              tip is only implemented.
+                                             
+            col (int = 1): the column to begin matching by
     
      '''
+    # squeeze dimensions just in case
+    left_conts = np.squeeze( left_conts )
+    right_conts = np.squeeze( right_conts )
+    
+    # remove duplicate rows
+    left_conts = np.unique( left_conts, axis = 0 )
+    right_conts = np.unique( right_conts, axis = 0 )
+    
+    # find the minimum number of points to match
     n = min( left_conts.shape[0], right_conts.shape[0] )
     
     if start_location.lower() == "tip":
-        left_idx = np.argsort( left_conts[:, axis] )[-n:]
-        right_idx = np.argsort( right_conts[:, axis] )[-n:]
+        left_idx = np.argsort( left_conts[:, col] )[-n:]
+        right_idx = np.argsort( right_conts[:, col] )[-n:]
         
         left_matches = left_conts[left_idx]
         right_matches = right_conts[right_idx]
@@ -470,17 +727,32 @@ def stereomatch_needle( left_conts, right_conts, start_location = "tip", axis = 
     else:
         raise ValueError( f"start_location = {start_location} not valid." )
     
+    # else
+    
     return left_matches, right_matches
 
 # stereomatch_needle
 
 
-def thresh( left_img, right_img ):
+def thresh( left_img, right_img, thresh = 'adapt' ):
     ''' image thresholding'''
-    left_thresh = cv2.adaptiveThreshold( left_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                        cv2.THRESH_BINARY_INV, 13, 4 )
-    right_thresh = cv2.adaptiveThreshold( right_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                        cv2.THRESH_BINARY_INV, 13, 4 )
+    
+    if thresh.lower() == 'adapt':
+        left_thresh = cv2.adaptiveThreshold( left_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                            cv2.THRESH_BINARY_INV, 13, 4 )
+        right_thresh = cv2.adaptiveThreshold( right_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                            cv2.THRESH_BINARY_INV, 13, 4 )
+    
+    # if
+    
+    elif isinstance( thresh, ( float, int ) ):
+        _, left_thresh = cv2.threshold( left_img, thresh, 255, cv2.THRESH_BINARY_INV )
+        _, right_thresh = cv2.threshold( right_img, thresh, 255, cv2.THRESH_BINARY_INV )
+        
+    # elif
+    
+    else:
+        raise ValueError( f"thresh: {thresh} is not a valid thresholding." )
     
     return left_thresh, right_thresh
 
@@ -587,46 +859,6 @@ def main_dbg():
 # main_dbg
 
 
-def main_needleproc( file_num, img_dir, save_dir ):
-    ''' main method for segmenting the needle centerline in stereo images'''
-    # the left and right image to test
-    num = 5
-    left_fimg = img_dir + f"left-{num:04d}.png"
-    right_fimg = img_dir + f"right-{num:04d}.png"
-    
-    left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
-    right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
-    left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
-    right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
-    
-    # blackout regions
-    bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
-    bor_r = bor_l
-    
-    left_skel, right_skel, conts_l, conts_r = needleproc_stereo( left_img, right_img,
-                                                                 [bor_l], [bor_r],
-                                                                 proc_show = False )
-    
-    left_cont = left_img.copy()
-    left_cont = cv2.drawContours( left_cont, conts_l, 0, ( 255, 0, 0 ), 3 )
-    
-    right_cont = right_img.copy()
-    right_cont = cv2.drawContours( right_cont, conts_r, 0, ( 255, 0, 0 ), 3 )
-    
-    # save the processed images
-    save_fbase = save_dir + f"left-right-{num:04d}" + "_{:s}.png"
-    # # skeletons
-    plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
-                cmap = 'gray' )
-    print( 'Saved figure:', save_fbase.format( 'skel' ) )
-    
-    # # contours
-    plt.imsave( save_fbase.format( 'cont' ), imconcat( left_cont, right_cont ) )
-    print( 'Saved figure:', save_fbase.format( 'cont' ) )
-
-# main_needleproc
-
-
 def main_gridproc( num, img_dir, save_dir ):
     ''' main method to segment the grid in a stereo pair of images'''
     # the left and right image to test    
@@ -640,28 +872,24 @@ def main_gridproc( num, img_dir, save_dir ):
     left_img2 = cv2.cvtColor( left_img, cv2.COLOR_RGB2BGR )
     right_img2 = cv2.cvtColor( right_img, cv2.COLOR_RGB2BGR )
     
-    # TODO
-    # color segmentation
+    # color segmentation ( red for border )
     lmask, rmask, lcolor2, rcolor2 = color_segmentation( left_img2, right_img2, "red" )
     lcolor = cv2.cvtColor( lcolor2, cv2.COLOR_BGR2RGB )
     rcolor = cv2.cvtColor( rcolor2, cv2.COLOR_BGR2RGB )
     
-    # find the grid
-    gridproc_stereo( left_gray, right_gray, proc_show = True )
-    
     # plotting
     plt.ion()
-    plt.figure()
-    plt.imshow( imconcat( left_img, right_img ) )
-    plt.title( 'Original images' )
     
 #     plt.figure()
-#     plt.imshow( imconcat( lmask.astype( np.uint8 ), rmask.astype( np.uint8 ), 150 ), cmap = 'gray' )
-#     plt.title( 'red mask' )
+#     plt.imshow( imconcat( left_img, right_img ) )
+#     plt.title( 'Original images' )
     
-    plt.figure()
-    plt.imshow( imconcat( lcolor, rcolor ) )
-    plt.title( 'masked red color' )
+#     plt.figure()
+#     plt.imshow( imconcat( lcolor, rcolor ) )
+#     plt.title( 'masked red color' )
+
+    # find the grid
+    gridproc_stereo( left_gray, right_gray, proc_show = True )
     
     # close on enter
     plt.show()
@@ -676,15 +904,124 @@ def main_gridproc( num, img_dir, save_dir ):
 # main_gridproc
 
 
+def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_show = False ):
+    ''' main method for segmenting the needle centerline in stereo images'''
+    # the left and right image to test
+    left_fimg = img_dir + f"left-{file_num:04d}.png"
+    right_fimg = img_dir + f"right-{file_num:04d}.png"
+    
+    left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
+    right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
+    left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+    right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+    
+    # blackout regions
+    bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
+    bor_r = bor_l
+    
+    # regions of interest
+    roi_l = ( ( 70, 80 ), ( 500, 915 ) )
+    roi_r = ( ( 70, 55 ), ( 500, -1 ) )
+    
+    # needle image processing
+    left_skel, right_skel, conts_l, conts_r = needleproc_stereo( left_img, right_img,
+                                                                 bor_l = [bor_l], bor_r = [bor_r],
+                                                                 roi_l = roi_l, roi_r = roi_r,
+                                                                 proc_show = proc_show )
+    
+    left_cont = left_img.copy()
+    left_cont = cv2.drawContours( left_cont, conts_l, 0, ( 255, 0, 0 ), 12 )
+    
+    right_cont = right_img.copy()
+    right_cont = cv2.drawContours( right_cont, conts_r, 0, ( 255, 0, 0 ), 12 )
+    
+    # matching contours
+    cont_l_match, cont_r_match = stereomatch_needle( conts_l[0], conts_r[0], start_location = 'tip', col = 1 )
+    
+    left_match = left_cont.copy()
+    cv2.drawContours( left_match, [np.vstack( ( cont_l_match, np.flip( cont_l_match, 0 ) ) )], 0, ( 0, 255, 0 ), 4 )
+    
+    right_match = right_cont.copy()
+    cv2.drawContours( right_match, [np.vstack( ( cont_r_match, np.flip( cont_r_match, 0 ) ) )], 0, ( 0, 255, 0 ), 4 )
+    
+    # draw lines from matching points
+    plot_pt_freq = int( 0.1 * len( cont_l_match ) )
+    pad_width = 20
+    lr_match = imconcat( left_match, right_match, pad_val = [0, 0, 255], pad_size = pad_width )
+    for ( x_l, y_l ), ( x_r, y_r ) in zip( cont_l_match[::plot_pt_freq ], cont_r_match[::plot_pt_freq ] ):
+        cv2.line( lr_match, ( x_l, y_l ), ( x_r + pad_width + right_match.shape[1], y_r ), [255, 0, 255], 2 )
+        
+    # for
+    
+    # show results
+    if res_show:
+        plt.ion()
+        
+        plt.figure()
+        plt.imshow( imconcat( left_cont, right_cont, pad_val = [0, 0, 255] ) )
+        plt.title( 'Contours of needle' )
+        
+        plt.figure()
+        plt.imshow( lr_match )
+        plt.title( 'matching contour points' )
+        
+        # close on enter
+        plt.show()
+        while True:
+            try:
+                if plt.waitforbuttonpress( 0 ):
+                    break
+                
+                # if
+            # try
+            
+            except:
+                break
+            
+            # except    
+        # while
+        
+    # if
+    
+    # save the processed images
+    if save_dir:
+        save_fbase = save_dir + f"left-right-{file_num:04d}" + "_{:s}.png"
+        # # skeletons
+        plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
+                    cmap = 'gray' )
+        print( 'Saved figure:', save_fbase.format( 'skel' ) )
+        
+        # # contours
+        plt.imsave( save_fbase.format( 'cont' ), imconcat( left_cont, right_cont, pad_val = [0, 0, 255] ) )
+        print( 'Saved figure:', save_fbase.format( 'cont' ) )
+        
+        # # matching contours
+        plt.imsave( save_fbase.format( 'cont-match' ), lr_match )
+        print( 'Saved Figure:', save_fbase.format( 'cont-match' ) )
+        
+    # if
+
+# main_needleproc
+
+
 if __name__ == '__main__':
     # directory settings
     stereo_dir = "../Test Images/stereo_needle/"
     needle_dir = stereo_dir + "needle_examples/"
     grid_dir = stereo_dir + "grid_only/"
     
-#     main_needleproc( 5, needle_dir, needle_dir )
+    # iteratre through the images
+    for i in range( 7 ):
+        try:
+            main_needleproc( i, needle_dir, needle_dir, res_show = False )
+            
+        except:
+            print( 'passing:', i )
+            
+    # for
     
-    main_gridproc( 2, needle_dir, needle_dir )
+#     main_needleproc( 1, needle_dir, None, proc_show = True, res_show = True )
+#     main_gridproc( 2, grid_dir, grid_dir )
     
     print( 'Program complete.' )
 
