@@ -836,26 +836,26 @@ def main_test():
 
 
 def main_calmat():
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    ''' determine the calibration matrices '''
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
     needlejsonfile = "needle_params.json"
     
     # regular calibration data
-#     datadir = directory + "Jig_Calibration_08-05-20/"
-#     datafile = "Data Matrices_new.xlsx"
-#     needleparamfile = "needle_params.csv"
-#     out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
-    
-    # test mixed calibration data
-    datadir = directory + "Validation_Jig_Calibration_08-19-20/"
-    datafile = "Calibration_Test_Data_Matrices.xlsx"
+    datadir = directory + "Jig_Calibration_11-14-20/"
+    datafile = "Data Matrices_cal.xlsx"
     needleparamfile = "needle_params.csv"
     out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
     
+# #     test mixed calibration data
+#     datadir = directory + "Calibration_Jig_Calibration_11-14-20/"
+#     datafile = "Calibration_Data_Matrices.xlsx"
+#     needleparamfile = "needle_params.csv"
+#     out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
     
     lstsq_logfile = "least_sq.log"
 
     # weighted least squares
-    weighted = True
+    weighted = False
     if weighted:
         out_needlejsonfile = out_needlejsonfile.replace('.json', '_weighted.json')
         lstsq_logfile = lstsq_logfile.replace('.log', '_weighted.log')
@@ -886,6 +886,7 @@ def main_calmat():
         
     # else
     
+    # perform the least squares and output the result
     calibration_matrices = leastsq_fit( calibration_data, directory + lstsq_logfile,
                                         curv_wgt_rule = curv_wght_rule )
     write_calibration_matrices( calibration_matrices, fbg_needle,
@@ -896,12 +897,13 @@ def main_calmat():
 
 
 def main_datamatrices():
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    ''' creeate the data matrices '''
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
     needlejsonfile = "needle_params.json"
     
 #     datadir = directory + "Validation_Jig_Calibration_08-19-20/"
-    datadir = directory + "Jig_Calibration_08-05-20/"
-    datafile = "Data Matrices (All).xlsx"
+    datadir = directory + "Jig_Calibration_11-14-20/"
+    datafile = "Data Matrices_cal.xlsx"
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
@@ -921,11 +923,11 @@ def main_datamatrices():
 
 def main_join_calval_signal():
     # load the directories
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
-    needlejsonfile = "needle_params-Jig_Calibration_08-05-20.json"
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
+    needlejsonfile = "needle_params-Jig_Calibration_11-14-20.json"
     
-    datadir_cal = directory + "Jig_Calibration_08-05-20/"
-    datadir_val = directory + "Validation_Jig_Calibration_08-19-20/"
+    datadir_cal = directory + "Jig_Calibration_11-14-20/"
+    datadir_val = directory + "Jig_Validation_11-14-20/"
     
     datafile_cal = datadir_cal + "Data Matrices_new.xlsx"
     datafile_val = datadir_val + "Data Matrices.xlsx"
@@ -1059,23 +1061,23 @@ def main_join_calval_signal():
 
 def main_validation():
     # load the file information needed
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
-    needlejsonfile = "needle_params-Jig_Calibration_08-05-20_weighted.json"
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
+    needlejsonfile = "needle_params-Jig_Calibration_11-14-20.json"
     
 #     # calibration
 #     datadir = directory + "Jig_Calibration_08-05-20/"
 #     datafile = "Data Matrices_new.xlsx"
 #     out_file = datadir + "Calibration_Error_raw.xlsx"
     
-#     # validation
-#     datadir = directory + "Validation_Jig_Calibration_08-19-20/"
-#     datafile = "Data Matrices.xlsx"
-#     out_file = datadir + "Validation_Error_raw.xlsx"
+    # validation
+    datadir = directory + "Validation_Jig_Validation_11-14-20/"
+    datafile = "Data Matrices.xlsx"
+    out_file = datadir + "Validation_Error_raw.xlsx"
     
-    # test mixed calibration data
-    datadir = directory + "Validation_Jig_Calibration_08-19-20/"
-    datafile = "Calibration_Test_Data_Matrices.xlsx"
-    out_file = datadir + "Test_Calibration_error_raw.xlsx"
+#     # test mixed calibration data
+#     datadir = directory + "Validation_Jig_Calibration_11-14-20/"
+#     datafile = "Calibration_Test_Data_Matrices.xlsx"
+#     out_file = datadir + "Test_Calibration_error_raw.xlsx"
     
     if '_weighted' in needlejsonfile: # separate weighted condition
         out_file = out_file.replace('_raw', '_weighted_raw')
@@ -1137,10 +1139,10 @@ def main_validation():
 if __name__ == '__main__':
     # main()
 #     main_test()
-#     main_datamatrices()
+    main_datamatrices()
     main_calmat()
     main_validation()
-#     main_join_calval_signal()
+    main_join_calval_signal()
     print( "Program Terminated." )
 
 # if

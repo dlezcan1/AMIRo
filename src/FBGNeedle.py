@@ -393,14 +393,15 @@ class FBGNeedle( object ):
 if __name__ == "__main__" or False:
     
     # directory to save in
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
-    directory = './'
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
+#     directory = './'
     save_bool = True
     
     # needle parameters
-    length = 200  # mm
+    length = 90  # mm
     num_chs = 3
-    aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1]
+#     aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1]
+    aa_locs_tip = np.array([11, 26, 60])
     aa_locs = ( length - aa_locs_tip ).tolist()
     
     AA_list = ['AA' + str( i + 1 ) for i in range( len( aa_locs ) )]
@@ -411,8 +412,8 @@ if __name__ == "__main__" or False:
     
     for i in range(len(AA_list)):
         aa_loc = AA_list[i]
-        cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
-        weights[aa_loc] = i
+#         cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
+#         weights[aa_loc] = i
         
     # for
     

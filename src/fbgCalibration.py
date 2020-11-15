@@ -1166,7 +1166,7 @@ def main_jig( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvature_
 
 if __name__ == '__main__':    
     # SET-UP 
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_4AA/"
+    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
     fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
     
     print( "FBG Needle Parmeters:" )
@@ -1181,7 +1181,7 @@ if __name__ == '__main__':
                         'val': [0, 0.25, 0.8, 1.0, 1.25, 3.125]}
     
     # progressive insertion: AA1, AA1-2, AA1-3, AA1-4, Full Insertion dict (length: # trials)
-    prog_insertion = True
+    prog_insertion = False
     num_trials = 10
     ref_trials = 5
     step_trial_dict = {15: 5, 48: 5, 83: 5, 110: 5, fbg_needle.length: 5}
@@ -1190,14 +1190,14 @@ if __name__ == '__main__':
     
     # FBG data experiment directory for processing
 #     directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
-    directory += "Jig_Calibration_08-05-20/"
+    directory += "Jig_Calibration_11-14-20/"
     
     # gather the directories contatining the fbgdata .txt files
     dirs_degs = {}
-    dirs_degs[0] = glob.glob( directory + "0_deg/Trial_*/08*" )
-    dirs_degs[90] = glob.glob( directory + "90_deg/Trial_*/08*" )
-    dirs_degs[180] = glob.glob( directory + "180_deg/Trial_*/08*" )
-    dirs_degs[270] = glob.glob( directory + "270_deg/Trial_*/08*" )
+    dirs_degs[0] = glob.glob( directory + "0_deg/11*" )
+    dirs_degs[90] = glob.glob( directory + "90_deg/11*" )
+    dirs_degs[180] = glob.glob( directory + "180_deg/11*" )
+    dirs_degs[270] = glob.glob( directory + "270_deg/11*" )
     
     # correct the formatting of the directories \ (or '\\') -> /
     for exp_angle, dirs in dirs_degs.items():
@@ -1213,8 +1213,8 @@ if __name__ == '__main__':
     # if    
         
     else:
-        main_jig( directory, dirs_degs, fbg_needle, curvature_values['val'],
-                  savefile_base = "08-26_29-20_Prog_Insertion_FBGResults" )
+        main_jig( directory, dirs_degs, fbg_needle, curvature_values['cal'],
+                  savefile_base = "11-14-20_JigCalibration_FBGResults" )
         
     # else
     
