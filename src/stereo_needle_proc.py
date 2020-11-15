@@ -11,6 +11,7 @@ This is a file for building image processing to segment the needle in stereo ima
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import scipy.io as sio
 from matplotlib import colors as pltcolors
 from skimage.morphology import skeletonize, thin, medial_axis
 from sklearn.cluster import MeanShift, estimate_bandwidth
@@ -447,6 +448,32 @@ def hough_quadratic( img ):
     raise NotImplementedError( 'hough_quadratic is not yet implemented.' )
 
 # hough_quadratic
+
+
+def load_stereoparams_matlab( param_file: str ):
+    ''' Loads the matlab stereo parameter file created from a struct '''
+    
+    mat = sio.loadmat( param_file )
+    
+    stereo_params = {}
+    
+    keys = ['cameraMatrix1', 'cameraMatrix2', 'distCoeffs1',
+            'distCoeffs2', 'R1', 'tvecs1', 'R2', 'tvecs2',
+            'R', 't', 'F', 'E', 'units']
+
+    # load stereo parameters    
+    for key in keys:
+        if key == 'units':
+            stereo_params[key] = mat[key][0]
+            
+        else:
+            stereo_params[key] = mat[key]
+        
+    # for
+    
+    return stereo_params
+
+# load_stereoparams_matlab
     
 
 def imconcat( left_im, right_im, pad_val = 0, pad_size = 20 ):
@@ -582,7 +609,7 @@ def needleproc_stereo( left_img, right_img,
         plt.title( 'adaptive thresholding' )
         
         plt.figure()
-        plt.imshow( imconcat( left_roi, right_roi, 150 ), cmap='gray' )
+        plt.imshow( imconcat( left_roi, right_roi, 150 ), cmap = 'gray' )
         plt.title( 'roi: after thresholding' )
         
         plt.figure()
@@ -757,6 +784,21 @@ def thresh( left_img, right_img, thresh = 'adapt' ):
     return left_thresh, right_thresh
 
 # thresh
+
+def undistort(left_img, right_img, stereo_params:dict):
+    ''' stereo wrapper to undistort '''
+    # load in camera matrices and distortion coefficients
+    K1 = stereo_params['cameraMatrix1']
+    dist1 = stereo_params['distCoeffs1']
+
+    K2 = stereo_params['cameraMatrix2']
+    dist2 = stereo_params['distCoeffs2']
+    
+    # undistort/recitfy the images
+    left_img_rect = cv2.undistort()
+    
+    
+# undistort
 
 
 def main_dbg():
@@ -1010,8 +1052,13 @@ if __name__ == '__main__':
     needle_dir = stereo_dir + "needle_examples/"
     grid_dir = stereo_dir + "grid_only/"
     
+    # load matlab stereo calibration parameters
+    stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
+    stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
+    stereo_params = load_stereoparams_matlab( stereo_param_file )
+    
     # iteratre through the images
-    for i in range( 7 ):
+    for i in range( -1 ):
         try:
             main_needleproc( i, needle_dir, needle_dir, res_show = False )
             

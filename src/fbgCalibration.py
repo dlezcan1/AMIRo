@@ -1194,10 +1194,10 @@ if __name__ == '__main__':
     
     # gather the directories contatining the fbgdata .txt files
     dirs_degs = {}
-    dirs_degs[0] = glob.glob( directory + "0_deg/11*" )
-    dirs_degs[90] = glob.glob( directory + "90_deg/11*" )
-    dirs_degs[180] = glob.glob( directory + "180_deg/11*" )
-    dirs_degs[270] = glob.glob( directory + "270_deg/11*" )
+#     dirs_degs[0] = glob.glob( directory + "0_deg/11*" )
+    dirs_degs[90] = glob.glob( directory + "90_deg_v2/11*" )
+#     dirs_degs[180] = glob.glob( directory + "180_deg/11*" )
+#     dirs_degs[270] = glob.glob( directory + "270_deg/11*" )
     
     # correct the formatting of the directories \ (or '\\') -> /
     for exp_angle, dirs in dirs_degs.items():
