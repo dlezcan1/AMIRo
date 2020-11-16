@@ -326,7 +326,7 @@ def leastsq_fit ( dict_of_data: dict, outfile: str = None, curv_wgt_rule = lambd
             weights = np.sqrt( np.diag( [curv_wgt_rule( k ) for k in np.linalg.norm( curvature, axis = 1 )] ) )
             
         else:
-            weights = np.identity(curvature.shape[0])
+            weights = np.identity( curvature.shape[0] )
         signal_w = weights.dot( signal )
         curvature_w = weights.dot( curvature )
         
@@ -841,8 +841,9 @@ def main_calmat():
     needlejsonfile = "needle_params.json"
     
     # regular calibration data
-    datadir = directory + "Jig_Calibration_11-14-20/"
-    datafile = "Data Matrices_cal.xlsx"
+#     datadir = directory + "Jig_Validation_11-15-20/" # validation
+    datadir = directory + "Jig_Calibration_11-15-20/"  # calibration
+    datafile = "Data Matrices_{}.xlsx".format( 'cal' if 'cal' in datadir.split( '/' )[-2].lower() else 'val' )
     needleparamfile = "needle_params.csv"
     out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
     
@@ -855,10 +856,10 @@ def main_calmat():
     lstsq_logfile = "least_sq.log"
 
     # weighted least squares
-    weighted = False
+    weighted = True
     if weighted:
-        out_needlejsonfile = out_needlejsonfile.replace('.json', '_weighted.json')
-        lstsq_logfile = lstsq_logfile.replace('.log', '_weighted.log')
+        out_needlejsonfile = out_needlejsonfile.replace( '.json', '_weighted.json' )
+        lstsq_logfile = lstsq_logfile.replace( '.log', '_weighted.log' )
     # if
 
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
@@ -876,6 +877,7 @@ def main_calmat():
          
     # for
     
+    # weighting rule for curvatures
     if weighted:
         curv_wght_rule = lambda k: 5 if k <= 1.0 else 0.05
         
@@ -901,9 +903,9 @@ def main_datamatrices():
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
     needlejsonfile = "needle_params.json"
     
-#     datadir = directory + "Validation_Jig_Calibration_08-19-20/"
-    datadir = directory + "Jig_Calibration_11-14-20/"
-    datafile = "Data Matrices_cal.xlsx"
+    datadir = directory + "Jig_Validation_11-15-20/"  # validation
+#     datadir = directory + "Jig_Calibration_11-15-20/" # calibration
+    datafile = "Data Matrices_{}.xlsx".format( 'cal' if 'cal' in datadir.split( '/' )[-2].lower() else 'val' )
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
@@ -924,13 +926,13 @@ def main_datamatrices():
 def main_join_calval_signal():
     # load the directories
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
-    needlejsonfile = "needle_params-Jig_Calibration_11-14-20.json"
+    needlejsonfile = "needle_params-Jig_Calibration_11-15-20_weighted.json"
     
-    datadir_cal = directory + "Jig_Calibration_11-14-20/"
-    datadir_val = directory + "Jig_Validation_11-14-20/"
+    datadir_cal = directory + "Jig_Calibration_11-15-20/"
+    datadir_val = directory + "Jig_Validation_11-15-20/"
     
-    datafile_cal = datadir_cal + "Data Matrices_new.xlsx"
-    datafile_val = datadir_val + "Data Matrices.xlsx"
+    datafile_cal = datadir_cal + "Data Matrices_cal.xlsx"
+    datafile_val = datadir_val + "Data Matrices_val.xlsx"
     datafile_out = datadir_val + "Data Matrices_calval"
     datafile_comb = datafile_out + ".xlsx"
     
@@ -1041,8 +1043,15 @@ def main_join_calval_signal():
         print( "Saved figure:", datafile_out + "_" + aa + '_combined.png' )
         
     # for
-
+    
     plt.show()
+    while True:
+            try:
+                if plt.waitforbuttonpress( 0 ): break
+            
+            except: break
+            
+    # while
 
     # write the results        
     with pd.ExcelWriter( datafile_comb, engine = 'xlsxwriter' ) as xlwriter:
@@ -1052,7 +1061,7 @@ def main_join_calval_signal():
         # for
     # with
     
-    # start with plottomg
+    # start with plotting
     
     print( "Wrote out data file:", datafile_comb )
     
@@ -1062,7 +1071,7 @@ def main_join_calval_signal():
 def main_validation():
     # load the file information needed
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
-    needlejsonfile = "needle_params-Jig_Calibration_11-14-20.json"
+    needlejsonfile = "needle_params-Jig_Calibration_11-15-20_weighted.json"
     
 #     # calibration
 #     datadir = directory + "Jig_Calibration_08-05-20/"
@@ -1070,8 +1079,8 @@ def main_validation():
 #     out_file = datadir + "Calibration_Error_raw.xlsx"
     
     # validation
-    datadir = directory + "Validation_Jig_Validation_11-14-20/"
-    datafile = "Data Matrices.xlsx"
+    datadir = directory + "Jig_Validation_11-15-20/"
+    datafile = "Data Matrices_val.xlsx"
     out_file = datadir + "Validation_Error_raw.xlsx"
     
 #     # test mixed calibration data
@@ -1079,11 +1088,10 @@ def main_validation():
 #     datafile = "Calibration_Test_Data_Matrices.xlsx"
 #     out_file = datadir + "Test_Calibration_error_raw.xlsx"
     
-    if '_weighted' in needlejsonfile: # separate weighted condition
-        out_file = out_file.replace('_raw', '_weighted_raw')
+    if '_weighted' in needlejsonfile:  # separate weighted condition
+        out_file = out_file.replace( '_raw', '_weighted_raw' )
         
     # if
-
     
     # load the json file
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
