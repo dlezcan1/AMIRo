@@ -1164,7 +1164,8 @@ def main_jig( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvature_
 # main_jig
 
 
-if __name__ == '__main__':    
+if __name__ == '__main__': 
+    ''' process FBGdata peak text files. '''   
     # SET-UP 
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
     fbg_needle = FBGNeedle.load_json( directory + "needle_params.json" )  # load the fbg needle json
@@ -1190,14 +1191,15 @@ if __name__ == '__main__':
     
     # FBG data experiment directory for processing
 #     directory += "Validation_Jig_Progressive_Insertion_08-26_29-20/"
-    directory += "Jig_Calibration_11-14-20/"
+#     directory += "Jig_Calibration_11-15-20/"
+    directory += "Jig_Validation_11-15-20/"
     
     # gather the directories contatining the fbgdata .txt files
     dirs_degs = {}
-#     dirs_degs[0] = glob.glob( directory + "0_deg/11*" )
-    dirs_degs[90] = glob.glob( directory + "90_deg_v2/11*" )
-#     dirs_degs[180] = glob.glob( directory + "180_deg/11*" )
-#     dirs_degs[270] = glob.glob( directory + "270_deg/11*" )
+    dirs_degs[0] = glob.glob( directory + "0_deg/11*" )
+    dirs_degs[90] = glob.glob( directory + "90_deg/11*" )
+    dirs_degs[180] = glob.glob( directory + "180_deg/11*" )
+    dirs_degs[270] = glob.glob( directory + "270_deg/11*" )
     
     # correct the formatting of the directories \ (or '\\') -> /
     for exp_angle, dirs in dirs_degs.items():
@@ -1213,8 +1215,8 @@ if __name__ == '__main__':
     # if    
         
     else:
-        main_jig( directory, dirs_degs, fbg_needle, curvature_values['cal'],
-                  savefile_base = "11-14-20_JigCalibration_FBGResults" )
+        main_jig( directory, dirs_degs, fbg_needle, curvature_values['val'],
+                  savefile_base = "11-15-20_JigValidation_FBGResults" )
         
     # else
     
