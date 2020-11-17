@@ -23,13 +23,13 @@ if count(py.sys.path, pydir) == 0
 end
 
 % file set-up
-directory = "../../FBG_Needle_Calibration_Data/needle_3CH_4AA/";
-fbgneedle_param = directory + "needle_params-Jig_Calibration_08-05-20_weighted.json";
+directory = "../../FBG_Needle_Calibration_Data/needle_3CH_3AA/";
+fbgneedle_param = directory + "needle_params-Jig_Calibration_11-15-20_weighted.json";
 fbgneedle_param_out = strrep(fbgneedle_param, '.json', '_weights.json');
 
 % datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-datadir = directory + "Validation_Jig_Calibration_08-19-20/"; % validation data
-data_mats_file = datadir + "Calibration_Test_Data_Matrices.xlsx";
+datadir = directory + "Jig_Validation_11-15-20/"; % validation data
+data_mats_file = datadir + "Data Matrices_calval.xlsx";
 
 if contains(fbgneedle_param, 'weighted')
     data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
