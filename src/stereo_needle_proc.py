@@ -13,6 +13,7 @@ import cv2
 import matplotlib.pyplot as plt
 import scipy.io as sio
 from matplotlib import colors as pltcolors
+from mpl_toolkits.mplot3d import Axes3D  # 3D plotting
 from skimage.morphology import skeletonize, thin, medial_axis
 from sklearn.cluster import MeanShift, estimate_bandwidth
 
@@ -471,6 +472,35 @@ def load_stereoparams_matlab( param_file: str ):
         
     # for
     
+    # projection matrices
+    # - left camera
+    if 'P1' in mat.keys():
+        stereo_params['P1'] = mat['P1']
+    
+    # if
+        
+    else:
+        R1 = np.eye( 3 )  # stereo_params['R1'][:, :, 0]
+        tvec1 = np.zeros( ( 3, 1 ) )  # stereo_params['tvecs1'][0].reshape( 3, 1 )
+        g1 = np.hstack( ( R1, tvec1 ) )
+        stereo_params['P1'] = stereo_params['cameraMatrix1'] @ g1
+    
+    # else
+    
+    # - right camera
+    if 'P2' in mat.keys():
+        stereo_params['P2'] = mat['P2']
+    
+    # if
+        
+    else:
+        R2 = stereo_params['R']  # mat['R2'][:, :, 0]
+        tvec2 = stereo_params['t'].reshape( 3, 1 )  # mat['tvecs2'][0].reshape( 3, 1 )
+        g2 = np.hstack( ( R2, tvec2 ) )
+        stereo_params['P2'] = stereo_params['cameraMatrix2'] @ g2
+    
+    # else
+    
     return stereo_params
 
 # load_stereoparams_matlab
@@ -717,6 +747,24 @@ def skeleton( left_bin, right_bin ):
 # skeleton
 
 
+def stereo_disparity( left_gray, right_gray, stereo_params: dict ):
+    ''' stereo distparity mapping '''
+    # parameters
+    win_size = 5
+    
+    left_gauss, right_gauss = gauss_blur( left_gray, right_gray, ksize = ( 1, 1 ) )
+    stereo = cv2.StereoSGBM_create( numDisparities = 64,
+                                    blockSize = win_size,
+                                    speckleRange = 2, speckleWindowSize = 5,
+                                    P1 = 8 * 3 * win_size ** 2,
+                                    P2 = 20 * 3 * win_size ** 2 )
+    disparity = stereo.compute( left_gauss, right_gauss )
+    
+    return disparity
+    
+# stereo_disparity
+
+
 def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int = 1 ):
     ''' stereo matching needle arclength points for the needle
         
@@ -761,6 +809,53 @@ def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int
 # stereomatch_needle
 
 
+def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True ):
+    ''' function to perform 3-D reconstruction of the pts in left and right images.
+    
+        @param pts_(l/r): the left/right image points to triangulate of size [Nx2]
+        @param stereo_params: dict of the stereo parameters
+        @param distorted (bool, Default=True): whether to undistort the pts in each image
+        
+        @return: [Nx3] world frame points
+        
+    '''
+    # load in stereo parameters, camera matrices and distortion coefficients
+    # - camera matrices
+    Kl = stereo_params['cameraMatrix1']
+    distl = stereo_params['distCoeffs1']
+    Pl = stereo_params['P1']
+
+    Kr = stereo_params['cameraMatrix2']
+    distr = stereo_params['distCoeffs2']
+    Pr = stereo_params['P2']
+    
+    # - stereo parameters
+    R = stereo_params['R']
+    t = stereo_params['t']
+    
+    # convert to float types
+    pts_l = np.float64( pts_l )
+    pts_r = np.float64( pts_r )
+    
+    # undistort the points if needed
+    if distorted:
+        pts_l, pts_r = undistort_points( pts_l, pts_r, stereo_params )
+        
+    # if
+    
+    # transpose to [2 x N]
+    pts_l = pts_l.T
+    pts_r = pts_r.T
+    
+    # perform triangulation of the points
+    pts_3d = cv2.triangulatePoints( Pl, Pr, pts_l, pts_r )
+    pts_3d /= pts_3d[3]  # normalize the triangulation points
+    
+    return pts_3d[:-1]
+
+# triangulate
+
+
 def thresh( left_img, right_img, thresh = 'adapt' ):
     ''' image thresholding'''
     
@@ -785,20 +880,52 @@ def thresh( left_img, right_img, thresh = 'adapt' ):
 
 # thresh
 
-def undistort(left_img, right_img, stereo_params:dict):
+
+def undistort( left_img, right_img, stereo_params:dict ):
     ''' stereo wrapper to undistort '''
     # load in camera matrices and distortion coefficients
-    K1 = stereo_params['cameraMatrix1']
-    dist1 = stereo_params['distCoeffs1']
+    Kl = stereo_params['cameraMatrix1']
+    distl = stereo_params['distCoeffs1']
 
-    K2 = stereo_params['cameraMatrix2']
-    dist2 = stereo_params['distCoeffs2']
+    Kr = stereo_params['cameraMatrix2']
+    distr = stereo_params['distCoeffs2']
     
     # undistort/recitfy the images
-    left_img_rect = cv2.undistort()
+    hgtl, wdtl = left_img.shape[:2]
+    Kl_new, roi = cv2.getOptimalNewCameraMatrix( Kl, distl, ( wdtl, hgtl ), 1, ( wdtl, hgtl ) )
+    xl, yl, wl, hl = roi
+    left_img_rect = cv2.undistort( left_img, Kl, distl, None, Kl_new )[yl:yl + hl, xl:xl + wl]
     
+    hgtr, wdtr = right_img.shape[:2]
+    Kr_new, roi = cv2.getOptimalNewCameraMatrix( Kr, distr, ( wdtr, hgtr ), 1, ( wdtr, hgtr ) )
+    xr, yr, wr, hr = roi
+    right_img_rect = cv2.undistort( right_img, Kr, distr, None, Kr_new )[yr:yr + hr, xr:xr + wr]
+    
+    return left_img_rect, right_img_rect
     
 # undistort
+
+
+def undistort_points( pts_l, pts_r, stereo_params:dict ):
+    ''' wrapper for undistorting points
+        
+        pts is of shape [N x 2]
+        
+    '''
+    # load in camera matrices and distortion coefficients
+    Kl = stereo_params['cameraMatrix1']
+    distl = stereo_params['distCoeffs1']
+
+    Kr = stereo_params['cameraMatrix2']
+    distr = stereo_params['distCoeffs2']
+    
+    # undistort the image points
+    pts_l_undist = cv2.undistortPoints( pts_l, Kl, distl ).squeeze()
+    pts_r_undist = cv2.undistortPoints( pts_r, Kr, distr ).squeeze()
+    
+    return pts_l_undist, pts_r_undist
+    
+# undistort_points
 
 
 def main_dbg():
@@ -812,81 +939,53 @@ def main_dbg():
     left_fimg = needle_dir + f"left-{num:04d}.png"
     right_fimg = needle_dir + f"right-{num:04d}.png"
     
+    # load matlab stereo calibration parameters
+    stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
+    stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
+    stereo_params = load_stereoparams_matlab( stereo_param_file )
+    
+    # read in the images and convert to grayscale
     left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
     right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
     left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
     right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
     
-    # blackout regions
-    bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
-    bor_r = bor_l
+    # test undistort function ( GOOD )
+    left_rect, right_rect = undistort( left_img, right_img, stereo_params )
+    test_arr = np.zeros( ( 3, 2 ) )
+    undist_pts = undistort_points( test_arr, test_arr, stereo_params )
+    print( np.hstack( undist_pts ) )  
+    print()  
     
-    # perform image processing tests
-    left_thresh, right_thresh = thresh( left_gray, right_gray )
-    left_tmed, right_tmed = median_blur( left_thresh, right_thresh, ksize = 5 )
-    left_open, right_open = bin_open( left_tmed, right_tmed, ksize = ( 7, 7 ) )
-    left_close, right_close = bin_close( left_open, right_open, ksize = ( 16, 16 ) )
-    left_dil, right_dil = bin_dilate( left_close, right_close, ksize = ( 0, 0 ) )
-    left_skel, right_skel = skeleton( left_dil, right_dil )
-    left_skel = blackout( left_skel, bor_l[0], bor_l[1] )
-    right_skel = blackout( right_skel, bor_r[0], bor_r[1] )
+    # test point triangulation ( GOOD )
+    world_points = np.random.randn( 3, 5 )
+    world_pointsh = np.vstack( ( world_points, np.ones( ( 1, world_points.shape[1] ) ) ) )
+    Pl = stereo_params['P1']
+    Pr = stereo_params['P2']
+    pts_l = Pl @ world_pointsh
+    pts_l = ( pts_l / pts_l[-1] ).T[:, :-1]
+    pts_r = Pr @ world_pointsh
+    pts_r = ( pts_r / pts_r[-1] ).T[:, :-1]
     
-    conts_l, conts_r = contours( left_skel, right_skel )
+    print( 'pts shape (l,r):', pts_l.shape, pts_r.shape )
+    tri_pts = triangulate( pts_l, pts_r, stereo_params, undistort = False )
+    print( 'World points' )
+    print( world_points )
+    print()
+    print( 'triangulated points' )
+    print( tri_pts )
+    print()
     
-    # contour drawing
-    print( 'contours length: ', len( conts_l ), len( conts_r ) )
-    print( 'left contours:', type( conts_l ) )
-    left_conts = np.zeros( left_skel.shape )
-    right_conts = np.zeros( right_skel.shape )
-    cv2.drawContours( left_conts, conts_l[0:2], -1, ( 255, 255, 255 ), 3 )
-    cv2.drawContours( right_conts, conts_r[0:2], -1, ( 255, 255, 255 ), 3 )
-    
-    # plot finished contour
-    left_im = left_img.copy()
-    right_im = right_img.copy()
-    cv2.drawContours( left_im, conts_l[0:3], 0, ( 255, 0, 0 ), 3 )
-    cv2.drawContours( right_im, conts_r[0:3], 0, ( 255, 0, 0 ), 3 )
-    
+    # plotting / showing image results
     plt.ion()
-    plt.figure()
-    plt.imshow( imconcat( left_gray, right_gray ), cmap = 'gray' )
-    plt.title( 'images' )
-
-#     plt.figure()
-#     plt.imshow( imconcat( left_canny, right_canny, 255 ), cmap = 'gray' )
-#     plt.title( 'canny: post median' )
-    
-#     plt.figure()
-#     plt.imshow( imconcat( left_thresh, right_thresh, 150 ), cmap = 'gray' )
-#     plt.title( 'threshold' )
-     
-    plt.figure()
-    plt.imshow( imconcat( left_tmed, right_tmed, 150 ), cmap = 'gray' )
-    plt.title( 'median: post threshold' )
-     
-    plt.figure()
-    plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
-    plt.title( 'opening: post median' )
     
     plt.figure()
-    plt.imshow( imconcat( left_close, right_close, 150 ), cmap = 'gray' )
-    plt.title( 'closing: post opening' )
+    plt.imshow( imconcat( left_img, right_img, [0, 0, 255] ) )
+    plt.title( 'original image' )
     
     plt.figure()
-    plt.imshow( imconcat( left_dil, right_dil, 150 ), cmap = 'gray' )
-    plt.title( 'dilation: post closing' )
-    
-    plt.figure()
-    plt.imshow( imconcat( left_skel, right_skel, 150 ), cmap = 'gray' )
-    plt.title( 'skeletonize: post closing' )
-    
-    plt.figure()
-    plt.imshow( imconcat( left_conts, right_conts, 125 ), cmap = 'gray' )
-    plt.title( 'contours: post skeletonization' )
-    
-    plt.figure()
-    plt.imshow( imconcat( left_im, right_im ) )
-    plt.title( 'annotated stereo img proc' )
+    plt.imshow( imconcat( left_rect, right_rect, [0, 0, 255] ) )
+    plt.title( 'undistorted image' )
     
     # close on enter
     plt.show()
@@ -995,6 +1094,12 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         
     # for
     
+    # perform triangulation on points
+    cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = True )
+    
+    # test disparity mapping
+    disparity = stereo_disparity( left_img, right_img, stereo_params )
+    
     # show results
     if res_show:
         plt.ion()
@@ -1006,6 +1111,15 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         plt.figure()
         plt.imshow( lr_match )
         plt.title( 'matching contour points' )
+        
+        f3d = plt.figure()
+        ax = plt.axes( projection = '3d' )
+        ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
+        plt.title( '3-D needle reconstruction' )
+        
+        plt.figure()
+        plt.imshow( disparity, cmap = 'gray' )
+        plt.title( 'stereo disparity map' )
         
         # close on enter
         plt.show()
@@ -1023,23 +1137,36 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
             # except    
         # while
         
+        plt.close( 'all' )
+        
     # if
     
     # save the processed images
     if save_dir:
         save_fbase = save_dir + f"left-right-{file_num:04d}" + "_{:s}.png"
-        # # skeletons
+        # - skeletons
         plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
                     cmap = 'gray' )
         print( 'Saved figure:', save_fbase.format( 'skel' ) )
         
-        # # contours
+        # - contours
         plt.imsave( save_fbase.format( 'cont' ), imconcat( left_cont, right_cont, pad_val = [0, 0, 255] ) )
         print( 'Saved figure:', save_fbase.format( 'cont' ) )
         
-        # # matching contours
+        # - matching contours
         plt.imsave( save_fbase.format( 'cont-match' ), lr_match )
         print( 'Saved Figure:', save_fbase.format( 'cont-match' ) )
+        
+        # - 3D reconstruction
+        f3d = plt.figure()
+        ax = plt.axes( projection = '3d' )
+        ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
+        plt.title( '3-D needle reconstruction' )
+        
+        plt.savefig( save_fbase.format( '3d-reconstruction' ), fig = f3d )
+        print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
+        
+        plt.close()
         
     # if
 
@@ -1057,7 +1184,7 @@ if __name__ == '__main__':
     stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
     stereo_params = load_stereoparams_matlab( stereo_param_file )
     
-    # iteratre through the images
+    # iteratre through the current gathered images
     for i in range( -1 ):
         try:
             main_needleproc( i, needle_dir, needle_dir, res_show = False )
@@ -1065,10 +1192,14 @@ if __name__ == '__main__':
         except:
             print( 'passing:', i )
             
+        print()
+        
     # for
     
-#     main_needleproc( 1, needle_dir, None, proc_show = True, res_show = True )
+    # testing functions
+    main_needleproc( 6, needle_dir, None, proc_show = False, res_show = True )
 #     main_gridproc( 2, grid_dir, grid_dir )
+#     main_dbg()
     
     print( 'Program complete.' )
 
