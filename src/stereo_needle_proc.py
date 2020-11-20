@@ -467,39 +467,27 @@ def load_stereoparams_matlab( param_file: str ):
         if key == 'units':
             stereo_params[key] = mat[key][0]
             
+        elif ( key == 'R1' ) or ( key == 'R2' ):
+            stereo_params[key + '_ext'] = mat[key]
+            
         else:
             stereo_params[key] = mat[key]
         
     # for
     
     # projection matrices
-    # - left camera
-    if 'P1' in mat.keys():
-        stereo_params['P1'] = mat['P1']
-    
-    # if
-        
-    else:
-        R1 = np.eye( 3 )  # stereo_params['R1'][:, :, 0]
-        tvec1 = np.zeros( ( 3, 1 ) )  # stereo_params['tvecs1'][0].reshape( 3, 1 )
-        g1 = np.hstack( ( R1, tvec1 ) )
-        stereo_params['P1'] = stereo_params['cameraMatrix1'] @ g1
-    
-    # else
-    
-    # - right camera
-    if 'P2' in mat.keys():
-        stereo_params['P2'] = mat['P2']
-    
-    # if
-        
-    else:
-        R2 = stereo_params['R']  # mat['R2'][:, :, 0]
-        tvec2 = stereo_params['t'].reshape( 3, 1 )  # mat['tvecs2'][0].reshape( 3, 1 )
-        g2 = np.hstack( ( R2, tvec2 ) )
-        stereo_params['P2'] = stereo_params['cameraMatrix2'] @ g2
-    
-    # else
+    R1, R2, P1, P2, Q, *_ = cv2.stereoRectify( stereo_params['cameraMatrix1'], stereo_params['distCoeffs1'],
+                                              stereo_params['cameraMatrix2'], stereo_params['distCoeffs2'],
+                                              ( 768, 1024 ), stereo_params['R'], stereo_params['t'] )
+    R = stereo_params['R']
+    t = stereo_params['t']
+    H = np.vstack( ( np.hstack( ( R, t.reshape( 3, 1 ) ) ) , [0, 0, 0, 1] ) )
+   
+    stereo_params['R1'] = R1
+    stereo_params['R2'] = R2
+    stereo_params['P1'] = stereo_params['cameraMatrix1'] @ np.eye( 3, 4 )
+    stereo_params['P2'] = stereo_params['cameraMatrix2'] @ H[:-1]
+    stereo_params['Q'] = Q
     
     return stereo_params
 
@@ -701,7 +689,12 @@ def roi( img, roi, full:bool = True ):
         
         @return: subimage of the within the roi
     '''
-    # TODO
+    
+    
+    if len(roi) == 0:
+        return img
+    
+    # if
     
     tl_i, tl_j = roi[0]
     br_i, br_j = roi[1]
@@ -823,16 +816,19 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True
     # - camera matrices
     Kl = stereo_params['cameraMatrix1']
     distl = stereo_params['distCoeffs1']
-    Pl = stereo_params['P1']
 
     Kr = stereo_params['cameraMatrix2']
     distr = stereo_params['distCoeffs2']
-    Pr = stereo_params['P2']
     
     # - stereo parameters
     R = stereo_params['R']
     t = stereo_params['t']
     
+    # - projection matrices
+    Pl = stereo_params['P1']
+    H = np.vstack( ( np.hstack( ( R, t.reshape( 3, 1 ) ) ), [0, 0, 0, 1] ) )
+    Pr = stereo_params['P2']
+
     # convert to float types
     pts_l = np.float64( pts_l )
     pts_r = np.float64( pts_r )
@@ -849,7 +845,17 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True
     
     # perform triangulation of the points
     pts_3d = cv2.triangulatePoints( Pl, Pr, pts_l, pts_r )
+    
     pts_3d /= pts_3d[3]  # normalize the triangulation points
+    print( pts_3d[:, :4] )
+    
+#     pts_3d *= 1.2449E3  # normalizing factor to correspond 
+    
+    dist = np.linalg.norm( pts_3d - pts_3d[:, 0].reshape( -1, 1 ), axis = 0 )
+    plt.plot( dist )
+    plt.show()
+    
+    print( 'distance', dist )
     
     return pts_3d[:-1]
 
@@ -968,7 +974,7 @@ def main_dbg():
     pts_r = ( pts_r / pts_r[-1] ).T[:, :-1]
     
     print( 'pts shape (l,r):', pts_l.shape, pts_r.shape )
-    tri_pts = triangulate( pts_l, pts_r, stereo_params, undistort = False )
+    tri_pts = triangulate_points( pts_l, pts_r, stereo_params, undistort = False )
     print( 'World points' )
     print( world_points )
     print()
@@ -1047,6 +1053,11 @@ def main_gridproc( num, img_dir, save_dir ):
 
 def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_show = False ):
     ''' main method for segmenting the needle centerline in stereo images'''
+    # load matlab stereo calibration parameters
+    stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
+    stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
+    stereo_params = load_stereoparams_matlab( stereo_param_file )
+    
     # the left and right image to test
     left_fimg = img_dir + f"left-{file_num:04d}.png"
     right_fimg = img_dir + f"right-{file_num:04d}.png"
@@ -1055,6 +1066,8 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
     left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
     right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+    
+    print( left_gray.shape )
     
     # blackout regions
     bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
@@ -1115,6 +1128,7 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         f3d = plt.figure()
         ax = plt.axes( projection = '3d' )
         ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
+#         axisEqual3D( ax )
         plt.title( '3-D needle reconstruction' )
         
         plt.figure()
@@ -1144,6 +1158,7 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     # save the processed images
     if save_dir:
         save_fbase = save_dir + f"left-right-{file_num:04d}" + "_{:s}.png"
+        save_fbase_txt = save_dir + f"left-right-{file_num:04d}" + "_{:s}.txt"
         # - skeletons
         plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
                     cmap = 'gray' )
@@ -1160,8 +1175,15 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         # - 3D reconstruction
         f3d = plt.figure()
         ax = plt.axes( projection = '3d' )
+        axisEqual3D( ax )
         ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
         plt.title( '3-D needle reconstruction' )
+        
+        np.savetxt( save_fbase_txt.format( 'cont-match' ), np.hstack( ( cont_l_match, cont_r_match ) ) )
+        print( 'Saved file:', save_fbase_txt.format( 'cont-match' ) )
+        
+        np.savetxt( save_fbase_txt.format( 'cont-match_3d' ), cont_match_3d )
+        print( 'Saved file:', save_fbase_txt.format( 'cont-match_3d' ) )
         
         plt.savefig( save_fbase.format( '3d-reconstruction' ), fig = f3d )
         print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
@@ -1169,8 +1191,23 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         plt.close()
         
     # if
+    
+    return cont_l_match, cont_r_match
 
 # main_needleproc
+
+
+def axisEqual3D( ax ):
+    ''' taken from online '''
+    extents = np.array( [getattr( ax, 'get_{}lim'.format( dim ) )() for dim in 'xyz'] )
+    sz = extents[:, 1] - extents[:, 0]
+    centers = np.mean( extents, axis = 1 )
+    maxsize = max( abs( sz ) )
+    r = maxsize / 2
+    for ctr, dim in zip( centers, 'xyz' ):
+        getattr( ax, 'set_{}lim'.format( dim ) )( ctr - r, ctr + r )
+        
+# axisEqual3D
 
 
 if __name__ == '__main__':
@@ -1180,9 +1217,9 @@ if __name__ == '__main__':
     grid_dir = stereo_dir + "grid_only/"
     
     # load matlab stereo calibration parameters
-    stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
-    stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
-    stereo_params = load_stereoparams_matlab( stereo_param_file )
+#     stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
+#     stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
+#     stereo_params = load_stereoparams_matlab( stereo_param_file )
     
     # iteratre through the current gathered images
     for i in range( -1 ):
