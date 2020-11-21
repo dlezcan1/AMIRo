@@ -23,6 +23,9 @@ COLOR_HSVRANGE_BLUE = ( ( 110, 50, 50 ), ( 130, 255, 255 ) )
 COLOR_HSVRANGE_GREEN = ( ( 40, 50, 50 ), ( 75, 255, 255 ) )
 COLOR_HSVRANGE_YELLOW = ( ( 25, 50, 50 ), ( 35, 255, 255 ) )
 
+# image size
+IMAGE_SIZE = ( 768, 1024 )
+
 
 def blackout( img, tl, br ):
     img[tl[0]:br[0], tl[1]:br[1]] = 0
@@ -824,11 +827,6 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = Fals
     # - stereo parameters
     R = stereo_params['R']
     t = stereo_params['t']
-    
-    # - projection matrices
-    Pl = Kl @ np.eye( 3, 4 )
-    H = np.vstack( ( np.hstack( ( R, t.reshape( 3, 1 ) ) ), [0, 0, 0, 1] ) )
-    Pr = Kr @ H[0:3]
 
     # convert to float types
     pts_l = np.float64( pts_l )
@@ -837,11 +835,20 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = Fals
     # undistort the points if needed
     if distorted:
         pts_l, pts_r = undistort_points( pts_l, pts_r, stereo_params )
-        print('distortion correction')
+        print( 'distortion correction' )
         
+        # get undistorted camera params
+        Kl = stereo_params['cameraMatrix1_new'] 
+        Kr = stereo_params['cameraMatrix2_new']
+
     # if
     
-    # transpose to [2 x N]
+    # calculate projection matrices
+    Pl = Kl @ np.eye( 3, 4 )
+    H = np.vstack( ( np.hstack( ( R, t.reshape( 3, 1 ) ) ), [0, 0, 0, 1] ) )
+    Pr = Kr @ H[0:3]
+    
+    # - transpose to [2 x N]
     pts_l = pts_l.T
     pts_r = pts_r.T
     
@@ -849,9 +856,6 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = Fals
     pts_3d = cv2.triangulatePoints( Pl, Pr, pts_l, pts_r )
     
     pts_3d /= pts_3d[3]  # normalize the triangulation points
-    print( pts_3d[:, :4] )
-    
-#     pts_3d *= 1.2449E3  # normalizing factor to correspond 
     
     return pts_3d[:-1]
 
@@ -921,9 +925,21 @@ def undistort_points( pts_l, pts_r, stereo_params:dict ):
     Kr = stereo_params['cameraMatrix2']
     distr = stereo_params['distCoeffs2']
     
+    # calculate optimal camera matrix
+    Kl_new, _ = cv2.getOptimalNewCameraMatrix( Kl, distl, IMAGE_SIZE, 1, IMAGE_SIZE )
+    Kr_new, _ = cv2.getOptimalNewCameraMatrix( Kr, distr, IMAGE_SIZE, 1, IMAGE_SIZE )
+    
+    print( 'Kl\n', Kl, end = '\n\n' )
+    print( 'Kl_new\n', Kl_new, end = '\n\n' )
+    
+    stereo_params['cameraMatrix1_new'] = Kl_new
+    stereo_params['cameraMatrix2_new'] = Kr_new
+    
     # undistort the image points
-    pts_l_undist = cv2.undistortPoints( pts_l, Kl, distl ).squeeze()
-    pts_r_undist = cv2.undistortPoints( pts_r, Kr, distr ).squeeze()
+    pts_l_undist = cv2.undistortPoints( np.expand_dims( pts_l, 1 ), Kl, distl,
+                                        None, Kl_new ).squeeze()
+    pts_r_undist = cv2.undistortPoints( np.expand_dims( pts_r, 1 ), Kr, distr,
+                                        None, Kr_new ).squeeze()
     
     return pts_l_undist, pts_r_undist
     
@@ -1104,7 +1120,7 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     # for
     
     # perform triangulation on points
-    cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = False )
+    cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = True )
     
     # test disparity mapping
     disparity = stereo_disparity( left_img, right_img, stereo_params )
