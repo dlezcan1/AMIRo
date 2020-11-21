@@ -690,8 +690,7 @@ def roi( img, roi, full:bool = True ):
         @return: subimage of the within the roi
     '''
     
-    
-    if len(roi) == 0:
+    if len( roi ) == 0:
         return img
     
     # if
@@ -802,12 +801,14 @@ def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int
 # stereomatch_needle
 
 
-def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True ):
+def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = False ):
     ''' function to perform 3-D reconstruction of the pts in left and right images.
     
         @param pts_(l/r): the left/right image points to triangulate of size [Nx2]
         @param stereo_params: dict of the stereo parameters
         @param distorted (bool, Default=True): whether to undistort the pts in each image
+        
+        DO NOT USE 'distorted'! This causes major errors @ the moment.
         
         @return: [Nx3] world frame points
         
@@ -825,9 +826,9 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True
     t = stereo_params['t']
     
     # - projection matrices
-    Pl = stereo_params['P1']
+    Pl = Kl @ np.eye( 3, 4 )
     H = np.vstack( ( np.hstack( ( R, t.reshape( 3, 1 ) ) ), [0, 0, 0, 1] ) )
-    Pr = stereo_params['P2']
+    Pr = Kr @ H[0:3]
 
     # convert to float types
     pts_l = np.float64( pts_l )
@@ -836,6 +837,7 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True
     # undistort the points if needed
     if distorted:
         pts_l, pts_r = undistort_points( pts_l, pts_r, stereo_params )
+        print('distortion correction')
         
     # if
     
@@ -850,12 +852,6 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True
     print( pts_3d[:, :4] )
     
 #     pts_3d *= 1.2449E3  # normalizing factor to correspond 
-    
-    dist = np.linalg.norm( pts_3d - pts_3d[:, 0].reshape( -1, 1 ), axis = 0 )
-    plt.plot( dist )
-    plt.show()
-    
-    print( 'distance', dist )
     
     return pts_3d[:-1]
 
@@ -950,18 +946,18 @@ def main_dbg():
     stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
     stereo_params = load_stereoparams_matlab( stereo_param_file )
     
-    # read in the images and convert to grayscale
-    left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
-    right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
-    left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
-    right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
-    
-    # test undistort function ( GOOD )
-    left_rect, right_rect = undistort( left_img, right_img, stereo_params )
-    test_arr = np.zeros( ( 3, 2 ) )
-    undist_pts = undistort_points( test_arr, test_arr, stereo_params )
-    print( np.hstack( undist_pts ) )  
-    print()  
+#     # read in the images and convert to grayscale
+#     left_img = cv2.imread( left_fimg, cv2.IMREAD_COLOR )
+#     right_img = cv2.imread( right_fimg, cv2.IMREAD_COLOR )
+#     left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+#     right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+     
+#     # test undistort function ( GOOD )
+#     left_rect, right_rect = undistort( left_img, right_img, stereo_params )
+#     test_arr = np.zeros( ( 3, 2 ) )
+#     undist_pts = undistort_points( test_arr, test_arr, stereo_params )
+#     print( np.hstack( undist_pts ) )  
+#     print()  
     
     # test point triangulation ( GOOD )
     world_points = np.random.randn( 3, 5 )
@@ -974,7 +970,7 @@ def main_dbg():
     pts_r = ( pts_r / pts_r[-1] ).T[:, :-1]
     
     print( 'pts shape (l,r):', pts_l.shape, pts_r.shape )
-    tri_pts = triangulate_points( pts_l, pts_r, stereo_params, undistort = False )
+    tri_pts = triangulate_points( pts_l, pts_r, stereo_params, distorted = False )
     print( 'World points' )
     print( world_points )
     print()
@@ -982,24 +978,24 @@ def main_dbg():
     print( tri_pts )
     print()
     
-    # plotting / showing image results
-    plt.ion()
-    
-    plt.figure()
-    plt.imshow( imconcat( left_img, right_img, [0, 0, 255] ) )
-    plt.title( 'original image' )
-    
-    plt.figure()
-    plt.imshow( imconcat( left_rect, right_rect, [0, 0, 255] ) )
-    plt.title( 'undistorted image' )
-    
-    # close on enter
-    plt.show()
-    while True:
-        if plt.waitforbuttonpress( 0 ):
-            break
-        
-    # while
+#     # plotting / showing image results
+#     plt.ion()
+#     
+#     plt.figure()
+#     plt.imshow( imconcat( left_img, right_img, [0, 0, 255] ) )
+#     plt.title( 'original image' )
+#     
+#     plt.figure()
+#     plt.imshow( imconcat( left_rect, right_rect, [0, 0, 255] ) )
+#     plt.title( 'undistorted image' )
+#     
+#     # close on enter
+#     plt.show()
+#     while True:
+#         if plt.waitforbuttonpress( 0 ):
+#             break
+#         
+#     # while
     
     plt.close( 'all' )
     
@@ -1108,7 +1104,7 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     # for
     
     # perform triangulation on points
-    cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = True )
+    cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = False )
     
     # test disparity mapping
     disparity = stereo_disparity( left_img, right_img, stereo_params )
