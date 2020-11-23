@@ -12,10 +12,21 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import scipy.io as sio
+
+# plotting
 from matplotlib import colors as pltcolors
 from mpl_toolkits.mplot3d import Axes3D  # 3D plotting
-from skimage.morphology import skeletonize, thin, medial_axis
+
+from skimage.morphology import skeletonize
 from sklearn.cluster import MeanShift, estimate_bandwidth
+
+# NURBS
+from geomdl import fitting
+from geomdl.visualization import VisMPL
+
+# custom image processing
+from image_processing import fit_Bspline
+from BSpline1D import BSpline1D
 
 # color HSV ranges
 COLOR_HSVRANGE_RED = ( ( 0, 50, 50 ), ( 10, 255, 255 ) )
@@ -131,6 +142,15 @@ def contours( left_skel, right_skel ):
     return conts_l, conts_r
 
 # contours
+
+
+def fit_nurbs( pts_3d, degree:int = 3 ):
+    ''' Fit NURBS to 3-D points'''
+    curve = fitting.approximate_curve( pts_3d.tolist(), degree )
+    
+    return curve
+    
+# fit_nurbs
 
 
 def gauss_blur( left_img, right_img, ksize, sigma:tuple = ( 0, 0 ) ):
@@ -690,8 +710,7 @@ def roi( img, roi, full:bool = True ):
         @return: subimage of the within the roi
     '''
     
-    
-    if len(roi) == 0:
+    if len( roi ) == 0:
         return img
     
     # if
@@ -706,10 +725,10 @@ def roi( img, roi, full:bool = True ):
         zval = 0 if img.ndim == 2 else np.array( [0, 0, 0] )
         
         # zero out values
-        img_roi [:tl_i, :] = zval
-        img_roi [br_i:, :] = zval
+        img_roi [:tl_i,:] = zval
+        img_roi [br_i:,:] = zval
         
-        img_roi [:, :tl_j] = zval
+        img_roi [:,:tl_j] = zval
         img_roi [:, br_j:] = zval
         
     # if
@@ -845,18 +864,8 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = True
     
     # perform triangulation of the points
     pts_3d = cv2.triangulatePoints( Pl, Pr, pts_l, pts_r )
-    
     pts_3d /= pts_3d[3]  # normalize the triangulation points
-    print( pts_3d[:, :4] )
-    
-#     pts_3d *= 1.2449E3  # normalizing factor to correspond 
-    
-    dist = np.linalg.norm( pts_3d - pts_3d[:, 0].reshape( -1, 1 ), axis = 0 )
-    plt.plot( dist )
-    plt.show()
-    
-    print( 'distance', dist )
-    
+
     return pts_3d[:-1]
 
 # triangulate
@@ -925,6 +934,8 @@ def undistort_points( pts_l, pts_r, stereo_params:dict ):
     Kr = stereo_params['cameraMatrix2']
     distr = stereo_params['distCoeffs2']
     
+    # estimate new camera intrinsic matrix
+    
     # undistort the image points
     pts_l_undist = cv2.undistortPoints( pts_l, Kl, distl ).squeeze()
     pts_r_undist = cv2.undistortPoints( pts_r, Kr, distr ).squeeze()
@@ -969,9 +980,9 @@ def main_dbg():
     Pl = stereo_params['P1']
     Pr = stereo_params['P2']
     pts_l = Pl @ world_pointsh
-    pts_l = ( pts_l / pts_l[-1] ).T[:, :-1]
+    pts_l = ( pts_l / pts_l[-1] ).T[:,:-1]
     pts_r = Pr @ world_pointsh
-    pts_r = ( pts_r / pts_r[-1] ).T[:, :-1]
+    pts_r = ( pts_r / pts_r[-1] ).T[:,:-1]
     
     print( 'pts shape (l,r):', pts_l.shape, pts_r.shape )
     tri_pts = triangulate_points( pts_l, pts_r, stereo_params, undistort = False )
@@ -1110,6 +1121,29 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     # perform triangulation on points
     cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = True )
     
+    # fit a B-spline to 2-D images
+    sortidx_l = np.argsort( cont_l_match[:, 0] )
+    sortidx_r = np.argsort( cont_r_match[:, 0] )
+    bspline_l = BSpline1D( cont_l_match[sortidx_l, 0], cont_l_match[sortidx_l, 1] )
+    bspline_r = BSpline1D( cont_r_match[sortidx_r, 0], cont_r_match[sortidx_r, 1] )
+    
+    bspline_l_match = np.vstack( ( cont_l_match[:, 0], bspline_l( cont_l_match[:, 0] ) ) )
+    bspline_r_match = np.vstack( ( cont_r_match[:, 0], bspline_r( cont_r_match[:, 0] ) ) )
+    
+    cont_match_3d_bspline = triangulate_points( bspline_l_match, bspline_r_match, stereo_params, distorted = True )
+
+    # triangulate the smooth bspline points
+        
+    #========================== NURBS ==========================================
+    # # NURBS fitting (NOT Functional)
+    # nurbs = fit_nurbs( cont_match_3d.T[::5], degree = 3 )
+    # print( 'fit NURBS to 3-D triangulation' )
+    # nurbs.vis = VisMPL.VisCurve3D()
+    # print( 'after vis' )
+    # nurbs.render()
+    # print( 'after render' )
+    #===========================================================================
+    
     # test disparity mapping
     disparity = stereo_disparity( left_img, right_img, stereo_params )
     
@@ -1130,6 +1164,12 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
 #         axisEqual3D( ax )
         plt.title( '3-D needle reconstruction' )
+        
+        f3d = plt.figure()
+        ax = plt.axes( projection = '3d' )
+        ax.plot( cont_match_3d_bspline[0], cont_match_3d_bspline[1], cont_match_3d_bspline[2] )
+#         axisEqual3D( ax )
+        plt.title( '3-D needle reconstruction: bspline' )
         
         plt.figure()
         plt.imshow( disparity, cmap = 'gray' )
@@ -1234,7 +1274,7 @@ if __name__ == '__main__':
     # for
     
     # testing functions
-    main_needleproc( 6, needle_dir, None, proc_show = False, res_show = True )
+    main_needleproc( 6, needle_dir, False, proc_show = False, res_show = True )
 #     main_gridproc( 2, grid_dir, grid_dir )
 #     main_dbg()
     

@@ -8,6 +8,7 @@ from scipy.optimize import fsolve, leastsq, minimize, Bounds
 from matplotlib.pyplot import draw
 import matplotlib.pyplot as plt
 import re
+from BSpline1D import BSpline1D
 # import scipy
 
 
@@ -128,10 +129,10 @@ def blackout_regions( img, regions: list ):
 
 
 def canny_edge_detection( image, display: bool = False , bo_regions: list = None ):
-	thresh1 = 225
+	thresh1 = 235
 	thresh2 = 255
-	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
-	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
+# 	bor1 = [300, 800, 0, 65]  # xleft, xright, ytop, ybottom for the top, blackout
+# 	bor2 = [700, 930, 90, image.shape[0]]  # xleft, xright, ytop, ybottom for the bottom, blackout
 
 	img = np.copy( image )
 	if display:
@@ -141,14 +142,13 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 	
 	# # Canny Filtering for Edge detection
 	canny1 = cv2.Canny( img, thresh1, thresh2 )
-	if display:
-		cv2.imshow( "0) Raw canny", canny1 ) 
-		step = 1
-		
-	# if
 
 	if bo_regions:
 		canny1 = blackout_regions( canny1, bo_regions )
+
+	if display:
+		cv2.imshow( "0) Raw canny", canny1 ) 
+		step = 1
 	
 # 	shape = ( 3, 1 )
 # 	iters = 1
@@ -161,7 +161,8 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 # 	# if
 	
 	# worked for black background
-	shape = ( 9, 5 )
+# 	shape = ( 9, 5 )
+	shape = ( 13, 13 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1, cv2.MORPH_CLOSE, kernel )
 	
@@ -172,7 +173,17 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 	
 	# if
 	
-	shape = ( 9, 10 )
+	shape = ( 3, 5 )
+	# shape = ( 5, 5 )
+	kernel = gen_kernel( shape )
+	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
+	if display:
+		cv2.imshow( "{}) Open {}x{}".format( step, *shape ), canny1_fixed )
+		step += 1
+		
+	# if
+	# shape = ( 5, 15 )
+	shape = ( 10, 20 )
 	iters = 1
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.dilate( canny1_fixed, kernel, iterations = iters )
@@ -181,8 +192,9 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		step += 1
 		
 	# if
-	
-	shape = ( 3, 35 )
+
+	shape = ( 1, 15 )
+	# shape = ( 5, 25 )
 	kernel = gen_kernel( shape )
 	iters = 1
 	canny1_fixed = cv2.erode( canny1_fixed, kernel, iterations = iters )
@@ -191,8 +203,8 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		step += 1
 	# if
 
-# 	shape = ( 8, 12 )
-	shape = ( 8, 8 )
+	shape = ( 8, 12 )
+	# shape = ( 8, 15 )
 	kernel = gen_kernel( shape )
 	canny1_fixed = cv2.morphologyEx( canny1_fixed, cv2.MORPH_OPEN, kernel )
 	if display:
@@ -201,7 +213,7 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		
 	# if
 	
-	shape = ( 1, 35 )
+	shape = ( 1, 30 )
 	kernel = gen_kernel( shape )
 	iters = 1
 # 	iters = 3 # for off of tip horizontal for some reason
@@ -211,7 +223,8 @@ def canny_edge_detection( image, display: bool = False , bo_regions: list = None
 		step += 1
 	# if
 	
-	shape = ( 5, 25 )  # for not on the tip
+	shape = ( 5, 32 )
+	# shape = ( 5, 25 )  # for not on the tip
 # 	shape = ( 5, 3 ) # for on the tip
 	kernel = gen_kernel( shape )
 	iters = 1
@@ -285,6 +298,22 @@ def find_param_along_poly ( poly: np.poly1d, x0: float, target_length: float ):
 # find_param_along_poly
 
 
+def find_param_along_bspline( bspline: BSpline1D, x0: float, target_length: float, lb: float, ub: float ):
+	bnds = Bounds( lb, ub )
+	deriv_1 = lambda x: bspline( x, der = 1 )
+	integrand = lambda x: np.sqrt( 1 + ( deriv_1( x ) ) ** 2 )
+	
+	arc_length = lambda x: quad( integrand, x, x0 )[0] 
+	cost_fn = lambda x: np.abs( target_length - arc_length( x ) )
+	
+	result = minimize( cost_fn, np.array( [x0] ), method = "SLSQP", bounds = bnds )
+	err = cost_fn( result.x )
+	
+	return result.x , err
+
+# find_param_along_bspline
+
+
 def find_param_along_poly_con ( poly: np.poly1d, x0: float, target_length: float, lb: float, ub: float ):
 	bnds = Bounds( lb, ub )
 	deriv_1 = np.polyder( poly, 1 )
@@ -294,7 +323,7 @@ def find_param_along_poly_con ( poly: np.poly1d, x0: float, target_length: float
 	cost_fn = lambda x: np.abs( target_length - arc_length( x ) )
 	
 	result = minimize( cost_fn, np.array( [x0] ), method = "SLSQP", bounds = bnds )
-	err = target_length - arc_length( result.x )
+	err = cost_fn( result.x )
 	
 	return result.x, err
 
@@ -339,10 +368,10 @@ def xycenterline( centerline_img ):
 	y = N_rows * np.ones( N_cols )  # y-coords
 	y = np.argmax( centerline_img, 0 )
 
-	x = x[y > 0]
+	x = x[y[:len( x )] > 0]
 	y = y[y > 0]
 	
-	return x, y
+	return x, y[:len( x )]
 
 # xycenterline
 
@@ -356,11 +385,38 @@ def find_active_areas( x0: float, poly: np.poly1d, lengths, pix_per_mm , lb: flo
 	
 	ret_x = []
 	for l in lengths:
-		ret_x.append( find_param_along_poly_con( poly, x0, l, lb, ub )[0] )
+		result = find_param_along_poly_con( poly, x0, l, lb, ub ) 
+		ret_x.append( result[0] )
+		print( f"Solution in fitting active area @ {l}: {result[0]}" )
+		print( f"Error in fitting active area @ {l}: {result[1]}" )
+		print()
+		
+	# for
 
 	return ret_x
 
 # find_active_areas
+
+
+def find_active_areas_bspline( x0: float, poly: np.poly1d, lengths, pix_per_mm , lb: float, ub: float ):
+	''' Determines the active area x parameters for the fit polynomial given
+		a desired arclength(s) using bsplines.
+	'''
+	lengths = pix_per_mm * np.array( lengths )
+	
+	ret_x = []
+	for l in lengths:
+		result = find_param_along_bspline( poly, x0, l, lb, ub ) 
+		ret_x.append( result[0] )
+		print( f"Solution in fitting active area @ {l}: {result[0]}" )
+		print( f"Error in fitting active area @ {l}: {result[1]}" )
+		print()
+		
+	# for
+
+	return ret_x
+
+# find_active_areas_bspline
 
 
 def fit_polynomial( centerline_img, deg ):
@@ -405,6 +461,34 @@ def fit_spline( centerline_img ):
 	return spline, x
 	
 # fit_spline
+
+
+def fit_Bspline( x, y, deg ):
+	""" Fits a BSpline to the skeleton points """
+
+	bspline = BSpline1D( x, y, k = deg )
+	
+	return bspline, x
+
+# fit_Bspline
+
+
+def fit_Bspline_img( centerline_img, deg ):
+	""" Fits a BSpline to the centerline image """
+	_, N_cols = np.shape( centerline_img )
+
+	x = np.arange( N_cols - 10 )  # x-coords
+# 	y = N_rows * np.ones( N_cols )  # y-coords
+	y = np.argmax( centerline_img, 0 )
+
+	x = x[y[:len( x )] > 0]
+	y = y[y > 0]
+	
+	bspline = BSpline1D( x, y[:len( x )], k = deg )
+	
+	return bspline, x
+
+# fit_Bspline_img
 
 
 def find_curvature( p: np.poly1d, x ):
@@ -461,12 +545,222 @@ def fit_circle_raw_curvature( y, x, x_int, width: float ):
 	return np.array( k )
 	
 # fit_circle_raw_curvature
+
+
+def fit_integral_curvature( x, y, p_int, r: float = 50 ):
+	""" Function to find the curvature using integration from the paper:
 	
+		"Robust and Accurate Curvature Estimation Using Adaptive Line Integrals"
+		Wei-Yang Lin, 2010.
+		
+		@param x: the x values in the of the whole polynomial
+		
+		@param y: the y values in the of the whole polynomial
+				
+		@param x_int: the x values that we are interested in	
+		
+		@param r: the circle window (default = 50)
+		
+		@return: numpy array of curvatures for the associated 'x_ints'
+		
+	"""
+	
+	data = np.vstack( ( x, y ) ).T
+	centroid = np.sum( data, axis = 0 ) / data.shape[0]
+	
+	k = []
+	for pi in p_int:
+		data_lo = data[data[:, 0] < pi[0]]
+		data_hi = data[data[:, 0] > pi[0]]
+		dists_lo = np.linalg.norm( ( data_lo - pi ), axis = 1 ) ** 2
+		dists_hi = np.linalg.norm( ( data_hi - pi ), axis = 1 ) ** 2
+		plo_idx = np.argmin( dists_lo - r ** 2 )
+		phi_idx = np.argmin( dists_hi - r ** 2 )
+		
+		plo = data_lo[plo_idx,:]
+		phi = data_hi[phi_idx,:]
+		
+		# vectors
+		ab = plo - pi
+		ac = phi - pi
+		
+		# angles between the x-axis
+		tab = np.arccos( ab[0] / np.linalg.norm( ab ) )
+		tac = np.arccos( ac[0] / np.linalg.norm( ac ) )
+		
+		# the integration step
+		Iax2 = r ** 3 / 2 * ( tab - tac + np.sin( tac ) * np.cos( tac ) - 
+							 np.sin( tab ) * np.cos( tab ) )
+		Iay2 = r ** 3 / 2 * ( tab - tac - np.sin( tac ) * np.cos( tac ) + 
+							 np.sin( tab ) * np.cos( tab ) )
+		Iaxy = r ** 3 / 2 * ( tab - tac - np.sin( tac ) ** 2 + np.sin( tab ) ** 2 )
+
+		Iax = r ** 2 * ( np.sin( tac ) - np.sin( tab ) )
+		Iay = -r ** 2 * ( np.cos( tac ) - np.cos( tab ) )
+		LaC = r * ( tac - tab )
+		
+		# the covariance matrix
+		Sigma_a = np.array( [[Iax2, Iaxy],
+							[Iaxy, Iay2]] )
+		
+		Sigma_a -= 1 / LaC * np.array( [[Iax ** 2, Iax * Iay],
+										[Iax * Iay, Iay ** 2]] )
+		
+		# find eigenvalues
+		u, s, v = np.linalg.svd( Sigma_a )  # This is a unitary diagonlization!
+		if np.sign( np.dot( u[:, 0], ab ) ) != np.sign( np.dot( u[:, 0], ac ) ):
+			k.append( np.pi / ( 2 * r ) - s[0] / r ** 4 )
+			
+		# if
+		
+		else:
+			k.append( np.pi / ( 2 * r ) - s[1] / r ** 4 )
+			
+		# else
+	
+	# for
+	
+	return np.array( k )
+
+# fit_integral_curvature
+
+
+def fit_integral_curvature_callable( p, x, x_int, dx: float = -1, r: float = 50 ):
+	""" Function to find the curvature using integration from the paper:
+	
+		"Robust and Accurate Curvature Estimation Using Adaptive Line Integrals"
+		Wei-Yang Lin, 2010.
+		
+		@param p: the function (callable) of the curve
+		
+		@param x: the x values in the of the whole polynomial
+		
+		@param x_int: the x values that we are interested in	
+		
+		@param dx: interpolation within points (-1 = no interpolation)
+		
+		@param r: the circle window
+		
+		@return: numpy array of curvatures for the associated 'x_ints'
+		
+	"""
+	if dx > 0:
+		x = np.arange( x.min(), x.max(), dx )
+		
+	# if
+	
+	data = np.vstack( ( x, p( x ) ) ).T
+	centroid = np.sum( data, axis = 0 ) / data.shape[0]
+	
+	k = []
+	for xi in x_int:
+		pi = np.array( [xi, p( xi )] )
+		data_lo = data[data[:, 0] < xi]
+		data_hi = data[data[:, 0] > xi]
+		dists_lo = np.linalg.norm( ( data_lo - pi ), axis = 1 ) ** 2
+		dists_hi = np.linalg.norm( ( data_hi - pi ), axis = 1 ) ** 2
+		plo_idx = np.argmin( dists_lo - r ** 2 )
+		phi_idx = np.argmin( dists_hi - r ** 2 )
+		
+		plo = data_lo[plo_idx,:]
+		phi = data_hi[phi_idx,:]
+		
+		# vectors
+		ab = plo - pi
+		ac = phi - pi
+		
+		# angles between the x-axis
+		tab = np.arccos( ab[0] / np.linalg.norm( ab ) )
+		tac = np.arccos( ac[0] / np.linalg.norm( ac ) )
+		
+		# the integration step
+		Iax2 = r ** 3 / 2 * ( tab - tac + np.sin( tac ) * np.cos( tac ) - 
+							 np.sin( tab ) * np.cos( tab ) )
+		Iay2 = r ** 3 / 2 * ( tab - tac - np.sin( tac ) * np.cos( tac ) + 
+							 np.sin( tab ) * np.cos( tab ) )
+		Iaxy = r ** 3 / 2 * ( tab - tac - np.sin( tac ) ** 2 + np.sin( tab ) ** 2 )
+
+		Iax = r ** 2 * ( np.sin( tac ) - np.sin( tab ) )
+		Iay = -r ** 2 * ( np.cos( tac ) - np.cos( tab ) )
+		LaC = r * ( tac - tab )
+		
+		# the covariance matrix
+		Sigma_a = np.array( [[Iax2, Iaxy],
+							[Iaxy, Iay2]] )
+		
+		Sigma_a -= 1 / LaC * np.array( [[Iax ** 2, Iax * Iay],
+										[Iax * Iay, Iay ** 2]] )
+		
+		# find eigenvalues
+		u, s, v = np.linalg.svd( Sigma_a )  # This is a unitary diagonlization!
+		if np.sign( np.dot( u[:, 0], ab ) ) != np.sign( np.dot( u[:, 0], ac ) ):
+			k.append( np.pi / ( 2 * r ) - s[0] / r ** 4 )
+			
+		# if
+		
+		else:
+			k.append( np.pi / ( 2 * r ) - s[1] / r ** 4 )
+			
+		# else
+	
+	# for
+	
+	return np.array( k )
+
+# fit_integral_curvature_callable
+
+	
+def fit_adaptive_circle_curvature( p, x, x_int, dx: float = -1, r0: float = 50, bootstraps: int = 5 ):
+	""" Function to find curvature based on adaptive curvature fitting
+		in the paper:
+		
+		"Robust and Accurate Curvature Estimation Using Adaptive Line Integrals"
+		Wei-Yang Lin, 2010.
+		
+		@param p: the function (callable) of the curve
+		
+		@param x: the x values in the of the whole polynomial
+		
+		@param x_int: the x values that we are interested in	
+		
+		@param dx: interpolation within points (-1 = no interpolation)
+		
+		@return: numpy array of curvatures for the associated 'x_ints'
+	
+	"""
+	if dx > 0:
+		x = np.arange( x.min(), x.max(), dx )
+		
+	# if
+	
+	data = np.vstack( ( x, p( x ) ) ).T
+	
+	def MSE( r, pi, bootstraps: int = 5 ):
+		""" Mean-Squared Error term """
+		nonlocal p, x, dx, data
+		data_windowed = data[np.linalg.norm( data - pi, axis = 1 ) <= r]
+		
+		kr = fit_integral_curvature_callable( p, x, [pi[0]], dx, r )
+		
+		e = [np.mean( data_windowed[:, 1] - kr[0] / 2 * data_windowed[:, 0] ** 2 )]  # residual term
+		
+		v = np.random.rand( bootstraps )
+		
+	# mean_squared_error
+	
+	k = []
+	for xi in x_int:
+		pass
+	
+	# for
+	
+# fit_adaptive_circle_curvature
+
 
 def fit_circle_curvature( p, x, x_int, width: float , dx: float = -1 ):
 	""" Function to find the curvature of a function by circle fitting
 	
-		@param p: the polynomial of the curve
+		@param p: the function (callable) of the curve
 		
 		@param x: the x values in the of the whole polynomial
 		
@@ -612,9 +906,14 @@ def plot_spline_image( img, s, x ):
 def main():
 	
 	filename = '80mm_70mm.png'
-	directory = 'Test Images/Curvature_experiment_11-15-19/'
-	pix_per_mm = 8.498439767625596
+	directory = '../Test Images/Curvature_experiment_11-15-19/'
+	pix_per_mm = 8.85
 	crop_area = ( 84, 250, 1280, 715 )
+	
+	# params
+	polfit = 3
+	circle_curv_win = 35 * pix_per_mm
+	smooth_window = 25
 	
 	# metadata processing
 	pattern = r'([0-9]+)mm_([0-9]+)mm.png'
@@ -622,6 +921,13 @@ def main():
 	act_R1, act_R2 = result.groups()
 	act_R1 = float( act_R1 )
 	act_R2 = -float( act_R2 )
+		
+	# output stuff
+	outdir = "../Output/Curvature Fitting/2 Circle Window Fitting/"
+	base_name = "circwin_{}mm_{:.0f}mm_{:.0f}mm".format( circle_curv_win / pix_per_mm,
+														 np.abs( act_R1 ), np.abs( act_R2 ) )
+	outshape = outdir + base_name + '_shape.png'
+	outcurv = outdir + base_name + '.png'
 	
 	x_ignore = ( 450, 800 )
 
@@ -636,18 +942,19 @@ def main():
 # 	canny_edges = canny_edge_detection( crop_img )
 	skeleton = get_centerline( binary_img )
 # 	cv2.imshow( "Skeletonized image", skeleton )
+# 	cv2.waitKey( 0 )
 	
 	stitch_img = stitch( skeleton, binary_img )
 	
 	print( 'fitting the polynomial' )
-	poly, x = fit_polynomial( skeleton, 15 )
+# 	poly, x = fit_polynomial( skeleton, 15 )
+	bspline, x = fit_Bspline_img( skeleton, polfit )
 	xc, yc = xycenterline( skeleton )
 	s, _ = fit_spline( skeleton )
 	
-	total_length = arclength( poly, np.min( x ), np.max( x ) )
-	
-	lengths = ( np.arange( 1, 25 ) / 25 ) * total_length
-	x_sol = find_active_areas( np.min( x ), poly, lengths, 1 )
+# 	total_length = arclength( poly, np.min( x ), np.max( x ) )
+# 	
+# 	lengths = ( np.arange( 1, 25 ) / 25 ) * total_length
 	
 # 	curvatures = find_spline_curvature( s, x_sol )
 # 	curvatures = fit_circle_curvature( poly, x, x_sol, pix_per_mm )
@@ -674,55 +981,56 @@ def main():
 # 	
 # 	cv2.waitKey( 50 )
 	
-	plt.plot( x, poly( x ), label = "Polynomial Fit" )
-	plt.plot( x, s( x ), label = "Spline Fit" )
-	plt.title( "Shape plots" )
-	plt.legend()
+# 	plt.plot( x, bspline( x ), label = "Polynomial Fit" )
+# # 	plt.plot( x, s( x ), label = "Spline Fit" )
+# 	plt.title( f"Shape plots: Poly Fit ({polfit})" )
+# 	plt.legend()
 	
-	R_poly = 1 / find_curvature( poly, x ) / pix_per_mm
-	circle_curv_win = 20 * pix_per_mm
-	R_pcirc = 1 / fit_circle_curvature( poly, x, x, circle_curv_win ) / pix_per_mm
-	R_scirc = 1 / fit_circle_curvature( s, x, x, circle_curv_win ) / pix_per_mm
-	R_raw = 1 / fit_circle_raw_curvature( yc, xc, xc, circle_curv_win ) / pix_per_mm
+# 	R_poly = 1 / find_curvature( poly, x ) / pix_per_mm
+	R_pcirc = fit_circle_curvature( bspline, x, x, circle_curv_win ) * pix_per_mm
+# 	R_scirc = 1 / fit_circle_curvature( s, x, x, circle_curv_win ) / pix_per_mm
+	R_raw = fit_circle_raw_curvature( yc, xc, xc, circle_curv_win ) * pix_per_mm
 	
-	window = 100
-	iterations = 2
-	Rpc_mean = smooth_data( R_pcirc, window , iterations = iterations )
-	Rp_mean = smooth_data ( R_poly, window , iterations = iterations )
-	Rsc_mean = smooth_data( R_scirc, window , iterations = iterations )
-	Rraw_mean = smooth_data ( R_raw, window, iterations = iterations )
+	iterations = 1
+	Rpc_mean = smooth_data( R_pcirc, smooth_window , iterations = iterations )
+# 	Rp_mean = smooth_data ( R_poly, window , iterations = iterations )
+# 	Rsc_mean = smooth_data( R_scirc, window , iterations = iterations )
+	Rraw_mean = smooth_data ( R_raw, smooth_window, iterations = iterations )
 	
-	plt.figure()
+	ax = plt.figure()
 	plt.xlabel( "x (px)" )
-	plt.ylabel( "Radius of Curvature (mm)" )
+	plt.ylabel( "Curvature (1/mm)" )
 	
-	plt.plot( x, R_pcirc , label = "Circle-poly, no smooth" )
-# 	plt.plot( x, Rpc_mean , label = "Circle-poly, {}px smooth, {} iters.".format( window, iterations ) )
+	plt.plot( x, R_pcirc , label = "Circle-bspline, no smooth" )
+	plt.plot( x, Rpc_mean , label = "Circle-bspline, {}px smooth, {} iters.".format( smooth_window, iterations ) )
 	
-	plt.plot( x, R_poly, label = "Polynomial, no smooth" )
+# 	plt.plot( x, R_poly, label = "Polynomial, no smooth" )
 # 	plt.plot( x, Rp_mean, label = "Polynomial, {}px smooth, {} iters.".format( window, iterations ) )
 	
-	plt.plot( x, R_raw, label = "Circle-raw, no smooth" )
+	plt.plot( xc, R_raw, label = "Circle-raw, no smooth" )
 # 	plt.plot( x, Rraw_mean, label = "Circle-raw, {}px smooth, {} iters.".format( window, iterations ) )
 	
 # 	plt.plot( x, R_scirc, label = "Circle-spline, no smooth" )
 # 	plt.plot( x, Rsc_mean , label = "Circle-spline, {}px smooth, {} iters.".format( window, iterations ) )
 
 	# boundary lines
-	plt.plot( x_ignore[0] * np.ones( 2 ), [-300, 300], 'k--' )
-	plt.plot( x_ignore[1] * np.ones( 2 ), [-300, 300], 'k--' )
+	plt.axvline( x_ignore[0], color = 'k' )
+	plt.axvline( x_ignore[1], color = 'k' )
 	
 	# actual values
-	plt.plot( [np.min( x ), x_ignore[0]], [act_R1, act_R1], 'r', label = "R1: {}mm".format( act_R1 ) )
-	plt.plot( [x_ignore[1], np.max( x )], [act_R2, act_R2], 'r', label = "R2: {}mm".format( act_R2 ) )
+	plt.plot( [np.min( x ), x_ignore[0]], [1 / act_R1, 1 / act_R1], 'r', label = "R1: {}mm".format( act_R1 ) )
+	plt.plot( [x_ignore[1], np.max( x )], [1 / act_R2, 1 / act_R2], 'r', label = "R2: {}mm".format( act_R2 ) )
 	
-	plt.ylim( -120, 120 )
-	plt.title( "Radius of Curvature vs. x" )
+# 	plt.ylim( -120, 120 )
+	plt.title( f"Curvature vs. x: Circle Window ({circle_curv_win/pix_per_mm})mm, Poly fit ({polfit})" )
 	plt.legend()
+	plt.savefig( outcurv )
 		
-# 	plt.figure()
-# 	plot_func_image( crop_img, poly, x )
-#  	
+	plt.figure()
+	plot_func_image( crop_img, bspline, x )
+	plt.title( f"Shape plot: Poly Fit ({polfit})" )
+	plt.savefig( outshape )
+	
 # 	plt.figure()
 # 	plot_spline_image( crop_img, s, x )
 	
@@ -733,60 +1041,64 @@ def main():
 	print( filename )
 	
 	# poly statistics
-	mean_Rp1 = np.mean( R_poly[x < x_ignore[0]] )
-	max_Rp1 = np.max( R_poly[x < x_ignore[0]] )
-	min_Rp1 = np.min( R_poly[x < x_ignore[0]] )
-	
-	mean_Rp2 = np.mean( R_poly[x > x_ignore[1]] )
-	max_Rp2 = np.max( R_poly[x > x_ignore[1]] )
-	min_Rp2 = np.min( R_poly[x > x_ignore[1]] )
+# 	mean_Rp1 = np.mean( R_poly[x < x_ignore[0]] )
+# 	max_Rp1 = np.max( R_poly[x < x_ignore[0]] )
+# 	min_Rp1 = np.min( R_poly[x < x_ignore[0]] )
+# 	
+# 	mean_Rp2 = np.mean( R_poly[x > x_ignore[1]] )
+# 	max_Rp2 = np.max( R_poly[x > x_ignore[1]] )
+# 	min_Rp2 = np.min( R_poly[x > x_ignore[1]] )
 	
 	# circle-poly statistics
 	mean_Rpc1 = np.mean( R_pcirc[x < x_ignore[0]] )
 	max_Rpc1 = np.max( R_pcirc[x < x_ignore[0]] )
 	min_Rpc1 = np.min( R_pcirc[x < x_ignore[0]] )
+	std_Rpc1 = np.std( R_pcirc[x < x_ignore[0]] )
 	
 	mean_Rpc2 = np.mean( R_pcirc[x > x_ignore[1]] )
 	max_Rpc2 = np.max( R_pcirc[x > x_ignore[1]] )
 	min_Rpc2 = np.min( R_pcirc[x > x_ignore[1]] )
+	std_Rpc2 = np.std( R_pcirc[x > x_ignore[1]] )
 	
 	# circle-raw statistics
-	mean_Rpr1 = np.mean( R_raw[x < x_ignore[0]] )
-	max_Rpr1 = np.max( R_raw[x < x_ignore[0]] )
-	min_Rpr1 = np.min( R_raw[x < x_ignore[0]] )
+	mean_Rpr1 = np.mean( R_raw[xc < x_ignore[0]] )
+	max_Rpr1 = np.max( R_raw[xc < x_ignore[0]] )
+	min_Rpr1 = np.min( R_raw[xc < x_ignore[0]] )
+	std_Rpr1 = np.std( R_raw[xc < x_ignore[0]] )
 	
-	mean_Rpr2 = np.mean( R_raw[x > x_ignore[1]] )
-	max_Rpr2 = np.max( R_raw[x > x_ignore[1]] )
-	min_Rpr2 = np.min( R_raw[x > x_ignore[1]] )
+	mean_Rpr2 = np.mean( R_raw[xc > x_ignore[1]] )
+	max_Rpr2 = np.max( R_raw[xc > x_ignore[1]] )
+	min_Rpr2 = np.min( R_raw[xc > x_ignore[1]] )
+	std_Rpr2 = np.std( R_raw[xc > x_ignore[1]] )
 	
-	print( "Polynomial Statistics" )
-	print( "Region 1" )
-	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
-					mean_Rp1, max_Rp1, min_Rp1 ) )
-	print()
-	print( "Region 2" )
-	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
-					mean_Rp2, max_Rp2, min_Rp2 ) )
-	print()
+# 	print( "Polynomial Statistics" )
+# 	print( "Region 1" )
+# 	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+# 					mean_Rp1, max_Rp1, min_Rp1 ) )
+# 	print()
+# 	print( "Region 2" )
+# 	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
+# 					mean_Rp2, max_Rp2, min_Rp2 ) )
+# 	print()
 	
 	print( "Circle-Polynomial Statistics" )
 	print( "Region 1" )
-	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
-					mean_Rpc1, max_Rpc1, min_Rpc1 ) )
+	print( "Mean k: {:.3f}\nMax k: {:.3f}\nMin k: {:.3f}\nStd k: {:.3f}".format( 
+					mean_Rpc1, max_Rpc1, min_Rpc1, std_Rpc1 ) )
 	print()
 	print( "Region 2" )
-	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
-					mean_Rpc2, max_Rpc2, min_Rpc2 ) )
+	print( "Mean k: {:.3f}\nMax k: {:.3f}\nMin k: {:.3f}\nStd k: {:.3f}".format( 
+					mean_Rpc2, max_Rpc2, min_Rpc2, std_Rpc2 ) )
 	print()
 	
 	print( "Circle-Raw Statistics" )
 	print( "Region 1" )
-	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
-					mean_Rpr1, max_Rpr1, min_Rpr1 ) )
+	print( "Mean k: {:.3f}\nMax k: {:.3f}\nMin k: {:.3f}\nStd k: {:.3f}".format( 
+					mean_Rpr1, max_Rpr1, min_Rpr1, std_Rpr1 ) )
 	print()
 	print( "Region 2" )
-	print( "Mean R: {:.3f}\nMax R: {:.3f}\nMin R: {:.3f}".format( 
-					mean_Rpr2, max_Rpr2, min_Rpr2 ) )
+	print( "Mean k: {:.3f}\nMax k: {:.3f}\nMin k: {:.3f}\nStd k: {:.3f}".format( 
+					mean_Rpr2, max_Rpr2, min_Rpr2, std_Rpr2 ) )
 	print()
 	
 # main
