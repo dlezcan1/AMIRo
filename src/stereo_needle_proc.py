@@ -12,6 +12,8 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import scipy.io as sio
+from scipy.signal import savgol_filter, convolve
+from scipy.ndimage import convolve1d
 
 # plotting
 from matplotlib import colors as pltcolors
@@ -145,15 +147,6 @@ def contours( left_skel, right_skel ):
     return conts_l, conts_r
 
 # contours
-
-
-def fit_nurbs( pts_3d, degree:int = 3 ):
-    ''' Fit NURBS to 3-D points'''
-    curve = fitting.approximate_curve( pts_3d.tolist(), degree )
-    
-    return curve
-    
-# fit_nurbs
 
 
 def gauss_blur( left_img, right_img, ksize, sigma:tuple = ( 0, 0 ) ):
@@ -855,7 +848,6 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = Fals
     # undistort the points if needed
     if distorted:
         pts_l, pts_r = undistort_points( pts_l, pts_r, stereo_params )
-        print( 'distortion correction' )
         
         # get undistorted camera params
         Kl = stereo_params['cameraMatrix1_new'] 
@@ -948,12 +940,8 @@ def undistort_points( pts_l, pts_r, stereo_params:dict ):
     Kl_new, _ = cv2.getOptimalNewCameraMatrix( Kl, distl, IMAGE_SIZE, 1, IMAGE_SIZE )
     Kr_new, _ = cv2.getOptimalNewCameraMatrix( Kr, distr, IMAGE_SIZE, 1, IMAGE_SIZE )
     
-    print( 'Kl\n', Kl, end = '\n\n' )
-    print( 'Kl_new\n', Kl_new, end = '\n\n' )
-    
     stereo_params['cameraMatrix1_new'] = Kl_new
     stereo_params['cameraMatrix2_new'] = Kr_new
-
     
     # undistort the image points
     pts_l_undist = cv2.undistortPoints( np.expand_dims( pts_l, 1 ), Kl, distl,
@@ -1099,7 +1087,7 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     left_gray = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
     right_gray = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
     
-    print( left_gray.shape )
+    print( 'Image shape:', left_gray.shape, end = '\n\n' + 80 * '=' + '\n\n' )
     
     # blackout regions
     bor_l = [( left_gray.shape[0] - 100, 0 ), left_gray.shape]
@@ -1110,11 +1098,13 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     roi_r = ( ( 70, 55 ), ( 500, -1 ) )
     
     # needle image processing
+    print( 'Processing stereo pair images...' )
     left_skel, right_skel, conts_l, conts_r = needleproc_stereo( left_img, right_img,
                                                                  bor_l = [bor_l], bor_r = [bor_r],
                                                                  roi_l = roi_l, roi_r = roi_r,
                                                                  proc_show = proc_show )
-    
+    print( 'Stereo pair processed. Contours extracted.', end = '\n\n' + 80 * '=' + '\n\n' )
+
     left_cont = left_img.copy()
     left_cont = cv2.drawContours( left_cont, conts_l, 0, ( 255, 0, 0 ), 12 )
     
@@ -1122,6 +1112,7 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     right_cont = cv2.drawContours( right_cont, conts_r, 0, ( 255, 0, 0 ), 12 )
     
     # matching contours
+    print( 'Performing stereo triangulation...' )
     cont_l_match, cont_r_match = stereomatch_needle( conts_l[0], conts_r[0], start_location = 'tip', col = 1 )
     
     left_match = left_cont.copy()
@@ -1142,34 +1133,23 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
     # perform triangulation on points
     cont_match_3d = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = True )
     
-    # fit a B-spline to 2-D images
-    sortidx_l = np.argsort( cont_l_match[:, 0] )
-    sortidx_r = np.argsort( cont_r_match[:, 0] )
-    bspline_l = BSpline1D( cont_l_match[sortidx_l, 0], cont_l_match[sortidx_l, 1] )
-    bspline_r = BSpline1D( cont_r_match[sortidx_r, 0], cont_r_match[sortidx_r, 1] )
-    
-    bspline_l_match = np.vstack( ( cont_l_match[:, 0], bspline_l( cont_l_match[:, 0] ) ) )
-    bspline_r_match = np.vstack( ( cont_r_match[:, 0], bspline_r( cont_r_match[:, 0] ) ) )
-    
-    cont_match_3d_bspline = triangulate_points( bspline_l_match, bspline_r_match, stereo_params, distorted = True )
-
-    # triangulate the smooth bspline points
+    # - smooth 3-D points
+    print( 'Smoothing 3-D stereo points and fitting 3-D NURBS...' )
+    win_size = 55
+    cont_match_3d_sg = savgol_filter( cont_match_3d, win_size, 1, deriv = 0 )  
         
-    #========================== NURBS ==========================================
-    # # NURBS fitting (NOT Functional)
-    # nurbs = fit_nurbs( cont_match_3d.T[::5], degree = 3 )
-    # print( 'fit NURBS to 3-D triangulation' )
-    # nurbs.vis = VisMPL.VisCurve3D()
-    # print( 'after vis' )
-    # nurbs.render()
-    # print( 'after render' )
-    #===========================================================================
+    # - NURBS fitting 
+    nurbs = fitting.approximate_curve( cont_match_3d_sg.T.tolist(), degree = 2, ctrlpts_size = 35 )
+    nurbs.delta = 0.005
+    nurbs.vis = VisMPL.VisCurve3D()
+    print( 'Smoothing and NURBS fit.', end = '\n\n' + 80 * '=' + '\n\n' )
     
     # test disparity mapping
     disparity = stereo_disparity( left_img, right_img, stereo_params )
     
     # show results
     if res_show:
+        print( 'Plotting...' )
         plt.ion()
         
         plt.figure()
@@ -1180,23 +1160,35 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         plt.imshow( lr_match )
         plt.title( 'matching contour points' )
         
-        f3d = plt.figure()
-        ax = plt.axes( projection = '3d' )
-        ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
-#         axisEqual3D( ax )
-        plt.title( '3-D needle reconstruction' )
+        extras = [
+                  dict( points = cont_match_3d.T.tolist(),
+                        name = 'triangulation',
+                        color = 'red',
+                        size = 1 ),
+                  dict( points = cont_match_3d_sg.T.tolist(),
+                       name = 'savgol_filter',
+                       color = 'green',
+                       size = 1 )
+                  ]        
+        nurbs.render( extras = extras )
         
-        f3d = plt.figure()
-        ax = plt.axes( projection = '3d' )
-        ax.plot( cont_match_3d_bspline[0], cont_match_3d_bspline[1], cont_match_3d_bspline[2] )
+#==================== OLD 3-D PLOTTING =========================================
+#         f3d = plt.figure()
+#         ax = fig3d.add_subplot(111, projection='3d')
+#         ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2], '.' , label = 'triangulation' )
+#         ax.plot( cont_match_3d_sg[0], cont_match_3d_sg[1], cont_match_3d_sg[2], '-' , label = 'savgol_filter' )
+# #         ax.plot( cont_match_3d_mvavg[0], cont_match_3d_mvavg[1], cont_match_3d_mvavg[2], '-' , label='moving average')
+#         plt.legend( [ 'nurbs', 'triangulation', 'savgol_filter'] )
 #         axisEqual3D( ax )
-        plt.title( '3-D needle reconstruction: bspline' )
+#         plt.title( '3-D needle reconstruction' )
+#===============================================================================
         
         plt.figure()
         plt.imshow( disparity, cmap = 'gray' )
         plt.title( 'stereo disparity map' )
         
         # close on enter
+        print( 'Press any key on the last figure to close all windows.' )
         plt.show()
         while True:
             try:
@@ -1212,12 +1204,15 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
             # except    
         # while
         
+        print( 'Closing all windows...' )
         plt.close( 'all' )
+        print( 'Plotting finished.', end = '\n\n' + 80 * '=' + '\n\n' )
         
     # if
     
     # save the processed images
     if save_dir:
+        print( 'Saving figures and files...' )
         save_fbase = save_dir + f"left-right-{file_num:04d}" + "_{:s}.png"
         save_fbase_txt = save_dir + f"left-right-{file_num:04d}" + "_{:s}.txt"
         # - skeletons
@@ -1234,11 +1229,18 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         print( 'Saved Figure:', save_fbase.format( 'cont-match' ) )
         
         # - 3D reconstruction
-        f3d = plt.figure()
-        ax = plt.axes( projection = '3d' )
-        axisEqual3D( ax )
-        ax.plot( cont_match_3d[0], cont_match_3d[1], cont_match_3d[2] )
-        plt.title( '3-D needle reconstruction' )
+        extras = [
+                  dict( points = cont_match_3d.T.tolist(),
+                        name = 'triangulation',
+                        color = 'red',
+                        size = 1 ),
+                  dict( points = cont_match_3d_sg.T.tolist(),
+                       name = 'savgol_filter',
+                       color = 'green',
+                       size = 1 )
+                  ]    
+        nurbs.render( plot = False, filename = save_fbase.format( '3d-reconstruction' ), extras = extras )
+        print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
         
         np.savetxt( save_fbase_txt.format( 'cont-match' ), np.hstack( ( cont_l_match, cont_r_match ) ) )
         print( 'Saved file:', save_fbase_txt.format( 'cont-match' ) )
@@ -1246,10 +1248,8 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         np.savetxt( save_fbase_txt.format( 'cont-match_3d' ), cont_match_3d )
         print( 'Saved file:', save_fbase_txt.format( 'cont-match_3d' ) )
         
-        plt.savefig( save_fbase.format( '3d-reconstruction' ), fig = f3d )
-        print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
-        
         plt.close()
+        print( 'Finished saving files and figures.', end = '\n\n' + 80 * '=' + '\n\n' )
         
     # if
     
@@ -1277,15 +1277,15 @@ if __name__ == '__main__':
     needle_dir = stereo_dir + "needle_examples/"
     grid_dir = stereo_dir + "grid_only/"
     
-    # load matlab stereo calibration parameters
+#     # load matlab stereo calibration parameters
 #     stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
 #     stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
 #     stereo_params = load_stereoparams_matlab( stereo_param_file )
     
     # iteratre through the current gathered images
-    for i in range( -1 ):
+    for i in range( 7 ):
         try:
-            main_needleproc( i, needle_dir, needle_dir, res_show = False )
+            main_needleproc( i, needle_dir, needle_dir, proc_show = False, res_show = False )
             
         except:
             print( 'passing:', i )
@@ -1295,7 +1295,7 @@ if __name__ == '__main__':
     # for
     
     # testing functions
-    main_needleproc( 6, needle_dir, False, proc_show = False, res_show = True )
+#     main_needleproc( 6, needle_dir, needle_dir, proc_show = False, res_show = False )
 #     main_gridproc( 2, grid_dir, grid_dir )
 #     main_dbg()
     
