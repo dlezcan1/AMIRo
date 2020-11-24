@@ -1171,6 +1171,8 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
                        size = 1 )
                   ]        
         nurbs.render( extras = extras )
+        ax = plt.gca()
+        axisEqual3D( ax )
         
 #==================== OLD 3-D PLOTTING =========================================
 #         f3d = plt.figure()
@@ -1240,6 +1242,8 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
                        size = 1 )
                   ]    
         nurbs.render( plot = False, filename = save_fbase.format( '3d-reconstruction' ), extras = extras )
+        ax = plt.gca()
+        axisEqual3D( ax )
         print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
         
         np.savetxt( save_fbase_txt.format( 'cont-match' ), np.hstack( ( cont_l_match, cont_r_match ) ) )
@@ -1283,7 +1287,7 @@ if __name__ == '__main__':
 #     stereo_params = load_stereoparams_matlab( stereo_param_file )
     
     # iteratre through the current gathered images
-    for i in range( 7 ):
+    for i in range( -1 ):
         try:
             main_needleproc( i, needle_dir, needle_dir, proc_show = False, res_show = False )
             
@@ -1295,7 +1299,7 @@ if __name__ == '__main__':
     # for
     
     # testing functions
-#     main_needleproc( 6, needle_dir, needle_dir, proc_show = False, res_show = False )
+    main_needleproc( 5, needle_dir, None, proc_show = False, res_show = True )
 #     main_gridproc( 2, grid_dir, grid_dir )
 #     main_dbg()
     
