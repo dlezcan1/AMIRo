@@ -886,12 +886,14 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = Fals
 def thresh( left_img, right_img, thresh = 'adapt' ):
     ''' image thresholding'''
     
-    if thresh.lower() == 'adapt':
-        left_thresh = cv2.adaptiveThreshold( left_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                            cv2.THRESH_BINARY_INV, 13, 4 )
-        right_thresh = cv2.adaptiveThreshold( right_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                            cv2.THRESH_BINARY_INV, 13, 4 )
-    
+    if isinstance(thresh, str):
+        if thresh.lower() == 'adapt':
+            left_thresh = cv2.adaptiveThreshold( left_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                                cv2.THRESH_BINARY_INV, 13, 4 )
+            right_thresh = cv2.adaptiveThreshold( right_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                                cv2.THRESH_BINARY_INV, 13, 4 )
+            
+        # if
     # if
     
     elif isinstance( thresh, ( float, int ) ):
