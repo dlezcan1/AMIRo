@@ -26,6 +26,7 @@ from sklearn.cluster import MeanShift, estimate_bandwidth
 # NURBS
 from geomdl import fitting
 from geomdl.visualization import VisMPL
+from BSpline1D import BSpline1D
 
 # color HSV ranges
 COLOR_HSVRANGE_RED = ( ( 0, 50, 50 ), ( 10, 255, 255 ) )
@@ -539,6 +540,126 @@ def imconcat( left_im, right_im, pad_val = 0, pad_size = 20 ):
 # imconcat
 
 
+def imgproc_jig( left_img, right_img,
+                         bor_l:list = [], bor_r:list = [],
+                         roi_l:tuple = (), roi_r:tuple = (),
+                         proc_show: bool = False ):
+    ''' wrapper function to process the left and right image pair for needle
+        centerline identification
+        
+     '''
+    
+    # convert to grayscale if not already
+    if left_img.ndim > 2:
+        left_img = cv2.cvtColor( left_img, cv2.COLOR_BGR2GRAY )
+
+    # if
+    if right_img.ndim > 2:
+        right_img = cv2.cvtColor( right_img, cv2.COLOR_BGR2GRAY )
+
+    # if
+    
+    # start the image processing
+    left_thresh, right_thresh = thresh( left_img, right_img, thresh = 80 )
+    
+    left_roi = roi( left_thresh, roi_l, full = True )
+    right_roi = roi( right_thresh, roi_r, full = True )
+    
+    left_thresh_bo = blackout_regions( left_roi, bor_l )
+    right_thresh_bo = blackout_regions( right_roi, bor_r )
+        
+    left_tmed, right_tmed = median_blur( left_thresh_bo, right_thresh_bo, ksize = 7 )
+    
+    left_close, right_close = bin_close( left_tmed, right_tmed, ksize = ( 7, 7 ) )
+    
+    left_open, right_open = bin_open( left_close, right_close, ksize = ( 3, 3 ) )
+    
+    left_dil, right_dil = bin_dilate( left_close, right_close, ksize = ( 0, 0 ) )
+    
+    left_skel, right_skel = skeleton( left_dil, right_dil )
+    
+    # get the contours ( sorted by length)
+    conts_l, conts_r = contours( left_skel, right_skel )
+    
+    # fit a bspline to the contours
+    pts_l = np.unique( np.vstack( conts_l[:-5] ).squeeze(), axis = 0 )
+    pts_r = np.unique( np.vstack( conts_r[:-5] ).squeeze(), axis = 0 )
+    bspline_l = BSpline1D( pts_l[:, 0], pts_l[:, 1], k = 3 )
+    bspline_r = BSpline1D( pts_r[:, 0], pts_r[:, 1], k = 3 )
+        
+    # grab all of the bspline points
+    s = np.linspace( 0, 1, 200 )
+    bspline_pts_l = np.vstack( ( bspline_l.unscale( s ), bspline_l( bspline_l.unscale( s ) ) ) ).T
+    bspline_pts_r = np.vstack( ( bspline_r.unscale( s ), bspline_r( bspline_r.unscale( s ) ) ) ).T
+    
+    if proc_show:
+        plt.ion()
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_thresh, right_thresh, 150 ), cmap = 'gray' )
+        plt.title( 'adaptive thresholding' )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_roi, right_roi, 150 ), cmap = 'gray' )
+        plt.title( 'roi: after thresholding' )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
+        plt.title( 'region suppression: roi' )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_tmed, right_tmed, 150 ), cmap = 'gray' )
+        plt.title( 'median filtering: after region suppression' )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_close, right_close, 150 ), cmap = 'gray' )
+        plt.title( 'closing: after median' )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
+        plt.title( 'opening: after closing' )
+
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
+        plt.title( 'dilation: after closing' )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( left_skel, right_skel, 150 ), cmap = 'gray' )
+        plt.title( 'skeletization: after dilation' )
+        
+        cont_left = left_img.copy().astype( np.uint8 )
+        cont_right = right_img.copy().astype( np.uint8 )
+        
+        cont_left = cv2.cvtColor( cont_left, cv2.COLOR_GRAY2RGB )
+        cont_right = cv2.cvtColor( cont_right, cv2.COLOR_GRAY2RGB )
+        
+        cv2.drawContours( cont_left, conts_l[:-5], -1, ( 255, 0, 0 ), 6 )
+        cv2.drawContours( cont_right, conts_r[:-5], -1, ( 255, 0, 0 ), 6 )
+        
+        cv2.drawContours( cont_left, conts_l, 0, ( 0, 255, 0 ), 3 )
+        cv2.drawContours( cont_right, conts_r, 0, ( 0, 255, 0 ), 3 )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( cont_left, cont_right, 150 ), cmap = 'gray' )
+        plt.title( 'contours' )
+        
+        impad = 20
+        bspl_left_img = cv2.cvtColor( left_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
+        bspl_right_img = cv2.cvtColor( right_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
+        
+        plt.figure( figsize = ( 18, 12 ) )
+        plt.imshow( imconcat( bspl_left_img, bspl_right_img, [0, 0, 255], pad_size = impad ) )
+        plt.plot( bspline_pts_l[:, 0], bspline_pts_l[:, 1], 'r-' )
+        plt.plot( bspline_pts_r[:, 0] + left_img.shape[1] + impad, bspline_pts_r[:, 1], 'r-' )
+        plt.title( 'bspline fits' )
+        
+    # if
+    
+    return left_skel, right_skel, [np.expand_dims( bspline_pts_l, axis = 1 )], [np.expand_dims( bspline_pts_r, axis = 1 )]
+    
+# imgproc_jig
+
+
 def median_blur( left_thresh, right_thresh, ksize = 11 ):
     left_med = cv2.medianBlur( left_thresh, ksize )
     right_med = cv2.medianBlur( right_thresh, ksize )
@@ -886,7 +1007,7 @@ def triangulate_points( pts_l, pts_r, stereo_params: dict, distorted:bool = Fals
 def thresh( left_img, right_img, thresh = 'adapt' ):
     ''' image thresholding'''
     
-    if isinstance(thresh, str):
+    if isinstance( thresh, str ):
         if thresh.lower() == 'adapt':
             left_thresh = cv2.adaptiveThreshold( left_img.astype( np.uint8 ), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                                 cv2.THRESH_BINARY_INV, 13, 4 )
@@ -1499,7 +1620,7 @@ if __name__ == '__main__':
     validation = False
     
     # directory settings
-    stereo_dir = "../Test Images/stereo_needle/"
+    stereo_dir = "../Test_Images/stereo_needle/"
     needle_dir = stereo_dir + "needle_examples/"  # needle insertion examples directory
     grid_dir = stereo_dir + "grid_only/"  # grid testing directory
     valid_dir = stereo_dir + "stereo_validation_jig/"  # validation directory
