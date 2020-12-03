@@ -8,16 +8,17 @@ This is a file for building image processing to segment the needle in stereo ima
 
 '''
 
+import re, glob
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import scipy.io as sio
-from scipy.signal import savgol_filter, convolve
+from scipy.signal import savgol_filter
 from scipy.ndimage import convolve1d
 
 # plotting
 from matplotlib import colors as pltcolors
-from mpl_toolkits.mplot3d import Axes3D  # 3D plotting
+from mpl_toolkits.mplot3d import Axes3D  # 3D plotting @UnusedImport
 
 from skimage.morphology import skeletonize
 from sklearn.cluster import MeanShift, estimate_bandwidth
@@ -25,10 +26,6 @@ from sklearn.cluster import MeanShift, estimate_bandwidth
 # NURBS
 from geomdl import fitting
 from geomdl.visualization import VisMPL
-
-# custom image processing
-from image_processing import fit_Bspline
-from BSpline1D import BSpline1D
 
 # color HSV ranges
 COLOR_HSVRANGE_RED = ( ( 0, 50, 50 ), ( 10, 255, 255 ) )
@@ -38,6 +35,19 @@ COLOR_HSVRANGE_YELLOW = ( ( 25, 50, 50 ), ( 35, 255, 255 ) )
 
 # image size
 IMAGE_SIZE = ( 768, 1024 )
+
+
+def axisEqual3D( ax ):
+    ''' taken from online '''
+    extents = np.array( [getattr( ax, 'get_{}lim'.format( dim ) )() for dim in 'xyz'] )
+    sz = extents[:, 1] - extents[:, 0]
+    centers = np.mean( extents, axis = 1 )
+    maxsize = max( abs( sz ) )
+    r = maxsize / 2
+    for ctr, dim in zip( centers, 'xyz' ):
+        getattr( ax, 'set_{}lim'.format( dim ) )( ctr - r, ctr + r )
+        
+# axisEqual3D
 
 
 def blackout( img, tl, br ):
@@ -721,10 +731,10 @@ def roi( img, roi, full:bool = True ):
         zval = 0 if img.ndim == 2 else np.array( [0, 0, 0] )
         
         # zero out values
-        img_roi [:tl_i,:] = zval
-        img_roi [br_i:,:] = zval
+        img_roi [:tl_i, :] = zval
+        img_roi [br_i:, :] = zval
         
-        img_roi [:,:tl_j] = zval
+        img_roi [:, :tl_j] = zval
         img_roi [:, br_j:] = zval
         
     # if
@@ -989,9 +999,9 @@ def main_dbg():
     Pl = stereo_params['P1']
     Pr = stereo_params['P2']
     pts_l = Pl @ world_pointsh
-    pts_l = ( pts_l / pts_l[-1] ).T[:,:-1]
+    pts_l = ( pts_l / pts_l[-1] ).T[:, :-1]
     pts_r = Pr @ world_pointsh
-    pts_r = ( pts_r / pts_r[-1] ).T[:,:-1]
+    pts_r = ( pts_r / pts_r[-1] ).T[:, :-1]
     
     print( 'pts shape (l,r):', pts_l.shape, pts_r.shape )
     tri_pts = triangulate_points( pts_l, pts_r, stereo_params, distorted = False )
@@ -1166,10 +1176,10 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
                         color = 'red',
                         size = 1 ),
                   dict( points = cont_match_3d_sg.T.tolist(),
-                       name = 'savgol_filter',
-                       color = 'green',
-                       size = 1 )
-                  ]        
+                     name = 'savgol_filter',
+                     color = 'green',
+                     size = 1 )
+                 ]
         nurbs.render( extras = extras )
         ax = plt.gca()
         axisEqual3D( ax )
@@ -1217,6 +1227,8 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         print( 'Saving figures and files...' )
         save_fbase = save_dir + f"left-right-{file_num:04d}" + "_{:s}.png"
         save_fbase_txt = save_dir + f"left-right-{file_num:04d}" + "_{:s}.txt"
+        save_fbase_fmt = save_dir + f"left-right-{file_num:04d}" + "_{:s}.{:s}"
+        
         # - skeletons
         plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
                     cmap = 'gray' )
@@ -1252,39 +1264,253 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
         np.savetxt( save_fbase_txt.format( 'cont-match_3d' ), cont_match_3d )
         print( 'Saved file:', save_fbase_txt.format( 'cont-match_3d' ) )
         
+        nurbs.save( save_fbase_fmt.format( 'nurbs', 'pkl' ) )
+        print( 'Saved nurbs:', save_fbase_fmt.format( 'nurbs', 'pkl' ) )
+        
+        np.savetxt( save_fbase_txt.format( 'nurbs-pts' ), nurbs.evalpts )
+        print( 'Saved file:', save_fbase_txt.format( 'nurbs-pts' ) )
+        
         plt.close()
         print( 'Finished saving files and figures.', end = '\n\n' + 80 * '=' + '\n\n' )
         
     # if
     
-    return cont_l_match, cont_r_match
+    return nurbs
 
 # main_needleproc
 
 
-def axisEqual3D( ax ):
-    ''' taken from online '''
-    extents = np.array( [getattr( ax, 'get_{}lim'.format( dim ) )() for dim in 'xyz'] )
-    sz = extents[:, 1] - extents[:, 0]
-    centers = np.mean( extents, axis = 1 )
-    maxsize = max( abs( sz ) )
-    r = maxsize / 2
-    for ctr, dim in zip( centers, 'xyz' ):
-        getattr( ax, 'set_{}lim'.format( dim ) )( ctr - r, ctr + r )
+def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_show:bool = False, res_show:bool = False ):
+    ''' 
+        NEED TO UPDATE NEEDLE PROCESSING FOR SKELETONIZATIONSQ
         
-# axisEqual3D
+        main method for needle validation
+        Validation is performed on the stepwise-"insertion" for the calibration jig
+        
+        Args:
+            file_nums: int or list of integers for the image number stereo pairs
+            img_dir: string of the curvature directory
+            save_dir (Default None): where to save the data (if None, no saving)
+            stereo_params: dict of stereo parameters
+            proc_show (bool = False): whether to show image processing
+            res_show (bool = False): whether to show the results
+    '''
+    # regex pattern
+    re_pattern = r".*k_([0-9].+[0-9]+)/?"
+    re_match = re.match( re_pattern, img_dir )
+    
+    if not re_match:
+        raise ValueError( "'file_dir' does not have a valid curvature format." )
+    
+    # if
+    
+    k = float( re_match.group( 1 ) )  # curvature (1/m)
+    print( 'Processing curvature = ', k, '1/m' )
+    
+    # iterate through the stereo pairs
+    if isinstance( file_nums, int ):
+        file_nums = range( file_nums )
+        
+    # if
+    for img_num in file_nums:
+        # left-right stereo pairs
+        left_file = img_dir + f'left-{img_num:04d}.png'
+        right_file = img_dir + f'right-{img_num:04d}.png'
+        left_img = cv2.imread( left_file, cv2.IMREAD_ANYCOLOR )
+        right_img = cv2.imread( right_file, cv2.IMREAD_ANYCOLOR )
+        
+        # image read check
+        if ( left_img is None ) or ( right_img is None ):
+            print( f'Passing stereo pair number: {img_num:04d}. Stereo pair not found.' )
+            print()
+            continue
+        
+        # if
+        
+        # stereo image processing
+        bor_l = []
+        bor_r = []
+        roi_l = []
+        roi_r = []
+        print( 'Processing stereo pair...' )
+        left_skel, right_skel, conts_l, conts_r = needleproc_stereo( left_img, right_img,
+                                                                    bor_l, bor_r,
+                                                                    roi_l, roi_r,
+                                                                    proc_show )
+        cont_l_match, cont_r_match = stereomatch_needle( conts_l[0], conts_r[0],
+                                                        start_location = 'tip',
+                                                        col = 1 )
+        
+        # - draw contour matching
+        left_cont = left_img.copy()
+        left_cont = cv2.drawContours( left_cont, conts_l, 0, ( 255, 0, 0 ), 12 )
+        
+        right_cont = right_img.copy()
+        right_cont = cv2.drawContours( right_cont, conts_r, 0, ( 255, 0, 0 ), 12 )
+        
+        left_match = left_cont.copy()
+        cv2.drawContours( left_match, [np.vstack( ( cont_l_match, np.flip( cont_l_match, 0 ) ) )], 0, ( 0, 255, 0 ), 4 )
+        
+        right_match = right_cont.copy()
+        cv2.drawContours( right_match, [np.vstack( ( cont_r_match, np.flip( cont_r_match, 0 ) ) )], 0, ( 0, 255, 0 ), 4 )
+        
+        # -- draw lines from matching points
+        plot_pt_freq = int( 0.1 * len( cont_l_match ) )
+        pad_width = 20
+        lr_match = imconcat( left_match, right_match, pad_val = [0, 0, 255], pad_size = pad_width )
+        for ( x_l, y_l ), ( x_r, y_r ) in zip( cont_l_match[::plot_pt_freq ], cont_r_match[::plot_pt_freq ] ):
+            cv2.line( lr_match, ( x_l, y_l ), ( x_r + pad_width + right_match.shape[1], y_r ), [255, 0, 255], 2 )
+            
+        # for
+        
+        # stereo triangulation
+        print( 'Triangulating needle points...' )
+        needle_tri = triangulate_points( cont_l_match, cont_r_match, stereo_params, distorted = True )
+        
+        # - smooth 3-D points
+        print( 'Smoothing 3-D stereo points and fitting 3-D NURBS...' )
+        win_size = 55
+        sg_needle_tri = savgol_filter( needle_tri, win_size, 1, deriv = 0 )
+            
+        # - NURBS fitting 
+        nurbs = fitting.approximate_curve( sg_needle_tri.T.tolist(), degree = 2, ctrlpts_size = 35 )
+        nurbs.delta = 0.005
+        
+        print( 'Obtained 3-D centerline of needle.' )
+        
+        # show results
+        if res_show:
+            print( 'Plotting...' )
+            plt.ion()
+            
+            plt.figure()
+            plt.imshow( imconcat( left_skel, right_skel, pad_val = 150 ) )
+            plt.title( 'Skeletonized images' )
+            
+            plt.figure()
+            plt.imshow( imconcat( left_cont, right_cont, pad_val = [0, 0, 255] ) )
+            plt.title( 'Contours of needle' )
+            
+            plt.figure()
+            plt.imshow( lr_match )
+            plt.title( 'matching contour points' )
+            
+            extras = [
+                      dict( points = needle_tri.T.tolist(),
+                            name = 'triangulation',
+                            color = 'red',
+                            size = 1 ),
+                      dict( points = sg_needle_tri.T.tolist(),
+                         name = 'savgol_filter',
+                         color = 'green',
+                         size = 1 )
+                     ]
+            nurbs.render( extras = extras )
+            ax = plt.gca()
+            axisEqual3D( ax )
+            
+            # close on enter
+            print( 'Press any key on the last figure to close all windows.' )
+            plt.show()
+            while True:
+                try:
+                    if plt.waitforbuttonpress( 0 ):
+                        break
+                    
+                    # if
+                # try
+                
+                except:
+                    break
+                
+                # except    
+            # while
+            
+            print( 'Closing all windows...' )
+            plt.close( 'all' )
+            print( 'Plotting finished.', end = '\n\n' + 80 * '=' + '\n\n' )
+            
+        # if
+        
+        # save the processed images
+        if save_dir:
+            print( 'Saving figures and files...' )
+            save_fbase = save_dir + f"left-right-{img_num:04d}" + "_{:s}.png"
+            save_fbase_txt = save_dir + f"left-right-{img_num:04d}" + "_{:s}.txt"
+            save_fbase_fmt = save_dir + f"left-right-{img_num:04d}" + "_{:s}.{:s}"
+            
+            # - skeletons
+            plt.imsave( save_fbase.format( 'skel' ), imconcat( left_skel, right_skel, 150 ),
+                        cmap = 'gray' )
+            print( 'Saved figure:', save_fbase.format( 'skel' ) )
+            
+            # - contours
+            plt.imsave( save_fbase.format( 'cont' ), imconcat( left_cont, right_cont, pad_val = [0, 0, 255] ) )
+            print( 'Saved figure:', save_fbase.format( 'cont' ) )
+            
+            # - matching contours
+            plt.imsave( save_fbase.format( 'cont-match' ), lr_match )
+            print( 'Saved Figure:', save_fbase.format( 'cont-match' ) )
+            
+            # - 3D reconstruction
+            extras = [
+                      dict( points = needle_tri.T.tolist(),
+                            name = 'triangulation',
+                            color = 'red',
+                            size = 1 ),
+                      dict( points = sg_needle_tri.T.tolist(),
+                           name = 'savgol_filter',
+                           color = 'green',
+                           size = 1 )
+                      ]    
+            nurbs.render( plot = False, filename = save_fbase.format( '3d-reconstruction' ), extras = extras )
+            ax = plt.gca()
+            axisEqual3D( ax )
+            print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
+            
+            np.savetxt( save_fbase_txt.format( 'cont-match' ), np.hstack( ( cont_l_match, cont_r_match ) ) )
+            print( 'Saved file:', save_fbase_txt.format( 'cont-match' ) )
+            
+            np.savetxt( save_fbase_txt.format( 'cont-match_3d' ), needle_tri )
+            print( 'Saved file:', save_fbase_txt.format( 'cont-match_3d' ) )
+            
+            nurbs.save( save_fbase_fmt.format( 'nurbs', 'pkl' ) )
+            print( 'Saved nurbs:', save_fbase_fmt.format( 'nurbs', 'pkl' ) )
+            
+            np.savetxt( save_fbase_txt.format( 'nurbs-pts' ), nurbs.evalpts )
+            print( 'Saved file:', save_fbase_txt.format( 'nurbs-pts' ) )
+            
+            plt.close()
+            print( 'Finished saving files and figures.', end = '\n\n' + 80 * '=' + '\n\n' )
+            
+        # if
+        print( f'Completed stereo_pair {img_num:04d}.' )
+        print( '\n' + 75 * '=', end = '\n\n' )
+        
+    # for
+    
+# main_needleval
 
 
 if __name__ == '__main__':
+    # set-up
+    validation = False
+    
     # directory settings
     stereo_dir = "../Test Images/stereo_needle/"
-    needle_dir = stereo_dir + "needle_examples/"
-    grid_dir = stereo_dir + "grid_only/"
+    needle_dir = stereo_dir + "needle_examples/"  # needle insertion examples directory
+    grid_dir = stereo_dir + "grid_only/"  # grid testing directory
+    valid_dir = stereo_dir + "stereo_validation_jig/"  # validation directory
     
-#     # load matlab stereo calibration parameters
-#     stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
-#     stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
-#     stereo_params = load_stereoparams_matlab( stereo_param_file )
+    curvature_dir = glob.glob( valid_dir + 'k_*/' )  # validation curvature directories
+    
+    # load matlab stereo calibration parameters
+    stereo_param_dir = "../Stereo_Camera_Calibration_10-23-2020"
+    stereo_param_file = stereo_param_dir + "/calibrationSession_params-error_opencv-struct.mat"
+    stereo_params = load_stereoparams_matlab( stereo_param_file )
+    
+    # regex pattern
+    pattern = r".*/?(left|right)-([0-9]{4}).png"  # image regex
     
     # iteratre through the current gathered images
     for i in range( -1 ):
@@ -1298,8 +1524,23 @@ if __name__ == '__main__':
         
     # for
     
+    # perform validation over the entire dataset
+    if validation:
+        for curv_dir in curvature_dir:
+            # gather curvature file numbers
+            files = glob.glob( curv_dir + 'left-*.png' )
+            file_nums = [int( re.match( pattern, f ).group( 2 ) ) for f in files if re.match( pattern, f )]
+            
+            main_needleval( file_nums, curv_dir, stereo_params, None, proc_show = True, res_show = True )
+            
+        # for
+        
+    # if
+            
+    # iterate over validation directories
+    
     # testing functions
-    main_needleproc( 5, needle_dir, None, proc_show = False, res_show = True )
+    main_needleproc( 5, curvature_dir[0], None, proc_show = True, res_show = True )
 #     main_gridproc( 2, grid_dir, grid_dir )
 #     main_dbg()
     
