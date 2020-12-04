@@ -22,6 +22,7 @@ from mpl_toolkits.mplot3d import Axes3D  # 3D plotting @UnusedImport
 
 from skimage.morphology import skeletonize
 from sklearn.cluster import MeanShift, estimate_bandwidth
+from sklearn.neighbors import LocalOutlierFactor
 
 # NURBS
 from geomdl import fitting
@@ -540,10 +541,9 @@ def imconcat( left_im, right_im, pad_val = 0, pad_size = 20 ):
 # imconcat
 
 
-def imgproc_jig( left_img, right_img,
-                         bor_l:list = [], bor_r:list = [],
-                         roi_l:tuple = (), roi_r:tuple = (),
-                         proc_show: bool = False ):
+def imgproc_jig( left_img, right_img, bor_l:list = [], bor_r:list = [],
+                 roi_l:tuple = (), roi_r:tuple = (),
+                 proc_show: bool = False ):
     ''' wrapper function to process the left and right image pair for needle
         centerline identification
         
@@ -560,7 +560,7 @@ def imgproc_jig( left_img, right_img,
     # if
     
     # start the image processing
-    left_thresh, right_thresh = thresh( left_img, right_img, thresh = 80 )
+    left_thresh, right_thresh = thresh( left_img, right_img, thresh = 70 )
     
     left_roi = roi( left_thresh, roi_l, full = True )
     right_roi = roi( right_thresh, roi_r, full = True )
@@ -574,18 +574,30 @@ def imgproc_jig( left_img, right_img,
     
     left_open, right_open = bin_open( left_close, right_close, ksize = ( 3, 3 ) )
     
-    left_dil, right_dil = bin_dilate( left_close, right_close, ksize = ( 0, 0 ) )
+    left_erode, right_erode = bin_erode( left_close, right_close, ksize = ( 0, 0 ) )
     
-    left_skel, right_skel = skeleton( left_dil, right_dil )
+    left_skel, right_skel = skeleton( left_erode, right_erode )
     
     # get the contours ( sorted by length)
     conts_l, conts_r = contours( left_skel, right_skel )
     
-    # fit a bspline to the contours
-    pts_l = np.unique( np.vstack( conts_l[:-5] ).squeeze(), axis = 0 )
-    pts_r = np.unique( np.vstack( conts_r[:-5] ).squeeze(), axis = 0 )
-    bspline_l = BSpline1D( pts_l[:, 0], pts_l[:, 1], k = 3 )
-    bspline_r = BSpline1D( pts_r[:, 0], pts_r[:, 1], k = 3 )
+    # grab b-spline points
+    pts_l = np.unique( np.vstack( conts_l ).squeeze(), axis = 0 )
+    pts_r = np.unique( np.vstack( conts_r ).squeeze(), axis = 0 )
+    
+    # remove outliers
+    clf = LocalOutlierFactor( n_neighbors = 20, contamination = 'auto' )
+    clf.fit_predict( pts_l )
+    inliers_l = np.abs( -1 - clf.negative_outlier_factor_ ) < 0.5
+    
+    clf.fit_predict( pts_r )
+    inliers_r = np.abs( -1 - clf.negative_outlier_factor_ ) < 0.5
+    
+    pts_l_in = pts_l[inliers_l]
+    pts_r_in = pts_r[inliers_r]
+    
+    bspline_l = BSpline1D( pts_l_in[:, 0], pts_l_in[:, 1], k = 3 )
+    bspline_r = BSpline1D( pts_r_in[:, 0], pts_r_in[:, 1], k = 3 )
         
     # grab all of the bspline points
     s = np.linspace( 0, 1, 200 )
@@ -595,35 +607,35 @@ def imgproc_jig( left_img, right_img,
     if proc_show:
         plt.ion()
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( left_thresh, right_thresh, 150 ), cmap = 'gray' )
         plt.title( 'adaptive thresholding' )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( left_roi, right_roi, 150 ), cmap = 'gray' )
         plt.title( 'roi: after thresholding' )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( left_thresh_bo, right_thresh_bo, 150 ), cmap = 'gray' )
         plt.title( 'region suppression: roi' )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( left_tmed, right_tmed, 150 ), cmap = 'gray' )
         plt.title( 'median filtering: after region suppression' )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( left_close, right_close, 150 ), cmap = 'gray' )
         plt.title( 'closing: after median' )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
         plt.title( 'opening: after closing' )
-
-        plt.figure( figsize = ( 18, 12 ) )
-        plt.imshow( imconcat( left_open, right_open, 150 ), cmap = 'gray' )
-        plt.title( 'dilation: after closing' )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
+        plt.imshow( imconcat( left_erode, right_erode, 150 ), cmap = 'gray' )
+        plt.title( 'erosion: after opening' )
+        
+        plt.figure()
         plt.imshow( imconcat( left_skel, right_skel, 150 ), cmap = 'gray' )
         plt.title( 'skeletization: after dilation' )
         
@@ -633,13 +645,16 @@ def imgproc_jig( left_img, right_img,
         cont_left = cv2.cvtColor( cont_left, cv2.COLOR_GRAY2RGB )
         cont_right = cv2.cvtColor( cont_right, cv2.COLOR_GRAY2RGB )
         
-        cv2.drawContours( cont_left, conts_l[:-5], -1, ( 255, 0, 0 ), 6 )
-        cv2.drawContours( cont_right, conts_r[:-5], -1, ( 255, 0, 0 ), 6 )
+        cont_l_filt = [np.vstack( ( pts_l_in, np.flip( pts_l_in, axis = 0 ) ) ).astype( int )]
+        cont_r_filt = [np.vstack( ( pts_r_in, np.flip( pts_r_in, axis = 0 ) ) ).astype( int )]
+        
+        cv2.drawContours( cont_left, cont_l_filt, -1, ( 255, 0, 0 ), 6 )
+        cv2.drawContours( cont_right, cont_r_filt, -1, ( 255, 0, 0 ), 6 )
         
         cv2.drawContours( cont_left, conts_l, 0, ( 0, 255, 0 ), 3 )
         cv2.drawContours( cont_right, conts_r, 0, ( 0, 255, 0 ), 3 )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( cont_left, cont_right, 150 ), cmap = 'gray' )
         plt.title( 'contours' )
         
@@ -647,15 +662,36 @@ def imgproc_jig( left_img, right_img,
         bspl_left_img = cv2.cvtColor( left_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
         bspl_right_img = cv2.cvtColor( right_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
         
-        plt.figure( figsize = ( 18, 12 ) )
+        plt.figure()
         plt.imshow( imconcat( bspl_left_img, bspl_right_img, [0, 0, 255], pad_size = impad ) )
         plt.plot( bspline_pts_l[:, 0], bspline_pts_l[:, 1], 'r-' )
         plt.plot( bspline_pts_r[:, 0] + left_img.shape[1] + impad, bspline_pts_r[:, 1], 'r-' )
         plt.title( 'bspline fits' )
         
+        # close on enter
+        print( 'Press any key on the last figure to close all windows.' )
+        plt.show()
+        while True:
+            try:
+                if plt.waitforbuttonpress( 0 ):
+                    break
+                
+                # if
+            # try
+            
+            except:
+                break
+            
+            # except    
+        # while
+        
+        print( 'Closing all windows...' )
+        plt.close( 'all' )
+        print( 'Plotting finished.', end = '\n\n' + 80 * '=' + '\n\n' )
+        
     # if
     
-    return left_skel, right_skel, [np.expand_dims( bspline_pts_l, axis = 1 )], [np.expand_dims( bspline_pts_r, axis = 1 )]
+    return left_skel, right_skel, np.expand_dims( bspline_pts_l, axis = 1 ), np.expand_dims( bspline_pts_r, axis = 1 )
     
 # imgproc_jig
 
@@ -811,7 +847,7 @@ def needleproc_stereo( left_img, right_img,
         cv2.drawContours( cont_right, conts_r, 0, ( 255, 0, 0 ), 3 )
         
         plt.figure()
-        plt.imshow( imconcat( cont_left, cont_right, 150 ), cmap = 'gray' )
+        plt.imshow( imconcat( cont_left, cont_right, 150 ) )
         plt.title( 'contour: the longest 1' )
         
         plt.show()
@@ -1435,6 +1471,12 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_sho
         file_nums = range( file_nums )
         
     # if
+    
+    # load in the pre-determined ROIs
+    rois_rl = np.load( img_dir + 'rois_lr.npy' )
+    rois_l = rois_rl[:, :, 0:2].tolist()
+    rois_r = rois_rl[:, :, 2:4].tolist()
+    
     for img_num in file_nums:
         # left-right stereo pairs
         left_file = img_dir + f'left-{img_num:04d}.png'
@@ -1453,36 +1495,41 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_sho
         # stereo image processing
         bor_l = []
         bor_r = []
-        roi_l = []
-        roi_r = []
+        roi_l = tuple( rois_l[img_num] )
+        roi_r = tuple( rois_r[img_num] )
         print( 'Processing stereo pair...' )
-        left_skel, right_skel, conts_l, conts_r = needleproc_stereo( left_img, right_img,
-                                                                    bor_l, bor_r,
-                                                                    roi_l, roi_r,
-                                                                    proc_show )
-        cont_l_match, cont_r_match = stereomatch_needle( conts_l[0], conts_r[0],
+        left_skel, right_skel, conts_l, conts_r = imgproc_jig( left_img, right_img,
+                                                               bor_l = bor_l, bor_r = bor_r,
+                                                               roi_l = roi_l, roi_r = roi_r,
+                                                               proc_show = proc_show )
+        
+        cont_l_match, cont_r_match = stereomatch_needle( conts_l, conts_r,
                                                         start_location = 'tip',
                                                         col = 1 )
         
         # - draw contour matching
         left_cont = left_img.copy()
-        left_cont = cv2.drawContours( left_cont, conts_l, 0, ( 255, 0, 0 ), 12 )
+        left_cont = cv2.drawContours( left_cont, [conts_l.astype( int )], 0, ( 255, 0, 0 ), 12 )
         
         right_cont = right_img.copy()
-        right_cont = cv2.drawContours( right_cont, conts_r, 0, ( 255, 0, 0 ), 12 )
+        right_cont = cv2.drawContours( right_cont, [conts_r.astype( int )], 0, ( 255, 0, 0 ), 12 )
         
         left_match = left_cont.copy()
-        cv2.drawContours( left_match, [np.vstack( ( cont_l_match, np.flip( cont_l_match, 0 ) ) )], 0, ( 0, 255, 0 ), 4 )
+        cv2.drawContours( left_match, [np.vstack( ( cont_l_match, np.flip( cont_l_match, 0 ) ) ).astype( int )],
+                           0, ( 0, 255, 0 ), 4 )
         
         right_match = right_cont.copy()
-        cv2.drawContours( right_match, [np.vstack( ( cont_r_match, np.flip( cont_r_match, 0 ) ) )], 0, ( 0, 255, 0 ), 4 )
+        cv2.drawContours( right_match, [np.vstack( ( cont_r_match, np.flip( cont_r_match, 0 ) ) ).astype( int )],
+                           0, ( 0, 255, 0 ), 4 )
         
         # -- draw lines from matching points
         plot_pt_freq = int( 0.1 * len( cont_l_match ) )
         pad_width = 20
         lr_match = imconcat( left_match, right_match, pad_val = [0, 0, 255], pad_size = pad_width )
         for ( x_l, y_l ), ( x_r, y_r ) in zip( cont_l_match[::plot_pt_freq ], cont_r_match[::plot_pt_freq ] ):
-            cv2.line( lr_match, ( x_l, y_l ), ( x_r + pad_width + right_match.shape[1], y_r ), [255, 0, 255], 2 )
+            cv2.line( lr_match, ( int( x_l ), int( y_l ) ),
+                      ( int( x_r ) + pad_width + right_match.shape[1], int( y_r ) ),
+                      [255, 0, 255], 2 )
             
         # for
         
@@ -1530,7 +1577,7 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_sho
                      ]
             nurbs.render( extras = extras )
             ax = plt.gca()
-            axisEqual3D( ax )
+#             axisEqual3D( ax )
             
             # close on enter
             print( 'Press any key on the last figure to close all windows.' )
@@ -1617,12 +1664,12 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_sho
 
 if __name__ == '__main__':
     # set-up
-    validation = False
+    validation = True
     
     # directory settings
     stereo_dir = "../Test_Images/stereo_needle/"
     needle_dir = stereo_dir + "needle_examples/"  # needle insertion examples directory
-    grid_dir = stereo_dir + "grid_only/"  # grid testing directory
+    grid_dir = stereo_dir + "grid_only/"  # grid testqing directory
     valid_dir = stereo_dir + "stereo_validation_jig/"  # validation directory
     
     curvature_dir = glob.glob( valid_dir + 'k_*/' )  # validation curvature directories
@@ -1638,7 +1685,7 @@ if __name__ == '__main__':
     # iteratre through the current gathered images
     for i in range( -1 ):
         try:
-            main_needleproc( i, needle_dir, needle_dir, proc_show = False, res_show = False )
+            main_needleproc( i, needle_dir, needle_dir, proc_show = True, res_show = False )
             
         except:
             print( 'passing:', i )
@@ -1649,12 +1696,12 @@ if __name__ == '__main__':
     
     # perform validation over the entire dataset
     if validation:
-        for curv_dir in curvature_dir:
+        for curv_dir in curvature_dir[0:1]:
             # gather curvature file numbers
-            files = glob.glob( curv_dir + 'left-*.png' )
+            files = sorted( glob.glob( curv_dir + 'left-*.png' ) )
             file_nums = [int( re.match( pattern, f ).group( 2 ) ) for f in files if re.match( pattern, f )]
             
-            main_needleval( file_nums, curv_dir, stereo_params, None, proc_show = True, res_show = True )
+            main_needleval( file_nums, curv_dir, stereo_params, None, proc_show = True, res_show = False )
             
         # for
         
@@ -1663,7 +1710,7 @@ if __name__ == '__main__':
     # iterate over validation directories
     
     # testing functions
-    main_needleproc( 5, curvature_dir[0], None, proc_show = True, res_show = True )
+#     main_needleproc( 5, curvature_dir[0], None, proc_show = True, res_show = True )
 #     main_gridproc( 2, grid_dir, grid_dir )
 #     main_dbg()
     
