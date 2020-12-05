@@ -8,13 +8,14 @@ This is a file for building image processing to segment the needle in stereo ima
 
 '''
 
-import re, glob
+import re, glob, warnings
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import scipy.io as sio
 from scipy.signal import savgol_filter
 from scipy.ndimage import convolve1d
+from scipy.optimize import minimize, Bounds
 
 # plotting
 from matplotlib import colors as pltcolors
@@ -28,6 +29,9 @@ from sklearn.neighbors import LocalOutlierFactor
 from geomdl import fitting
 from geomdl.visualization import VisMPL
 from BSpline1D import BSpline1D
+
+# custom functions
+from needle_segmentation_functions import find_coordinate_image, find_hsv_image
 
 # color HSV ranges
 COLOR_HSVRANGE_RED = ( ( 0, 50, 50 ), ( 10, 255, 255 ) )
@@ -121,6 +125,60 @@ def canny( left_img, right_img, lo_thresh = 150, hi_thresh = 200 ):
     return canny_left, canny_right
 
 # canny
+
+
+def centerline_from_contours( contours, len_thresh:int = -1, bspline_k:int = -1,
+                              outlier_thresh:float = -1, num_neigbors: int = -1 ):
+    ''' This is to determine the centerline points from the contours using outlier detection
+        and bspline smoothing
+    
+        @param contours: the image contours
+        @param len_thresh: a length threshold to remove small length contours.
+                                             using np.inf will filter out all but the longest length
+                                             contour.
+        @param bspline_k: the degree to fit a bspline. If less than 1, bspline will not be fit and
+                          will return bspline=None.
+        
+        @param outlier_thresh: the outlier thresholding value
+        @param num_neighbors: the number of neigbhors parameter needed for the outlier detection
+        
+        @return: pts, bspline:
+                    pts = [N x 2] numpy array of bspline pts (i, j) image points
+                    bspline = None or bspline that was fit to the contours 
+    
+    '''
+    # length thresholding
+    len_thresh = min( len_thresh, max( [len( c ) for c in contours] ) )  # don't go over max length
+    contours_filt = [c for c in contours if len( c ) >= len_thresh]
+    
+    # numpy-tize points
+    pts = np.unique( np.vstack( contours_filt ).squeeze(), axis = 0 )
+    
+    # outlier detection
+    if ( outlier_thresh >= 0 ) and ( num_neigbors > 0 ):
+        clf = LocalOutlierFactor( n_neighbors = num_neigbors, contamination = 'auto' )
+        clf.fit_predict( pts )
+        inliers = np.abs( -1 - clf.negative_outlier_factor_ ) < outlier_thresh
+
+        pts = pts[inliers]
+        
+    # if: outlier detection
+    
+    # fit bspline
+    bspline = None
+    if bspline_k > 0:
+    
+        bspline = BSpline1D( pts[:, 0], pts[:, 1], k = bspline_k )
+        
+        # grab all of the bspline points
+        s = np.linspace( 0, 1, 200 )
+        pts = np.stack( ( bspline.unscale( s ), bspline( bspline.unscale( s ) ) ) ).T
+        
+    # if: bspline
+
+    return pts, bspline
+
+# centerline from_contours
 
 
 def color_segmentation( left_img, right_img, color ):
@@ -560,7 +618,7 @@ def imgproc_jig( left_img, right_img, bor_l:list = [], bor_r:list = [],
     # if
     
     # start the image processing
-    left_thresh, right_thresh = thresh( left_img, right_img, thresh = 70 )
+    left_thresh, right_thresh = thresh( left_img, right_img, thresh = 75 )
     
     left_roi = roi( left_thresh, roi_l, full = True )
     right_roi = roi( right_thresh, roi_r, full = True )
@@ -574,35 +632,38 @@ def imgproc_jig( left_img, right_img, bor_l:list = [], bor_r:list = [],
     
     left_open, right_open = bin_open( left_close, right_close, ksize = ( 3, 3 ) )
     
-    left_erode, right_erode = bin_erode( left_close, right_close, ksize = ( 0, 0 ) )
+    left_dil, right_dil = bin_erode( left_close, right_close, ksize = ( 3, 3 ) )
     
-    left_skel, right_skel = skeleton( left_erode, right_erode )
+    left_skel, right_skel = skeleton( left_dil, right_dil )
     
     # get the contours ( sorted by length)
     conts_l, conts_r = contours( left_skel, right_skel )
     
-    # grab b-spline points
-    pts_l = np.unique( np.vstack( conts_l ).squeeze(), axis = 0 )
-    pts_r = np.unique( np.vstack( conts_r ).squeeze(), axis = 0 )
-    
-    # remove outliers
-    clf = LocalOutlierFactor( n_neighbors = 20, contamination = 'auto' )
-    clf.fit_predict( pts_l )
-    inliers_l = np.abs( -1 - clf.negative_outlier_factor_ ) < 0.5
-    
-    clf.fit_predict( pts_r )
-    inliers_r = np.abs( -1 - clf.negative_outlier_factor_ ) < 0.5
-    
-    pts_l_in = pts_l[inliers_l]
-    pts_r_in = pts_r[inliers_r]
-    
-    bspline_l = BSpline1D( pts_l_in[:, 0], pts_l_in[:, 1], k = 3 )
-    bspline_r = BSpline1D( pts_r_in[:, 0], pts_r_in[:, 1], k = 3 )
-        
-    # grab all of the bspline points
-    s = np.linspace( 0, 1, 200 )
-    bspline_pts_l = np.vstack( ( bspline_l.unscale( s ), bspline_l( bspline_l.unscale( s ) ) ) ).T
-    bspline_pts_r = np.vstack( ( bspline_r.unscale( s ), bspline_r( bspline_r.unscale( s ) ) ) ).T
+    #===========================================================================
+    #  
+    # # grab b-spline points
+    # pts_l = np.unique( np.vstack( conts_l ).squeeze(), axis = 0 )
+    # pts_r = np.unique( np.vstack( conts_r ).squeeze(), axis = 0 )
+    #  
+    # # remove outliers
+    # clf = LocalOutlierFactor( n_neighbors = 20, contamination = 'auto' )
+    # clf.fit_predict( pts_l )
+    # inliers_l = np.abs( -1 - clf.negative_outlier_factor_ ) < 0.5
+    #  
+    # clf.fit_predict( pts_r )
+    # inliers_r = np.abs( -1 - clf.negative_outlier_factor_ ) < 0.5
+    #  
+    # pts_l_in = pts_l[inliers_l]
+    # pts_r_in = pts_r[inliers_r]
+    #  
+    # bspline_l = BSpline1D( pts_l_in[:, 0], pts_l_in[:, 1], k = 3 )
+    # bspline_r = BSpline1D( pts_r_in[:, 0], pts_r_in[:, 1], k = 3 )
+    #      
+    # # grab all of the bspline points
+    # s = np.linspace( 0, 1, 200 )
+    # bspline_pts_l = np.vstack( ( bspline_l.unscale( s ), bspline_l( bspline_l.unscale( s ) ) ) ).T
+    # bspline_pts_r = np.vstack( ( bspline_r.unscale( s ), bspline_r( bspline_r.unscale( s ) ) ) ).T
+    #===========================================================================
     
     if proc_show:
         plt.ion()
@@ -632,8 +693,8 @@ def imgproc_jig( left_img, right_img, bor_l:list = [], bor_r:list = [],
         plt.title( 'opening: after closing' )
         
         plt.figure()
-        plt.imshow( imconcat( left_erode, right_erode, 150 ), cmap = 'gray' )
-        plt.title( 'erosion: after opening' )
+        plt.imshow( imconcat( left_dil, right_dil, 150 ), cmap = 'gray' )
+        plt.title( 'dilation: after opening' )
         
         plt.figure()
         plt.imshow( imconcat( left_skel, right_skel, 150 ), cmap = 'gray' )
@@ -645,28 +706,36 @@ def imgproc_jig( left_img, right_img, bor_l:list = [], bor_r:list = [],
         cont_left = cv2.cvtColor( cont_left, cv2.COLOR_GRAY2RGB )
         cont_right = cv2.cvtColor( cont_right, cv2.COLOR_GRAY2RGB )
         
-        cont_l_filt = [np.vstack( ( pts_l_in, np.flip( pts_l_in, axis = 0 ) ) ).astype( int )]
-        cont_r_filt = [np.vstack( ( pts_r_in, np.flip( pts_r_in, axis = 0 ) ) ).astype( int )]
-        
-        cv2.drawContours( cont_left, cont_l_filt, -1, ( 255, 0, 0 ), 6 )
-        cv2.drawContours( cont_right, cont_r_filt, -1, ( 255, 0, 0 ), 6 )
-        
-        cv2.drawContours( cont_left, conts_l, 0, ( 0, 255, 0 ), 3 )
-        cv2.drawContours( cont_right, conts_r, 0, ( 0, 255, 0 ), 3 )
-        
+        cv2.drawContours( cont_left, conts_l, -1, ( 255, 0, 0 ), 3 )
+        cv2.drawContours( cont_right, conts_r, -1, ( 255, 0, 0 ), 3 )
         plt.figure()
-        plt.imshow( imconcat( cont_left, cont_right, 150 ), cmap = 'gray' )
+        plt.imshow( imconcat( cont_left, cont_right, [0, 0, 255] ) )
         plt.title( 'contours' )
         
-        impad = 20
-        bspl_left_img = cv2.cvtColor( left_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
-        bspl_right_img = cv2.cvtColor( right_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
-        
-        plt.figure()
-        plt.imshow( imconcat( bspl_left_img, bspl_right_img, [0, 0, 255], pad_size = impad ) )
-        plt.plot( bspline_pts_l[:, 0], bspline_pts_l[:, 1], 'r-' )
-        plt.plot( bspline_pts_r[:, 0] + left_img.shape[1] + impad, bspline_pts_r[:, 1], 'r-' )
-        plt.title( 'bspline fits' )
+        #=======================================================================
+        # cont_l_filt = [np.vstack( ( pts_l_in, np.flip( pts_l_in, axis = 0 ) ) ).astype( int )]
+        # cont_r_filt = [np.vstack( ( pts_r_in, np.flip( pts_r_in, axis = 0 ) ) ).astype( int )]
+        # 
+        # cv2.drawContours( cont_left, cont_l_filt, -1, ( 255, 0, 0 ), 6 )
+        # cv2.drawContours( cont_right, cont_r_filt, -1, ( 255, 0, 0 ), 6 )
+        # 
+        # cv2.drawContours( cont_left, conts_l, 0, ( 0, 255, 0 ), 3 )
+        # cv2.drawContours( cont_right, conts_r, 0, ( 0, 255, 0 ), 3 )
+        # 
+        # plt.figure()
+        # plt.imshow( imconcat( cont_left, cont_right, 150 ), cmap = 'gray' )
+        # plt.title( 'contours' )
+        # 
+        # impad = 20
+        # bspl_left_img = cv2.cvtColor( left_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
+        # bspl_right_img = cv2.cvtColor( right_img.copy().astype( np.uint8 ), cv2.COLOR_GRAY2RGB )
+        # 
+        # plt.figure()
+        # plt.imshow( imconcat( bspl_left_img, bspl_right_img, [0, 0, 255], pad_size = impad ) )
+        # plt.plot( bspline_pts_l[:, 0], bspline_pts_l[:, 1], 'r-' )
+        # plt.plot( bspline_pts_r[:, 0] + left_img.shape[1] + impad, bspline_pts_r[:, 1], 'r-' )
+        # plt.title( 'bspline fits' )
+        #=======================================================================
         
         # close on enter
         print( 'Press any key on the last figure to close all windows.' )
@@ -691,7 +760,7 @@ def imgproc_jig( left_img, right_img, bor_l:list = [], bor_r:list = [],
         
     # if
     
-    return left_skel, right_skel, np.expand_dims( bspline_pts_l, axis = 1 ), np.expand_dims( bspline_pts_r, axis = 1 )
+    return left_skel, right_skel, conts_l, conts_r
     
 # imgproc_jig
 
@@ -940,7 +1009,8 @@ def stereo_disparity( left_gray, right_gray, stereo_params: dict ):
 # stereo_disparity
 
 
-def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int = 1 ):
+def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int = 1,
+                        bspline_l = None, bspline_r = None ):
     ''' stereo matching needle arclength points for the needle
         
         
@@ -959,23 +1029,84 @@ def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int
     right_conts = np.squeeze( right_conts )
     
     # remove duplicate rows
-    left_conts = np.unique( left_conts, axis = 0 )
-    right_conts = np.unique( right_conts, axis = 0 )
+    pts_l = np.unique( left_conts, axis = 0 )
+    pts_r = np.unique( right_conts, axis = 0 )
     
     # find the minimum number of points to match
-    n = min( left_conts.shape[0], right_conts.shape[0] )
     
-    if start_location.lower() == "tip":
-        left_idx = np.argsort( left_conts[:, col] )[-n:]
-        right_idx = np.argsort( right_conts[:, col] )[-n:]
+    if start_location == "tip":
+        if bspline_l is None or bspline_r is None:
+            n = min( pts_l.shape[0], pts_r.shape[0] )
+            left_idx = np.argsort( pts_l[:, col] )[-n:]
+            right_idx = np.argsort( pts_r[:, col] )[-n:]
+            
+            left_matches = pts_l[left_idx]
+            right_matches = pts_r[right_idx]
+            
+        # if
         
-        left_matches = left_conts[left_idx]
-        right_matches = right_conts[right_idx]
+        else:
+            warnings.filterwarnings('ignore', category=UserWarning, module='BSpline1D')
+            # determine each of the bspline arclengths
+            s_bnd = np.array( [0, 1] )
+            xl_bnd = bspline_l.unscale( s_bnd )
+            xr_bnd = bspline_r.unscale( s_bnd )
+            al_l = bspline_l.arclength( xl_bnd[0], xl_bnd[1] )
+            al_r = bspline_r.arclength( xr_bnd[0], xr_bnd[1] )
+            al_l_sc = bspline_l._scale( al_l )  # scale the arclength down
+            al_r_sc = bspline_r._scale( al_r )  # scale the arclength down 
+            
+            # if they are the about the same arclength
+            if np.abs( al_l_sc - al_r_sc ) < 1:
+                left_matches = pts_l
+                right_matches = pts_r
+                
+            # if
+            
+            elif al_l_sc < al_r_sc:
+                # find the corresponding arclength in the right contour
+                bnds = Bounds( 0, 1 )
+                xr_tip = xr_bnd[1]
+                arclen_r = lambda s: bspline_r.arclength( bspline_r.unscale( s ), xr_tip )
+                cost_fn = lambda s: np.abs( al_l_sc - bspline_r._scale( arclen_r( s ) ) )
+                
+                res = minimize( cost_fn, [.9],
+                                        method = 'SLSQP',
+                                        bounds = bnds )
+                sr_opt = res.x[0]
+                
+                # grab the matches
+                left_matches = pts_l.copy()
+                sr = np.linspace( sr_opt, 1, len( pts_l ) )
+                xr = bspline_r.unscale( sr )
+                right_matches = np.vstack( ( xr, bspline_r( xr ) ) ).T
+                
+            # elif
+            
+            else:  # al_l_sc > al_r_sc
+                # find the corresponding arclength in the left contour
+                bnds = Bounds( 0, 1 )
+                xl_tip = xl_bnd[1]
+                arclen_l = lambda s: bspline_l.arclength( bspline_l.unscale( s ), xl_tip )
+                cost_fn = lambda s: np.abs( al_r_sc - bspline_l._scale( arclen_l( s ) ) )
+                
+                res = minimize( cost_fn, [.9],
+                                        method = 'SLSQP',
+                                        bounds = bnds )
+                sl_opt = res.x[0]
+                
+                # grab the matches
+                right_matches = pts_r.copy()
+                sl = np.linspace( sl_opt, 1, len( pts_r ) )
+                xl = bspline_l.unscale( sl )
+                left_matches = np.vstack( ( xl, bspline_l( xl ) ) ).T
+                
+            # elif
         
     # if
     
     else:
-        raise ValueError( f"start_location = {start_location} not valid." )
+        raise NotImplementedError( f"start_location = {start_location} not implemented." )
     
     # else
     
@@ -1193,6 +1324,34 @@ def main_dbg():
     plt.close( 'all' )
     
 # main_dbg
+
+
+def main_img_gui( file_num, img_dir ):
+    ''' run a custom GUI for image processing testing '''
+    left_file = img_dir + f'left-{file_num:04d}.png'
+    right_file = img_dir + f'right-{file_num:04d}.png'
+    
+    left_img = cv2.imread( left_file, cv2.IMREAD_ANYCOLOR )
+    right_img = cv2.imread( right_file, cv2.IMREAD_ANYCOLOR )
+    
+    f = 2
+    dsize = ( left_img.shape[1] // f, right_img.shape[0] // f )
+    
+    left_img = cv2.resize( left_img, dsize, fx = f, fy = f )
+    right_img = cv2.resize( right_img, dsize, fx = f, fy = f )
+    
+    lr_img = imconcat( left_img, right_img, [255, 0, 0] )
+    
+    print( 'Working on HSV detection.' )
+    hsv_vals = find_hsv_image( lr_img )
+    
+    print( 'Gathered HSV values:' )
+    for v in hsv_vals:
+        print( v )
+    
+    print()
+    
+# main_img_gui
 
 
 def main_gridproc( num, img_dir, save_dir ):
@@ -1439,7 +1598,8 @@ def main_needleproc( file_num, img_dir, save_dir = None, proc_show = False, res_
 # main_needleproc
 
 
-def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_show:bool = False, res_show:bool = False ):
+def main_needleval( file_nums, img_dir, stereo_params, save_dir = None,
+                    proc_show:bool = False, res_show:bool = False ):
     ''' 
         NEED TO UPDATE NEEDLE PROCESSING FOR SKELETONIZATIONSQ
         
@@ -1502,18 +1662,39 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_sho
                                                                bor_l = bor_l, bor_r = bor_r,
                                                                roi_l = roi_l, roi_r = roi_r,
                                                                proc_show = proc_show )
+        # outlier removal and interpolation
+        len_thresh = 5
+        bspl_k = 3
+        out_thresh = 1.5
+        n_neigh = 10
+        pts_l, bspline_l = centerline_from_contours( conts_l,
+                                                     len_thresh = len_thresh,
+                                                     bspline_k = bspl_k,
+                                                     outlier_thresh = out_thresh,
+                                                     num_neigbors = n_neigh )
         
-        cont_l_match, cont_r_match = stereomatch_needle( conts_l, conts_r,
-                                                        start_location = 'tip',
+        pts_r, bspline_r = centerline_from_contours( conts_r,
+                                                     len_thresh = len_thresh,
+                                                     bspline_k = bspl_k,
+                                                     outlier_thresh = out_thresh,
+                                                     num_neigbors = n_neigh )
+        
+        # stereo matching
+        cont_l_match, cont_r_match = stereomatch_needle( pts_l, pts_r,
+                                                         start_location = 'tip',
+                                                         bspline_l = bspline_l,
+                                                         bspline_r = bspline_r,
                                                         col = 1 )
         
         # - draw contour matching
         left_cont = left_img.copy()
-        left_cont = cv2.drawContours( left_cont, [conts_l.astype( int )], 0, ( 255, 0, 0 ), 12 )
+        np.vstack( ( pts_l, np.flip( pts_l, axis = 0 ) ) ).astype( int )
+        left_cont = cv2.drawContours( left_cont, [np.vstack( ( pts_l, np.flip( pts_l, axis = 0 ) ) ).astype( int )],
+                                      0, ( 255, 0, 0 ), 12 )
         
         right_cont = right_img.copy()
-        right_cont = cv2.drawContours( right_cont, [conts_r.astype( int )], 0, ( 255, 0, 0 ), 12 )
-        
+        right_cont = cv2.drawContours( right_cont, [np.vstack( ( pts_r, np.flip( pts_r, axis = 0 ) ) ).astype( int )],
+                                       0, ( 255, 0, 0 ), 12 )
         left_match = left_cont.copy()
         cv2.drawContours( left_match, [np.vstack( ( cont_l_match, np.flip( cont_l_match, 0 ) ) ).astype( int )],
                            0, ( 0, 255, 0 ), 4 )
@@ -1554,7 +1735,7 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None, proc_sho
             plt.ion()
             
             plt.figure()
-            plt.imshow( imconcat( left_skel, right_skel, pad_val = 150 ) )
+            plt.imshow( imconcat( left_skel, right_skel, pad_val = 150 ), cmap = 'gray' )
             plt.title( 'Skeletonized images' )
             
             plt.figure()
@@ -1701,7 +1882,7 @@ if __name__ == '__main__':
             files = sorted( glob.glob( curv_dir + 'left-*.png' ) )
             file_nums = [int( re.match( pattern, f ).group( 2 ) ) for f in files if re.match( pattern, f )]
             
-            main_needleval( file_nums, curv_dir, stereo_params, None, proc_show = True, res_show = False )
+            main_needleval( file_nums, curv_dir, stereo_params, None, proc_show = True, res_show = True )
             
         # for
         
@@ -1710,6 +1891,7 @@ if __name__ == '__main__':
     # iterate over validation directories
     
     # testing functions
+#     main_img_gui( 5, curvature_dir[0] )
 #     main_needleproc( 5, curvature_dir[0], None, proc_show = True, res_show = True )
 #     main_gridproc( 2, grid_dir, grid_dir )
 #     main_dbg()

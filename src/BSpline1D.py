@@ -7,6 +7,7 @@ Created on Jan 2, 2020
 '''
 import numpy as np
 import scipy.interpolate as interp
+from scipy.integrate import quad
 from warnings import warn
 
 
@@ -152,7 +153,7 @@ class BSpline1D():
         # else
         
         if np.any( retval > 1 ) or np.any( retval < 0 ):
-            warn( f"Data is out of the range of the bounding box: [{self.qmin},{self.qmax}]" )
+            warn( f"Scaling data is out of the range of the bounding box: [{self.qmin},{self.qmax}]" )
         
         # if
         
@@ -160,11 +161,36 @@ class BSpline1D():
     
     # _scale
     
+    def arclength( self, x1: float, x2:float ):
+        integrand = lambda x: np.sqrt( 1 + self.__call__( x, der = 1 ) ** 2 )
+        
+        return quad( integrand, x1, x2 )[0]
+    
+    # arclength
+    
     def eval_unscale ( self, x: np.ndarray, der: int = 0 ):
         """Evaluated the spline without scaling """
         return interp.splev( x, self.tck, der = der, ext = 0 )
     
     # eval_unscale
+    
+    def deriv_x ( self, x: np.ndarray, der: int = 0 ):
+        
+        if self.qmax == self.qmin:
+            retval = 0
+            
+        else:
+            retval = 1 / ( self.qmax - self.qmin )
+        
+        return retval
+    
+    # deriv_x
+    
+    def integrate( self, a: float, b: float, der: int = 0 ):
+        """ Not implemented """
+        raise NotImplementedError( 'integrate is not impleemented' )
+    
+    # integrate
     
     def unscale( self, scaled_data: np.ndarray ):
         """ Returns the unscaled data """
@@ -179,20 +205,6 @@ class BSpline1D():
         
         return retval
     
-    def integrate( self, a: float, b: float, der: int = 0 ):
-        """ Not implemented """
-        raise NotImplementedError( 'integrate is not impleemented' )
-    
-    # integrate
-    
-    def deriv_x ( self, x: np.ndarray, der: int = 0 ):
-        
-        if self.qmax == self.qmin:
-            retval = 0
-            
-        else:
-            retval = 1 / ( self.qmax - self.qmin )
-        
-        return retval
-    
+    # unscale
+
 # BSpline1D
