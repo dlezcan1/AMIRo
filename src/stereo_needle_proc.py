@@ -957,10 +957,10 @@ def roi( img, roi, full:bool = True ):
         zval = 0 if img.ndim == 2 else np.array( [0, 0, 0] )
         
         # zero out values
-        img_roi [:tl_i, :] = zval
-        img_roi [br_i:, :] = zval
+        img_roi [:tl_i,:] = zval
+        img_roi [br_i:,:] = zval
         
-        img_roi [:, :tl_j] = zval
+        img_roi [:,:tl_j] = zval
         img_roi [:, br_j:] = zval
         
     # if
@@ -1046,7 +1046,7 @@ def stereomatch_needle( left_conts, right_conts, start_location = "tip", col:int
         # if
         
         else:
-            warnings.filterwarnings('ignore', category=UserWarning, module='BSpline1D')
+            warnings.filterwarnings( 'ignore', category = UserWarning, module = 'BSpline1D' )
             # determine each of the bspline arclengths
             s_bnd = np.array( [0, 1] )
             xl_bnd = bspline_l.unscale( s_bnd )
@@ -1289,9 +1289,9 @@ def main_dbg():
     Pl = stereo_params['P1']
     Pr = stereo_params['P2']
     pts_l = Pl @ world_pointsh
-    pts_l = ( pts_l / pts_l[-1] ).T[:, :-1]
+    pts_l = ( pts_l / pts_l[-1] ).T[:,:-1]
     pts_r = Pr @ world_pointsh
-    pts_r = ( pts_r / pts_r[-1] ).T[:, :-1]
+    pts_r = ( pts_r / pts_r[-1] ).T[:,:-1]
     
     print( 'pts shape (l,r):', pts_l.shape, pts_r.shape )
     tri_pts = triangulate_points( pts_l, pts_r, stereo_params, distorted = False )
@@ -1634,8 +1634,8 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None,
     
     # load in the pre-determined ROIs
     rois_rl = np.load( img_dir + 'rois_lr.npy' )
-    rois_l = rois_rl[:, :, 0:2].tolist()
-    rois_r = rois_rl[:, :, 2:4].tolist()
+    rois_l = rois_rl[:,:, 0:2].tolist()
+    rois_r = rois_rl[:,:, 2:4].tolist()
     
     for img_num in file_nums:
         # left-right stereo pairs
@@ -1665,8 +1665,8 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None,
         # outlier removal and interpolation
         len_thresh = 5
         bspl_k = 3
-        out_thresh = 1.5
-        n_neigh = 10
+        out_thresh = 1.25
+        n_neigh = 20
         pts_l, bspline_l = centerline_from_contours( conts_l,
                                                      len_thresh = len_thresh,
                                                      bspline_k = bspl_k,
@@ -1726,6 +1726,7 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None,
         # - NURBS fitting 
         nurbs = fitting.approximate_curve( sg_needle_tri.T.tolist(), degree = 2, ctrlpts_size = 35 )
         nurbs.delta = 0.005
+        nurbs.vis = VisMPL.VisCurve3D()
         
         print( 'Obtained 3-D centerline of needle.' )
         
@@ -1815,20 +1816,20 @@ def main_needleval( file_nums, img_dir, stereo_params, save_dir = None,
                            size = 1 )
                       ]    
             nurbs.render( plot = False, filename = save_fbase.format( '3d-reconstruction' ), extras = extras )
-            ax = plt.gca()
-            axisEqual3D( ax )
+#             ax = plt.gca()
+#             axisEqual3D( ax )
             print( 'Saved Figure:', save_fbase.format( '3d-reconstruction' ) )
             
-            np.savetxt( save_fbase_txt.format( 'cont-match' ), np.hstack( ( cont_l_match, cont_r_match ) ) )
+            np.savetxt( save_fbase_txt.format( 'cont-match' ), np.hstack( ( cont_l_match, cont_r_match ) ), delimiter = ',' )
             print( 'Saved file:', save_fbase_txt.format( 'cont-match' ) )
             
-            np.savetxt( save_fbase_txt.format( 'cont-match_3d' ), needle_tri )
+            np.savetxt( save_fbase_txt.format( 'cont-match_3d' ), needle_tri, delimiter = ',' )
             print( 'Saved file:', save_fbase_txt.format( 'cont-match_3d' ) )
             
             nurbs.save( save_fbase_fmt.format( 'nurbs', 'pkl' ) )
             print( 'Saved nurbs:', save_fbase_fmt.format( 'nurbs', 'pkl' ) )
             
-            np.savetxt( save_fbase_txt.format( 'nurbs-pts' ), nurbs.evalpts )
+            np.savetxt( save_fbase_txt.format( 'nurbs-pts' ), nurbs.evalpts, delimiter = ',' )
             print( 'Saved file:', save_fbase_txt.format( 'nurbs-pts' ) )
             
             plt.close()
@@ -1877,12 +1878,26 @@ if __name__ == '__main__':
     
     # perform validation over the entire dataset
     if validation:
-        for curv_dir in curvature_dir[0:1]:
+        for curv_dir in curvature_dir:
             # gather curvature file numbers
             files = sorted( glob.glob( curv_dir + 'left-*.png' ) )
             file_nums = [int( re.match( pattern, f ).group( 2 ) ) for f in files if re.match( pattern, f )]
             
-            main_needleval( file_nums, curv_dir, stereo_params, None, proc_show = True, res_show = True )
+            print( 'Working on directory:', curv_dir )
+            
+            try:
+                main_needleval( file_nums, curv_dir, stereo_params, curv_dir, proc_show = False, res_show = False )
+            
+            # try
+            
+            except Exception as e:
+                print( e )
+                print( 'Continuing...' )
+                continue
+                    
+            # except
+            
+            print()
             
         # for
         

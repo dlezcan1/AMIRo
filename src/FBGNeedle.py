@@ -10,6 +10,56 @@ import numpy as np
 from builtins import property
 
 
+class Needle( object ):
+    ''' basic Needle class '''
+    
+    def __init__( self, length: float ):
+        ''' constructor
+        
+            Args:
+                - length: float, of the length of the entire needle (mm) 
+                
+                
+        '''
+        self._length = None
+        
+        self.length = length
+        
+    # __init__
+    
+    #=================== PROPERTIES =============================#    
+    @property
+    def length( self ):
+        return self._length
+    # length
+    
+    @length.setter
+    def length( self, length ): 
+        if not self._length and length > 0:
+            self._length = length
+            
+        # if
+    # length: setter
+    
+    #=============== FUNCTIONS ==================================#
+    def constant_curv_2d( self, wx, ds:float = 0.5 ):
+        ''' returns the constant curvature shape given by the rotation about wx '''
+        raise NotImplementedError( "'constant_curv_2d' is not implemented yet." )
+        s = np.arange( 0, self.length, ds )  # arclength points
+        
+        shape = np.zeros( ( 3, len( s ) ), dtype = float )  # 3-D shape of the needle
+        
+        rotx = lambda t: np.array( [[1, 0, 0],
+                                   [0, np.cos( t ), -np.sin( t )],
+                                   [0, np.sin( t ), np.cos( t )]] )
+        
+        return shape
+    
+    # constant_curv_2d
+    
+# class: Needle  
+
+
 class FBGNeedle( object ):
     '''
     This is a class for FBG Needle parameters containment.
@@ -103,7 +153,7 @@ class FBGNeedle( object ):
     # length
     
     @length.setter
-    def length( self, length ):          
+    def length( self, length ): 
         if not self._length and length > 0:
             self._length = length
             
@@ -401,7 +451,7 @@ if __name__ == "__main__" or False:
     length = 90  # mm
     num_chs = 3
 #     aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1]
-    aa_locs_tip = np.array([11, 26, 60])
+    aa_locs_tip = np.array( [11, 26, 60] )
     aa_locs = ( length - aa_locs_tip ).tolist()
     
     AA_list = ['AA' + str( i + 1 ) for i in range( len( aa_locs ) )]
@@ -410,7 +460,7 @@ if __name__ == "__main__" or False:
     cal_mats = {}
     weights = {}
     
-    for i in range(len(AA_list)):
+    for i in range( len( AA_list ) ):
         aa_loc = AA_list[i]
 #         cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
 #         weights[aa_loc] = i
