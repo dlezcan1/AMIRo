@@ -462,8 +462,8 @@ if __name__ == "__main__" or False:
     
     for i in range( len( AA_list ) ):
         aa_loc = AA_list[i]
-#         cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
-#         weights[aa_loc] = i
+        cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
+        weights[aa_loc] = i/sum(range(len(AA_list)))
         
     # for
     
