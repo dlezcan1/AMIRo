@@ -196,7 +196,7 @@ class FBGNeedle( object ):
             # if
             
             else:
-                self._sensor_location = np.unique( sensor_locations ).tolist()  #
+                self._sensor_location = list( sensor_locations )
             
             # else 
         # if
@@ -325,7 +325,7 @@ class FBGNeedle( object ):
         
         # insert the sensor locations in order of AA
         if 'Sensor Locations' in data.keys():
-            sensor_locations = [data['Sensor Locations'][str( key )] for key in sorted( data['Sensor Locations'].keys() )]
+            sensor_locations = [data['Sensor Locations'][str( key )] for key in sorted( data['Sensor Locations'].keys(),  )]
         
         # if
         
@@ -445,13 +445,13 @@ if __name__ == "__main__" or False:
     # directory to save in
     directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
 #     directory = './'
-    save_bool = True
+    save_bool = False
     
     # needle parameters
-    length = 90  # mm
+    length = 200  # mm
     num_chs = 3
-#     aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1]
-    aa_locs_tip = np.array( [11, 26, 60] )
+    aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1] # 4 AA needle
+#     aa_locs_tip = np.array( [11, 26, 60] ) # 3 AA Needle
     aa_locs = ( length - aa_locs_tip ).tolist()
     
     AA_list = ['AA' + str( i + 1 ) for i in range( len( aa_locs ) )]
@@ -462,8 +462,8 @@ if __name__ == "__main__" or False:
     
     for i in range( len( AA_list ) ):
         aa_loc = AA_list[i]
-#         cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
-#         weights[aa_loc] = i
+        cal_mats[aa_loc] = i * np.ones( ( 3, 2 ) )
+        weights[aa_loc] = i/sum(range(len(AA_list)))
         
     # for
     
