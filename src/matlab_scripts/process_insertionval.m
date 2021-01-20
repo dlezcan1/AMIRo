@@ -7,7 +7,7 @@
 
 %% Set-up
 % directories to iterate through
-trial_dirs = dir("../../data/01-18-2021_Test-Insertion-Expmt/Insertion*/");
+trial_dirs = dir("../../data/Needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
@@ -28,7 +28,7 @@ else
 end
 
 % calibraiton matrices file
-calib_dir = "../../data/01-18-2021_Test-Insertion-Expmt/";
+calib_dir = "../../data/Needle_3CH_3AA/";
 calib_file = calib_dir + "needle_params-Jig_Calibration_11-15-20_weighted.json";
 
 % Initial guesses for kc and w_init
