@@ -1,3 +1,6 @@
 [submodule "amiro-cv"]
 	path = amiro-cv
 	url = http://github.com/dlezcan1/AMIRo-cv
+[submodule "shape-sensing"]
+	path = shape-sensing
+	url = http://github.com/dlezcan1/shape-sensing.git
