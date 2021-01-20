@@ -1,0 +1,3 @@
+[submodule "amiro-cv"]
+	path = amiro-cv
+	url = http://github.com/dlezcan1/AMIRo-cv
