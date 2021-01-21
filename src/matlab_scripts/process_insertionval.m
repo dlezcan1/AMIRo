@@ -7,7 +7,8 @@
 
 %% Set-up
 % directories to iterate through
-trial_dirs = dir("../../data/Needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/Insertion*/");
+expmt_dir = "../../data/needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/";
+trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
@@ -19,6 +20,7 @@ fbgdata_file = "FBGdata_meanshift.xls";
 save_bool = true;
 fbgout_posfile = "FBGdata_3d-position.xls";
 fbgout_paramfile = "FBGdata_3d-params.txt";
+fbgout_basefile = "FBGdata";
 
 % directory separation
 if ispc
@@ -49,14 +51,22 @@ cal_mat_tensor = cat(3, cal_mats_cell{:});
 
 
 %% Iterate through the files
+lshift = 1/6;
 f3d = figure(1);
-set(f3d,'units','normalized','position', [0, 0.4, 1/3, .5])
+set(f3d,'units','normalized','position', [lshift + 0, 0.5, 1/3, .42])
 f2d = figure(2);
-set(f2d,'units','normalized','position', [1/3, 0.4, 1/3, .5] )
+set(f2d,'units','normalized','position', [lshift + 1/3, 0.5, 1/3, .42] )
+f3d_insert = figure(3);
+set(f3d_insert, 'units', 'normalized', 'position', [0, 0, 1/3, 0.42]);
+f2d_insert = figure(4);
+set(f2d_insert, 'units', 'normalized', 'position', [2/3, 0, 1/3, 0.42]); 
+dir_prev = "";
 for i = 1:length(trial_dirs)
     tic; 
     % trial operations
     L = str2double(trial_dirs(i).name);
+    re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
+    hole_num = str2double(re_ret{1}{1});
     
     % trial directory
     d = strcat(trial_dirs(i).folder,dir_sep, trial_dirs(i).name, dir_sep);
@@ -104,6 +114,39 @@ for i = 1:length(trial_dirs)
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     
+    % total insertion plots
+    % - 3D total
+    figure(3);
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot3(pos(3,:), pos(2,:), pos(1,:), 'linewidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold'); 
+    zlabel('y [mm]', 'FontWeight', 'bold');
+    legend();  
+    axis equal; grid on;
+    title(sprintf("Insertion #%d", hole_num));
+    
+    % - 3D total
+    figure(4);
+    subplot(2,1,1);
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot(pos(3,:), pos(2,:), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
+    axis equal; grid on;
+    
+    subplot(2,1,2);
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot(pos(3,:), pos(1,:), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
+    axis equal; grid on;
+    legend()
+    sgtitle(sprintf("Insertion #%d", hole_num));
+    
     % save the data
     if save_bool
        % write position file
@@ -115,9 +158,25 @@ for i = 1:length(trial_dirs)
        writetable(T, d + fbgout_paramfile);
        fprintf("Wrote 3D Position Params: '%s'\n", d + fbgout_paramfile);
        
+       % save figures
+       fileout_base = strcat(trial_dirs(i).folder, dir_sep, fbgout_basefile);
+       saveas(f3d_insert, fileout_base + "_3d-all-insertions.png");
+       fprintf("Saved figure #%d: '%s'\n", f3d_insert.Number, ...
+           fileout_base + "_3d-all-insertions.png");
+       
+       saveas(f2d_insert, fileout_base + "_2d-all-insertions.png");
+       fprintf("Saved figure #%d: '%s'\n", f2d_insert.Number, ...
+           fileout_base + "_2d-all-insertions.png");
+       
     end
+    
+    % update previous directory
+    dir_prev = trial_dirs(i).folder;
     
     % output
     fprintf("Finished trial: '%s' in %.2f secs.\n", d, t);
     disp(" ");
 end
+
+
+
