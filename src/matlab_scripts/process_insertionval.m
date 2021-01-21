@@ -18,9 +18,9 @@ fbgdata_file = "FBGdata_meanshift.xls";
 
 % saving options
 save_bool = true;
-fbgout_posfile = "FBGdata_3d-position.xls";
-fbgout_paramfile = "FBGdata_3d-params.txt";
 fbgout_basefile = "FBGdata";
+fbgout_posfile = fbgout_basefile + "_3d-position.xls";
+fbgout_paramfile = fbgout_basefile + "_3d-params.txt";
 
 % directory separation
 if ispc
@@ -76,8 +76,11 @@ for i = 1:length(trial_dirs)
     wl_shift = readmatrix(fbg_file);
     wl_shift = reshape(wl_shift, [], 3)'; % reshape the array so AA's are across rows and Ch down columns
     
+    % apply temperature compensation
+    wl_shift_Tcorr = temperature_compensate(wl_shift);
+    
     % use calibration senssors
-    curvatures = calibrate_fbgsensors(wl_shift, cal_mat_tensor);
+    curvatures = calibrate_fbgsensors(wl_shift_Tcorr, cal_mat_tensor);
         
     % get the shape
     [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, L, kc_i, w_init_i, theta0);
@@ -178,5 +181,7 @@ for i = 1:length(trial_dirs)
     disp(" ");
 end
 
-
+%% Completion
+close all;
+disp("Program Terminated.");
 
