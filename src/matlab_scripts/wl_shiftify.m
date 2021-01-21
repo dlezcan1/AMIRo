@@ -10,13 +10,14 @@ save_bool = true;
 
 %% File set-up
 % reference wavelength
-ref_dir = "./";
-ref_file = ref_dir + "Reference_wavelength.xls";
+expmt_dir = "../../data/needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/";
+ref_file = expmt_dir + "Reference_wavelength.xls";
 
 % FBGdata file list
-fbgdata_files = dir("Insertion*/*/FBGdata.xls");
+fbgdata_files = dir(expmt_dir + "Insertion*/*/FBGdata.xls");
 fbgdata_shifts_file = "FBGdata_shifts.xls";
 fbgdata_meanshift_file = "FBGdata_meanshift.xls";
+fbgdata_meanshift_Tcorr_file = "FBGdata_meanshift_Tcorr.xls";
 
 % directory separator
 if ispc
@@ -47,6 +48,10 @@ for i = 1:length(fbgdata_files)
     % mean the shifts
     fbg_shift_mean = mean(fbg_shift_mat, 1);
     
+    % temperature compensation
+    fbg_shift_mean_Tcorr = temperature_compensate(reshape(fbg_shift_mean, [], 3)');
+    fbg_shift_mean_Tcorr = reshape(fbg_shift_mean_Tcorr', 1, []);
+    
     % save (if turned on)
     if save_bool
         writematrix(fbg_shift_mat, strcat(d, dir_sep, fbgdata_shifts_file));
@@ -54,6 +59,10 @@ for i = 1:length(fbgdata_files)
         
         writematrix(fbg_shift_mean, strcat(d, dir_sep, fbgdata_meanshift_file));
         fprintf('Saved file: %s\n', strcat(d, dir_sep, fbgdata_meanshift_file));
+        
+        writematrix(fbg_shift_mean_Tcorr, strcat(d, dir_sep, fbgdata_meanshift_Tcorr_file));
+        fprintf('Saved file: %s\n', strcat(d, dir_sep, fbgdata_meanshift_Tcorr_file));
+        
         disp(' ');
         
     end
