@@ -7,14 +7,14 @@
 
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/";
+expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
-mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..");
+mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % files to find
-fbgdata_file = "FBGdata_meanshift.xls";
+fbgdata_file = "FBGdata.xls";
 
 % saving options
 save_bool = true;
@@ -30,7 +30,7 @@ else
 end
 
 % calibraiton matrices file
-calib_dir = "../../data/Needle_3CH_3AA/";
+calib_dir = "../../data/needle_3CH_3AA/";
 calib_file = calib_dir + "needle_params-Jig_Calibration_11-15-20_weighted.json";
 
 % Initial guesses for kc and w_init
@@ -73,7 +73,7 @@ for i = 1:length(trial_dirs)
     fbg_file = d + fbgdata_file;
     
     % load the fbg shift in
-    wl_shift = readmatrix(fbg_file);
+    wl_shift = readmatrix(fbg_file, 'Sheet', 'wavelength_shift');
     wl_shift = reshape(wl_shift, [], 3)'; % reshape the array so AA's are across rows and Ch down columns
     
     % apply temperature compensation

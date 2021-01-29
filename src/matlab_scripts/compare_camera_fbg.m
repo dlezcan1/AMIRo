@@ -6,10 +6,10 @@
 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/";
+expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
-mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..");
-trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
+mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
+trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % saving options
@@ -165,6 +165,9 @@ for i = 1:length(trial_dirs)
     disp(" ");
     
 end
+
+%% End Program
+close all;
 
 %% Helper functions
 % simple arclength integration
