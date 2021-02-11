@@ -7,7 +7,7 @@
 
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
+expmt_dir = "../../data/needle_3CH_3AA/02-09-2021_Insertion-Expmt-2/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -15,6 +15,7 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % files to find
 fbgdata_file = "FBGdata.xls";
+fbgdata_ref_wl_file = expmt_dir + "0_curvature/90_deg/" + fbgdata_file;
 
 % saving options
 save_bool = true;
@@ -38,6 +39,9 @@ kc_i = 0.002;
 w_init_i = [kc_i; 0; 0]; % ideal insertion
 theta0 = 0;
 
+%% Load the reference wavelengths
+ref_wls_mat = readmatrix(fbgdata_ref_wl_file, 'sheet', 'avg');
+ref_wls = mean(ref_wls_mat, 1); % the reference wavelengths
 
 %% Load the calibration matrices and AA locations (from base)
 fbgneedle = jsondecode(fileread(calib_file));
@@ -73,11 +77,14 @@ for i = 1:length(trial_dirs)
     fbg_file = d + fbgdata_file;
     
     % load the fbg shift in
-    wl_shift = readmatrix(fbg_file, 'Sheet', 'wavelength_shift');
-    wl_shift = reshape(wl_shift, [], 3)'; % reshape the array so AA's are across rows and Ch down columns
+    wls_mat = readmatrix(fbg_file, 'Sheet', 'FBG_wavelength');
+    wls_mat = wls_mat(all(wls_mat > 0, 2), :); % filter out any rows w/ 0 as FBG signal
+    wls_mean = mean(wls_mat, 1);
+    wls_shift = wls_mean - ref_wls;
+    wls_shift = reshape(wls_shift, [], 3)'; % reshape the array so AA's are across rows and Ch down columns
     
     % apply temperature compensation
-    wl_shift_Tcorr = temperature_compensate(wl_shift);
+    wl_shift_Tcorr = temperature_compensate(wls_shift);
     
     % use calibration senssors
     curvatures = calibrate_fbgsensors(wl_shift_Tcorr, cal_mat_tensor);
