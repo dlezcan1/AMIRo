@@ -32,6 +32,8 @@ ds = 0.5;
 
 
 %% Process each trial
+dir_prev = "";
+arclength_tbl = array2table(zeros(length(trial_dirs), 3), 'VariableNames', {'actual', 'FBG', 'camera'});
 for i = 1:length(trial_dirs)
     tic; 
     % trial operations
@@ -53,6 +55,7 @@ for i = 1:length(trial_dirs)
     arclen_fbg = arclength(fbg_pos);
     arclen_camera = arclength(camera_pos);
     
+    arclength_tbl{i,:} = [L, arclen_fbg, arclen_camera];
     fprintf("Arclengths (actual, FBG, Camera) [mm]: %.2f, %.2f, %.2f\n", L, arclen_fbg, arclen_camera);
     
     % interpolate both points for correspondence
@@ -83,7 +86,7 @@ for i = 1:length(trial_dirs)
     % Plotting
     %- 3-D shape 
     fig_shape_3d = figure(1);
-    set(fig_shape_3d,'units','normalized','position', [0, 0.4, 1/3, .5])
+    set(fig_shape_3d,'units','normalized','position', [0, 0.5, 1/3, .45])
     plot3(fbg_pos_interp(:,3), fbg_pos_interp(:,1), fbg_pos_interp(:,2), 'g-', 'LineWidth', 2); hold on;
     plot3(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,1), camera_pos_interp_tf(:,2), 'r-',...
         'LineWidth', 2); 
@@ -97,7 +100,7 @@ for i = 1:length(trial_dirs)
     
     %- 2-D shape
     fig_shape_2d = figure(2);
-    set(fig_shape_2d,'units','normalized','position', [1/3, 0.4, 1/3, .5] )
+    set(fig_shape_2d,'units','normalized','position', [1/3, 0.5, 1/3, .45] )
     %-- in-plane
     subplot(2,1,1);
     plot(fbg_pos_interp(:,3), fbg_pos_interp(:,2), 'g-', 'LineWidth', 2); hold on;
@@ -120,7 +123,7 @@ for i = 1:length(trial_dirs)
     %- error plots
     fig_err = figure(3);
     s_sub = s_max(end-N+1:end);
-    set(fig_err,'units','normalized','position', [2/3, 0.4, 1/3, .5])
+    set(fig_err,'units','normalized','position', [2/3, 0.5, 1/3, .45])
     plot(s_max, 0.5 * ones(size(s_max)), 'r--', 'DisplayName', '0.5 mm'); hold on;
     plot(s_sub, errors.L2, 'DisplayName', 'L2 Distance'); 
     plot(s_sub, errors.dx, 'DisplayName', 'x-component');
@@ -134,6 +137,54 @@ for i = 1:length(trial_dirs)
     xlim([0, 1.1*max(s_max)]); ylim([0, max([1.1 * errors.L2', 1])]);
     legend(); grid on;
     title(sprintf('Errors: Hole Num=%d, Ins. Depth=%.1f mm', hole_num, L));
+    
+    % cumulative stereo insertion plots
+    % - 3D total
+    fig_cum_3d = figure(4);
+    set(fig_cum_3d,'units','normalized','position', [0, 0.0, 1/3, .45])
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot3(camera_pos_interp(:,1), camera_pos_interp(:,2), camera_pos_interp(:,3),...
+        'linewidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('x [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold'); 
+    zlabel('z [mm]', 'FontWeight', 'bold');
+    legend();  
+    axis equal; grid on;
+    view([15, 30])
+    title(sprintf("Insertion #%d | Stereo Reconstruction", hole_num));
+    
+    % - 2D total
+    fig_cum_2d = figure(5);
+    set(fig_cum_2d,'units','normalized','position', [1/3, 0.0, 1/3, .45] )
+    subplot(3,1,1);
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot(camera_pos_interp(:,2), camera_pos_interp(:,3), ...
+        'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('y [mm]', 'FontWeight', 'bold'); ylabel('z [mm]', 'FontWeight', 'bold');
+    axis equal; grid on;
+    zl = ylim;
+    
+    subplot(3,1,2);
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot(camera_pos_interp(:,1), camera_pos_interp(:,3), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('x [mm]', 'FontWeight', 'bold'); ylabel('z [mm]', 'FontWeight', 'bold');
+    grid on; ylim(zl);
+    
+    subplot(3,1,3);
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+        hold off;
+    end
+    plot(camera_pos_interp(:,1), camera_pos_interp(:,2), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
+    xlabel('x [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold');
+    axis equal; grid on;
+    
+    legend()
+    sgtitle(sprintf("Insertion #%d | Stereo Reconstruction", hole_num));
     
     % time update
     t = toc;
@@ -158,7 +209,18 @@ for i = 1:length(trial_dirs)
         verbose_savefig(fig_err, d + fileout_base + "3d-positions-errors.fig");
         verbose_saveas(fig_err, d + fileout_base + "3d-positions-errors.png");
         
+        %- cumulative 3D
+        verbose_savefig(fig_cum_3d, d + "Camera_3d-stereo-positions-cumulative.fig");
+        verbose_saveas(fig_cum_3d, d + "Camera_3d-stereo-positions-cumulative.png");
+        
+        %- cumulative 2D
+        verbose_savefig(fig_cum_2d, d + "Camera_2d-stereo-positions-cumulative.fig");
+        verbose_saveas(fig_cum_2d, d +  "Camera_2d-positions-cumulative.png");
+        
     end
+    
+    % update previous directory
+    dir_prev = trial_dirs(i).folder;
     
     % update user
     fprintf("Finished trial: '%s' in %.2f secs.\n", d, t);
@@ -166,8 +228,28 @@ for i = 1:length(trial_dirs)
     
 end
 
+%% Arclength Error analysis
+arclength_tbl.error = arclength_tbl.actual - arclength_tbl.camera;
+
+% min, max error
+min_err = min(arclength_tbl.error);
+max_err = max(arclength_tbl.error);
+ 
+% mean (abs) error
+mean_err = mean(arclength_tbl.error);
+mean_abs_err = mean(abs(arclength_tbl.error));
+
+disp("Arclength Errors ( actual - camera ) (mm)");
+fprintf("Min:        %f\nMax:        %f\nMean:       %f\nAbs. Mean:  %f\n",...
+        min_err, max_err, mean_err, mean_abs_err);
+
+writetable(arclength_tbl, expmt_dir + "measured-arclength_fbg-camera.xlsx")
+
+disp(" ");
+
 %% End Program
 close all;
+
 
 %% Helper functions
 % simple arclength integration

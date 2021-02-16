@@ -7,7 +7,7 @@
 
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_3AA/02-09-2021_Insertion-Expmt-2/";
+expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -16,6 +16,7 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 % files to find
 fbgdata_file = "FBGdata.xls";
 fbgdata_ref_wl_file = expmt_dir + "0_curvature/90_deg/" + fbgdata_file;
+ref_wl_per_trial = true; % try not to use where possible
 
 % saving options
 save_bool = true;
@@ -40,8 +41,10 @@ w_init_i = [kc_i; 0; 0]; % ideal insertion
 theta0 = 0;
 
 %% Load the reference wavelengths
-ref_wls_mat = readmatrix(fbgdata_ref_wl_file, 'sheet', 'avg');
-ref_wls = mean(ref_wls_mat, 1); % the reference wavelengths
+if ~ref_wl_per_trial
+    ref_wls_mat = readmatrix(fbgdata_ref_wl_file, 'sheet', 'avg');
+    ref_wls = mean(ref_wls_mat, 1); % the reference wavelengths
+end
 
 %% Load the calibration matrices and AA locations (from base)
 fbgneedle = jsondecode(fileread(calib_file));
@@ -77,11 +80,17 @@ for i = 1:length(trial_dirs)
     fbg_file = d + fbgdata_file;
     
     % load the fbg shift in
-    wls_mat = readmatrix(fbg_file, 'Sheet', 'FBG_wavelength');
-    wls_mat = wls_mat(all(wls_mat > 0, 2), :); % filter out any rows w/ 0 as FBG signal
-    wls_mean = mean(wls_mat, 1);
-    wls_shift = wls_mean - ref_wls;
-    wls_shift = reshape(wls_shift, [], 3)'; % reshape the array so AA's are across rows and Ch down columns
+    if ~ref_wl_per_trial
+        wls_mat = readmatrix(fbg_file, 'Sheet', 'FBG_wavelength');
+        wls_mat = wls_mat(all(wls_mat > 0, 2), :); % filter out any rows w/ 0 as FBG signal
+        wls_mean = mean(wls_mat, 1);
+        wls_shift = wls_mean - ref_wls;
+        wls_shift = reshape(wls_shift, [], 3)'; % reshape the array so AA's are across rows and Ch down columns
+    else
+        wls_shift = readmatrix(fbg_file, 'Sheet', 'wavelength_shift');
+        wls_shift = reshape(wls_shift, [], 3)';
+    end
+    
     
     % apply temperature compensation
     wl_shift_Tcorr = temperature_compensate(wls_shift);
@@ -135,7 +144,7 @@ for i = 1:length(trial_dirs)
     zlabel('y [mm]', 'FontWeight', 'bold');
     legend();  
     axis equal; grid on;
-    title(sprintf("Insertion #%d", hole_num));
+    title(sprintf("Insertion #%d | FBG Shape Determination", hole_num));
     
     % - 3D total
     figure(4);
@@ -155,7 +164,7 @@ for i = 1:length(trial_dirs)
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     legend()
-    sgtitle(sprintf("Insertion #%d", hole_num));
+    sgtitle(sprintf("Insertion #%d | FBG Shape Determination", hole_num));
     
     % save the data
     if save_bool
