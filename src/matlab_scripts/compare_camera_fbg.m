@@ -6,7 +6,8 @@
 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
+% expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
+expmt_dir = "../../data/needle_3CH_3AA/02-09-2021_Insertion-Expmt-2/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -33,7 +34,8 @@ ds = 0.5;
 
 %% Process each trial
 dir_prev = "";
-arclength_tbl = array2table(zeros(length(trial_dirs), 3), 'VariableNames', {'actual', 'FBG', 'camera'});
+arclength_tbl = array2table(zeros(length(trial_dirs), 4), 'VariableNames', ...
+    {'hole_num', 'actual', 'FBG', 'camera'});
 for i = 1:length(trial_dirs)
     tic; 
     % trial operations
@@ -55,7 +57,7 @@ for i = 1:length(trial_dirs)
     arclen_fbg = arclength(fbg_pos);
     arclen_camera = arclength(camera_pos);
     
-    arclength_tbl{i,:} = [L, arclen_fbg, arclen_camera];
+    arclength_tbl{i,:} = [hole_num, L, arclen_fbg, arclen_camera];
     fprintf("Arclengths (actual, FBG, Camera) [mm]: %.2f, %.2f, %.2f\n", L, arclen_fbg, arclen_camera);
     
     % interpolate both points for correspondence
@@ -210,12 +212,12 @@ for i = 1:length(trial_dirs)
         verbose_saveas(fig_err, d + fileout_base + "3d-positions-errors.png");
         
         %- cumulative 3D
-        verbose_savefig(fig_cum_3d, d + "Camera_3d-stereo-positions-cumulative.fig");
-        verbose_saveas(fig_cum_3d, d + "Camera_3d-stereo-positions-cumulative.png");
+        verbose_savefig(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.fig"))
+        verbose_saveas(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.png"))
         
         %- cumulative 2D
-        verbose_savefig(fig_cum_2d, d + "Camera_2d-stereo-positions-cumulative.fig");
-        verbose_saveas(fig_cum_2d, d +  "Camera_2d-positions-cumulative.png");
+        verbose_savefig(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.fig"));
+        verbose_saveas(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.png"))
         
     end
     
@@ -230,6 +232,7 @@ end
 
 %% Arclength Error analysis
 arclength_tbl.error = arclength_tbl.actual - arclength_tbl.camera;
+arclength_tbl.abs_error = abs(arclength_tbl.error);
 
 % min, max error
 min_err = min(arclength_tbl.error);
@@ -239,11 +242,20 @@ max_err = max(arclength_tbl.error);
 mean_err = mean(arclength_tbl.error);
 mean_abs_err = mean(abs(arclength_tbl.error));
 
+% group statistics
+%- by insertion distance
+arclength_depth_tbl = grpstats(arclength_tbl, 'actual', ["min", "mean", "std", "max"]);
+
+%- by insertion hole
+arclength_hole_tbl = grpstats(arclength_tbl, 'hole_num', ["min", "mean", "std", "max"]);
+
 disp("Arclength Errors ( actual - camera ) (mm)");
 fprintf("Min:        %f\nMax:        %f\nMean:       %f\nAbs. Mean:  %f\n",...
         min_err, max_err, mean_err, mean_abs_err);
-
-writetable(arclength_tbl, expmt_dir + "measured-arclength_fbg-camera.xlsx")
+tbl_file_out = expmt_dir + "measured-arclength_fbg-camera.xlsx";
+writetable(arclength_tbl, tbl_file_out, 'Sheet', 1)
+writetable(arclength_depth_tbl, tbl_file_out, 'Sheet', 2, 'WriteRowNames', true);
+writetable(arclength_hole_tbl, tbl_file_out, 'Sheet', 3, 'WriteRowNames', true);
 
 disp(" ");
 
