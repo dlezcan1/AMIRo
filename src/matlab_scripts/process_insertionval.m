@@ -18,11 +18,18 @@ fbgdata_file = "FBGdata.xls";
 fbgdata_ref_wl_file = expmt_dir + "0_curvature/90_deg/" + fbgdata_file;
 ref_wl_per_trial = true; % try not to use where possible
 
+% weighted FBG measurement options
+use_weights = true;
+
 % saving options
 save_bool = true;
 fbgout_basefile = "FBGdata";
+if use_weights == true
+    fbgout_basefile = fbgout_basefile + "_FBG-weights";
+end    
 fbgout_posfile = fbgout_basefile + "_3d-position.xls";
 fbgout_paramfile = fbgout_basefile + "_3d-params.txt";
+
 
 % directory separation
 if ispc
@@ -33,7 +40,7 @@ end
 
 % calibraiton matrices file
 calib_dir = "../../data/needle_3CH_3AA/";
-calib_file = calib_dir + "needle_params-Jig_Calibration_11-15-20_weighted.json";
+calib_file = calib_dir + "needle_params-Jig_Calibration_11-15-20_weighted_weights.json";
 
 % Initial guesses for kc and w_init
 kc_i = 0.002;
@@ -52,6 +59,7 @@ fbgneedle = jsondecode(fileread(calib_file));
 % AA parsing
 num_aas = fbgneedle.x_ActiveAreas;
 aa_base_locs_tot = struct2array(fbgneedle.SensorLocations); % total insertion length
+weights = struct2array(fbgneedle.weights); 
 aa_tip_locs = fbgneedle.length - aa_base_locs_tot;
 cal_mats_cell = struct2cell(fbgneedle.CalibrationMatrices);
 cal_mat_tensor = cat(3, cal_mats_cell{:});
@@ -99,7 +107,7 @@ for i = 1:length(trial_dirs)
     curvatures = calibrate_fbgsensors(wl_shift_Tcorr, cal_mat_tensor);
         
     % get the shape
-    [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, L, kc_i, w_init_i, theta0);
+    [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, L, kc_i, w_init_i, theta0, weights);
     t = toc;
     
     % set new predictions

@@ -13,9 +13,15 @@ mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp(
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
+% FBG reliability weight options
+use_weights = true;
+
 % saving options
-save_bool = true;
+save_bool = false;
 fileout_base = "Jig-Camera-Comp";
+if use_weights == true
+    fileout_base = fileout_base + "_FBG-weights";
+end
 
 % directory separation
 if ispc
@@ -26,7 +32,11 @@ end
 
 % 3D point file names
 camera_pos_file = "left-right_3d-pts.txt";
-fbg_pos_file = "FBGdata_3d-position.xls";
+if use_weights == true
+    fbg_pos_file = "FBGdata_FBG-weights_3d-position.xls";
+else
+    fbg_pos_file = "FBGdata_3d-position.xls";
+end
 
 % arclength options
 ds = 0.5;
@@ -200,16 +210,16 @@ for i = 1:length(trial_dirs)
        
         % write the figures
         %- 3-D plot
-        verbose_savefig(fig_shape_3d, d + fileout_base + "3d-positions.fig");
-        verbose_saveas(fig_shape_3d, d + fileout_base + "3d-positions.png");
+        verbose_savefig(fig_shape_3d, d + fileout_base + "_3d-positions.fig");
+        verbose_saveas(fig_shape_3d, d + fileout_base + "_3d-positions.png");
         
         %- 2-D plot
-        verbose_savefig(fig_shape_2d, d + fileout_base + "2d-positions.fig");
+        verbose_savefig(fig_shape_2d, d + fileout_base + "_2d-positions.fig");
         verbose_saveas(fig_shape_2d, d + fileout_base + "2d-positions.png");
         
         %- error plot
-        verbose_savefig(fig_err, d + fileout_base + "3d-positions-errors.fig");
-        verbose_saveas(fig_err, d + fileout_base + "3d-positions-errors.png");
+        verbose_savefig(fig_err, d + fileout_base + "_3d-positions-errors.fig");
+        verbose_saveas(fig_err, d + fileout_base + "_3d-positions-errors.png");
         
         %- cumulative 3D
         verbose_savefig(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.fig"))
