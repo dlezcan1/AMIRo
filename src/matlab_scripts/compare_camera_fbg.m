@@ -17,7 +17,7 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 use_weights = true;
 
 % saving options
-save_bool = false;
+save_bool = true;
 fileout_base = "Jig-Camera-Comp";
 if use_weights == true
     fileout_base = fileout_base + "_FBG-weights";
@@ -215,7 +215,7 @@ for i = 1:length(trial_dirs)
         
         %- 2-D plot
         verbose_savefig(fig_shape_2d, d + fileout_base + "_2d-positions.fig");
-        verbose_saveas(fig_shape_2d, d + fileout_base + "2d-positions.png");
+        verbose_saveas(fig_shape_2d, d + fileout_base + "_2d-positions.png");
         
         %- error plot
         verbose_savefig(fig_err, d + fileout_base + "_3d-positions-errors.fig");
