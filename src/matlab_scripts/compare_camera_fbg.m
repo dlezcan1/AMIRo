@@ -13,6 +13,11 @@ mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp(
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
+% stereo parameters
+stereoparam_dir = "../../amiro-cv/calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/";
+stereoparam_file = stereoparam_dir + "calibrationSession_params-error.mat";
+stereoParams = load(stereoparam_file).stereoParams;
+
 % FBG reliability weight options
 use_weights = true;
 
@@ -57,6 +62,8 @@ for i = 1:length(trial_dirs)
     d = strcat(trial_dirs(i).folder,dir_sep, trial_dirs(i).name, dir_sep);
     fbg_file = d + fbg_pos_file;
     camera_file = d + camera_pos_file;
+    left_file = d + "left.png";
+    right_file = d + "right.png";
     
     % load in the matrices
     fbg_pos = readmatrix(fbg_file)';
@@ -90,7 +97,26 @@ for i = 1:length(trial_dirs)
                                  fbg_pos_interp(end-N+1:end,:));
     
     camera_pos_interp_tf = camera_pos_interp * R' + p';
+    fbg_pos_interp_tf = fbg_pos_interp * R - p'*R;
     
+    % read in images and rectify
+    left_img = imread(left_file);
+    right_img = imread(right_file);
+    px_offset = [80 5]; % pixel offset for extrinsics (eye-balled)
+    left_rect = undistortImage(left_img, stereoParams.CameraParameters1);
+    right_rect = undistortImage(right_img, stereoParams.CameraParameters2);
+    
+    % project the points into the left and right iamges
+    cam_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
+                camera_pos_interp, 'ApplyDistortion', false) + px_offset;
+    fbg_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
+                fbg_pos_interp_tf, 'ApplyDistortion', false) + px_offset;
+            
+    cam_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
+                stereoParams.TranslationOfCamera2, camera_pos_interp, 'ApplyDistortion', false) + px_offset;
+    fbg_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
+                stereoParams.TranslationOfCamera2, fbg_pos_interp_tf, 'ApplyDistortion', false) + px_offset;
+              
     % error analysis
     errors = error_analysis(camera_pos_interp_tf(end-N+1:end,:),...
                             fbg_pos_interp(end-N+1:end,:));
@@ -198,6 +224,19 @@ for i = 1:length(trial_dirs)
     legend()
     sgtitle(sprintf("Insertion #%d | Stereo Reconstruction", hole_num));
     
+    fig_project = figure(6);
+    set(fig_project, 'units','normalized','position', [1/3, 0.3, 2/3, .45] );
+    imshow([left_rect, right_rect]); hold on;
+    plot(cam_pts_l(:,1), cam_pts_r(:,2), 'g', 'LineWidth', 4, 'DisplayName', 'left-camera');
+    plot(fbg_pts_l(:,1), fbg_pts_l(:,2), 'r', 'LineWidth', 2, 'DisplayName', 'left-fbg');
+    
+    plt_cam_pts_r = cam_pts_r + [size(left_rect, 2), 0];
+    plt_fbg_pts_r = fbg_pts_r + [size(left_rect, 2), 0];
+    plot(plt_cam_pts_r(:,1), plt_cam_pts_r(:,2), 'g-.', 'LineWidth', 4, 'DisplayName', 'right-camera');
+    plot(plt_fbg_pts_r(:,1), plt_fbg_pts_r(:,2), 'r-.', 'LineWidth', 2, 'DisplayName', 'right-fbg');
+    hold off;
+    title("Left-Right Needle Shape Image Projections"); legend('Location', 'best');
+    
     % time update
     t = toc;
     
@@ -228,6 +267,10 @@ for i = 1:length(trial_dirs)
         %- cumulative 2D
         verbose_savefig(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.fig"));
         verbose_saveas(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.png"))
+        
+        %- projection plots
+        verbose_savefig(fig_project, d + fileout_base + "_img-projections.fig");
+        verbose_saveas(fig_project, d + fileout_base + "_img-projections.png");
         
     end
     
