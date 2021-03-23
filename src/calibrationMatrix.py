@@ -706,8 +706,8 @@ def write_calibration_matrices( C_list: dict, fbg_needle: FBGNeedle, outfile: st
 def main():
     e1 = np.array( [1, 0, 0] )
     e2 = np.array( [0, 1, 0] )
-    root_path = "../FBG_Needle_Calibration_Data/needle_1/"
-    # root_path = "C:/Users/epyan/Documents/JHU/Research/Shape Sensing/FBG_Needle_Calibration_Data/needle_1/"
+    root_path = "../data/needle_1/"
+    # root_path = "C:/Users/epyan/Documents/JHU/Research/Shape Sensing/data/needle_1/"
     folder_py = root_path + "12-09-19_12-29/"  # positive y-axis
     folder_px = root_path + "12-09-19_13-34/"  # positive x-axis
     folder_my = root_path + "12-09-19_13-49/"  # negative y-axis
@@ -799,7 +799,7 @@ def main():
 def main_test():
     e1 = np.array( [1, 0, 0] )
     e2 = np.array( [0, 1, 0] )
-    root_path = "../FBG_Needle_Calibration_Data/needle_1/"
+    root_path = "../data/needle_1/"
     # folder_CH1 = root_path + "12-19-19_12-32/"
     # folder_CH2 = root_path + "12-19-19_15-02/"
     # folder_CH3 = root_path + "12-19-19_15-27/"
@@ -837,13 +837,13 @@ def main_test():
 
 def main_calmat():
     ''' determine the calibration matrices '''
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
+    directory = "../data/needle_3CH_4AA_v2/"
     needlejsonfile = "needle_params.json"
     
     # regular calibration data
-#     datadir = directory + "Jig_Validation_11-15-20/" # validation
-    datadir = directory + "Jig_Calibration_11-15-20/"  # calibration
-    datafile = "Data Matrices_{}.xlsx".format( 'cal' if 'cal' in datadir.split( '/' )[-2].lower() else 'val' )
+#     datadir = directory + "Validation_Jig_Calibration_03-20-21/" # validation
+    datadir = directory + "Jig_Calibration_03-20-21/"  # calibration
+    datafile = "Data Matrices_{}.xlsx".format( 'val' if 'val' in datadir.split( '/' )[-2].lower() else 'cal' )
     needleparamfile = "needle_params.csv"
     out_needlejsonfile = needlejsonfile[:-5] + '-' + datadir.split( '/' )[-2] + '.json'
     
@@ -900,12 +900,12 @@ def main_calmat():
 
 def main_datamatrices():
     ''' creeate the data matrices '''
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
+    directory = "../data/needle_3CH_4AA_v2/"
     needlejsonfile = "needle_params.json"
     
-    datadir = directory + "Jig_Validation_11-15-20/"  # validation
-#     datadir = directory + "Jig_Calibration_11-15-20/" # calibration
-    datafile = "Data Matrices_{}.xlsx".format( 'cal' if 'cal' in datadir.split( '/' )[-2].lower() else 'val' )
+    datadir = directory + "Validation_Jig_Calibration_03-20-21/"  # validation
+#     datadir = directory + "Jig_Calibration_03-20-21/" # calibration
+    datafile = "Data Matrices_{}.xlsx".format( 'val' if 'val' in datadir.split( '/' )[-2].lower() else 'cal' )
     
     # test the create_datamatrices function
     fbg_needle = FBGNeedle.load_json( directory + needlejsonfile )
@@ -925,11 +925,11 @@ def main_datamatrices():
 
 def main_join_calval_signal():
     # load the directories
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
-    needlejsonfile = "needle_params-Jig_Calibration_11-15-20_weighted.json"
+    directory = "../data/needle_3CH_4AA_v2/"
+    needlejsonfile = "needle_params-Jig_Calibration_03-20-21_weighted.json"
     
-    datadir_cal = directory + "Jig_Calibration_11-15-20/"
-    datadir_val = directory + "Jig_Validation_11-15-20/"
+    datadir_cal = directory + "Jig_Calibration_03-20-21/"
+    datadir_val = directory + "Validation_Jig_Calibration_03-20-21/"
     
     datafile_cal = datadir_cal + "Data Matrices_cal.xlsx"
     datafile_val = datadir_val + "Data Matrices_val.xlsx"
@@ -1070,8 +1070,8 @@ def main_join_calval_signal():
 
 def main_validation():
     # load the file information needed
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
-    needlejsonfile = "needle_params-Jig_Calibration_11-15-20_weighted.json"
+    directory = "../data/needle_3CH_4AA_v2/"
+    needlejsonfile = "needle_params-Jig_Calibration_03-20-21_weighted.json"
     
 #     # calibration
 #     datadir = directory + "Jig_Calibration_08-05-20/"
@@ -1079,7 +1079,7 @@ def main_validation():
 #     out_file = datadir + "Calibration_Error_raw.xlsx"
     
     # validation
-    datadir = directory + "Jig_Validation_11-15-20/"
+    datadir = directory + "Validation_Jig_Calibration_03-20-21/"
     datafile = "Data Matrices_val.xlsx"
     out_file = datadir + "Validation_Error_raw.xlsx"
     

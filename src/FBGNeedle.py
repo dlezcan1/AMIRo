@@ -439,23 +439,24 @@ class FBGNeedle( object ):
 # class: FBGNeedle
 
 
-# for debugging purposes
+# for debugging purposes and creating new FBGneedle param files
 if __name__ == "__main__" or False:
     
     # directory to save in
-    directory = "../FBG_Needle_Calibration_Data/needle_3CH_3AA/"
+    directory = "../data/needle_3CH_4AA_v2/"
 #     directory = './'
-    save_bool = False
+    save_bool = True
     
     # needle parameters
     length = 200  # mm
     num_chs = 3
-    aa_locs_tip = np.cumsum( [10, 20, 35, 35] )[::-1] # 4 AA needle
+    aa_locs_tip = np.cumsum( [11, 20, 35, 35] )[::-1] # 4 AA needle
 #     aa_locs_tip = np.array( [11, 26, 60] ) # 3 AA Needle
     aa_locs = ( length - aa_locs_tip ).tolist()
     
     AA_list = ['AA' + str( i + 1 ) for i in range( len( aa_locs ) )]
     
+    print("Tip locations:", aa_locs_tip)
     print( "locations:", aa_locs )
     cal_mats = {}
     weights = {}
