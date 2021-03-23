@@ -1,0 +1,3 @@
+curvature 1.6 1/m
+10 trials
+270 degree (bevel up, clockwise)
