@@ -7,7 +7,7 @@
 
 %% Set-up 
 % options
-save_bool = false;
+save_bool = true;
 
 % python set-up
 if ispc % windows file system
@@ -23,12 +23,12 @@ if count(py.sys.path, pydir) == 0
 end
 
 % file set-up
-directory = "../../FBG_Needle_Calibration_Data/needle_3CH_3AA/";
-fbgneedle_param = directory + "needle_params-Jig_Calibration_11-15-20_weighted.json";
-fbgneedle_param_out = strrep(fbgneedle_param, '.json', '_weights.json');
+directory = "../../data/needle_3CH_4AA_v2/";
+fbgneedle_param = directory + "needle_params-Jig_Calibration_03-20-21_weighted.json"; % weighted calibration
+fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
 % datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-datadir = directory + "Jig_Validation_11-15-20/"; % validation data
+datadir = directory + "Validation_Jig_Calibration_03-20-21/"; % validation data
 data_mats_file = datadir + "Data Matrices_calval.xlsx";
 
 if contains(fbgneedle_param, 'weighted')
@@ -94,7 +94,7 @@ end
 %% perform the non-negative least squares fit
 curv_weight = curv_weight_rule(abs(w_act),false);
 D = sqrt(diag(curv_weight));
-weights = lsqlin(D*W, D*w_act, [], [], ones(1, size(W, 2)), [1], 0.0*ones(size(W, 2),1), []); % set lower bound
+weights = lsqlin(D*W, D*w_act, [], [], ones(1, size(W, 2)), [1], [0, 0, 0.075, 0.025], []); % set lower bound
 weights = weights./sum(weights); % normalize just in case
 
 disp("Weights:");
@@ -111,11 +111,11 @@ for i=1:length(AA_list)
     py_dict_weights{AA_list(i)} = weights(i);
     
 end
-
-fbg_needle.set_weights(py_dict_weights);
-fbg_needle.save_json(fbgneedle_param_out);
-fprintf('Saved json parmater file: %s\n', fbgneedle_param_out);
-
+if save_bool
+    fbg_needle.set_weights(py_dict_weights);
+    fbg_needle.save_json(fbgneedle_param_weight);
+    fprintf('Saved json parmater file: %s\n', fbgneedle_param_weight);
+end
 %% Functions
 % function for performing weighted least squares in curvature
 function curv_weight = curv_weight_rule(k, trivial)
@@ -130,6 +130,14 @@ function curv_weight = curv_weight_rule(k, trivial)
             else
                 curv_weight(i) = 0.05;
 
+            end
+            
+            if mod(i, 2) == 0
+                angle = atan2(k(i), k(i-1));
+                if rad2deg(angle) == 90 
+                    curv_weight(i) = 1;
+                    curv_weight(i-1) = 1;
+                end
             end
         end
     end
