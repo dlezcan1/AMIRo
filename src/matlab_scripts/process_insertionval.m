@@ -7,7 +7,7 @@
 
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_3AA/02-22-2021_Test-Image-Subtraction/";
+expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -39,8 +39,8 @@ else
 end
 
 % calibraiton matrices file
-calib_dir = "../../data/needle_3CH_3AA/";
-calib_file = calib_dir + "needle_params-Jig_Calibration_11-15-20_weighted_weights.json";
+calib_dir = "../../data/needle_3CH_4AA_v2/";
+calib_file = calib_dir + "needle_params-Jig_Calibration_03-20-21_weighted.json";
 
 % Initial guesses for kc and w_init
 kc_i = 0.002;
@@ -64,6 +64,9 @@ aa_tip_locs = fbgneedle.length - aa_base_locs_tot;
 cal_mats_cell = struct2cell(fbgneedle.CalibrationMatrices);
 cal_mat_tensor = cat(3, cal_mats_cell{:});
 
+if all(weights == 0)
+    weights = ones(size(weights));
+end
 
 %% Iterate through the files
 lshift = 1/6;
