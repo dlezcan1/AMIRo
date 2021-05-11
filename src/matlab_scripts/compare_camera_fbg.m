@@ -7,7 +7,7 @@
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
 % expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
-expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
+expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-22-21/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory

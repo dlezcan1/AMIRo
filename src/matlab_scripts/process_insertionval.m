@@ -7,7 +7,7 @@
 
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
+expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-22-21/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
