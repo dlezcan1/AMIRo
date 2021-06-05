@@ -4,20 +4,38 @@
 % directory
 %
 % Args:
-%   - status: (on, off | default = on) whether to configure the environment
-%   on or off.
+%   - status: (on, off, toggle | default = toggle) whether to configure the environment
+%   on or off. toggle will toggle the environment
 %
 % - written by: Dimitri Lezcano
 
 %% Set Path
 function configure_env(status)
     arguments
-        status {mustBeMember(status, {'on', 'off'})} = 'on';
+        status {mustBeMember(status, {'on', 'off', 'toggle'})} = 'toggle';
     end
     shapesensing_src = "../../shape-sensing/src/";
+    shapesensing_src = what(shapesensing_src).path;
+    
+    % check for toggle
+    if strcmp(status, 'toggle')
+        % check if shapesensing_src folder is on the path
+        on = ismember(shapesensing_src, split(string(path),';'));
+        
+        if on
+            status = 'off';
+        else
+            status = 'on';
+        end
+    end
+    
+    
+    % configure the environment
     if strcmp(status, 'on')
         addpath(shapesensing_src);
+        disp("Shape sensing environment enabled.");
     else
         rmpath(shapesensing_src);
+        disp("Shape sensing environment disabled.");
     end
 end
