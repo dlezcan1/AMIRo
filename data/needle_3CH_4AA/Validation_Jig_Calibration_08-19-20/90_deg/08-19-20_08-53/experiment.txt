@@ -1,4 +1,0 @@
-curvature 1.25 1/m
-10 trials
-90 degree (bevel up, clockwise)
-Temperature: room temperature
