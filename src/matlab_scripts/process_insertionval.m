@@ -184,7 +184,8 @@ for i = 1:length(trial_dirs)
        fprintf("Wrote 3D Positions: '%s'\n", d + fbgout_posfile);
        
        % write shape sensing parameters
-       T = table(kc, w_init', 'VariableNames', {'kc', 'w_init'});
+       T = table(kc, w_init', theta0, L, 'VariableNames', ...
+           {'kc', 'w_init', 'theta0', 'L'});
        writetable(T, d + fbgout_paramfile);
        fprintf("Wrote 3D Position Params: '%s'\n", d + fbgout_paramfile);
        
