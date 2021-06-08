@@ -1,17 +1,25 @@
-%% point_cloud_reg.m
+%% point_cloud_reg_tip.m
 %
-% function to perform point-cloud registration using SVD
+% function to perform point-cloud registration using SVD with tip
+%   alignment
+%
+% Args:
+%   - a, b: the two different 3-D point clouds to register to each other
+%           of size [ N x 3 ]
+%   - method (Default: 'horn'): method for computing 3D registration
+%
+% Return:
+%       - R, p: rotation matrix, transaltion vector s.t.
+%           R * a + p = b
 % 
 % - written by: Dimitri Lezcano
 
-function [R, p] = point_cloud_reg_tip(a, b, varargin)
-    % Args:
-    %   - a, b: the two different 3-D point clouds to register to each other
-    %           of size [ N x 3 ]
-    %
-    % Return:
-    %       - R, p: rotation matrix, transaltion vector s.t.
-    %           R * a + p = b
+function [R, p] = point_cloud_reg_tip(a, b, method)
+    arguments
+        a (:,3);
+        b (:,3);
+        method string = 'horn'
+    end
     
     %% coincide the tips
     a_hat = a - a(end, :); 
@@ -19,14 +27,6 @@ function [R, p] = point_cloud_reg_tip(a, b, varargin)
     
     %% Get the rotaiton matrix
     % determine method
-    if isempty(varargin)
-        method = "horn";
-        
-    else
-        method = varargin{1};
-    
-    end
-    
     if strcmp(method, "horn") == 1
         R = determine_rotation_horn(a_hat, b_hat);
         

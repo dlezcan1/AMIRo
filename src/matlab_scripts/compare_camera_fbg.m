@@ -7,7 +7,7 @@
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
 % expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
-expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-22-21/";
+expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -317,39 +317,6 @@ close all;
 
 
 %% Helper functions
-% simple arclength integration
-function [L, varargout] = arclength(pts)
-    dpts = diff(pts, 1, 1); % pts[i+1] - pts[i]
-    
-    dl = vecnorm(dpts, 2, 2); % ||dpts||
-    
-    L = sum(dl);
-    
-    varargout{1} = dl; % ds
-    varargout{2} = [0; cumsum(dl)]; % s
-    
-end
-
-% interpolate nurbs-pts for standardized ds
-function [pts_std, varargout] = interp_pts(pts, s_interp)
-    [~, ~, s_lu] = arclength(pts);
-    
-    % look-up for interpolation
-    x_lu = pts(:,1); 
-    y_lu = pts(:,2); 
-    z_lu = pts(:,3);
-    
-    % interpolation
-    x_interp = interp1(s_lu, x_lu, s_interp);
-    y_interp = interp1(s_lu, y_lu, s_interp);
-    z_interp = interp1(s_lu, z_lu, s_interp);
-    
-    % combine the output
-    pts_std = [x_interp', y_interp', z_interp'];
-    varargout{1} = s_interp; % return the interpoation arclength just in case
-
-end
-
 % error analysis
 function errors = error_analysis(nurbs, jig)
 % measures error metrics from each points
@@ -368,7 +335,6 @@ function errors = error_analysis(nurbs, jig)
     
 end
 
-    
 % saving wrappers
 function verbose_savefig(fig, file)
     savefig(fig, file);
