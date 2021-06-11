@@ -79,7 +79,7 @@ for i = 1:length(trial_dirs)
     
     % interpolate both points for correspondence
     s_fbg = 0:ds:arclen_fbg;
-    s_camera = 0:ds:arclen_camera;
+    s_camera = flip(arclen_camera:-ds:0); % 0:ds:arclen_camera;
     if length(s_fbg) == length(s_camera)
         s_max = s_fbg;
     elseif length(s_fbg) > length(s_camera)
@@ -107,15 +107,25 @@ for i = 1:length(trial_dirs)
     right_rect = undistortImage(right_img, stereoParams.CameraParameters2);
     
     % project the points into the left and right iamges
+%     cam_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
+%                 camera_pos, 'ApplyDistortion', false) + px_offset;
+%     fbg_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
+%                 fbg_pos_interp_tf, 'ApplyDistortion', false) + px_offset;
+%             
+%     cam_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
+%                 stereoParams.TranslationOfCamera2, camera_pos, 'ApplyDistortion', false) + px_offset;
+%     fbg_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
+%                 stereoParams.TranslationOfCamera2, fbg_pos_interp_tf, 'ApplyDistortion', false) + px_offset;
+    
     cam_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
-                camera_pos_interp, 'ApplyDistortion', false) + px_offset;
+                camera_pos, 'ApplyDistortion', true) + px_offset;
     fbg_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
-                fbg_pos_interp_tf, 'ApplyDistortion', false) + px_offset;
+                fbg_pos_interp_tf, 'ApplyDistortion', true) + px_offset;
             
     cam_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
-                stereoParams.TranslationOfCamera2, camera_pos_interp, 'ApplyDistortion', false) + px_offset;
+                stereoParams.TranslationOfCamera2, camera_pos, 'ApplyDistortion', true) + px_offset;
     fbg_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
-                stereoParams.TranslationOfCamera2, fbg_pos_interp_tf, 'ApplyDistortion', false) + px_offset;
+                stereoParams.TranslationOfCamera2, fbg_pos_interp_tf, 'ApplyDistortion', true) + px_offset;
               
     % error analysis
     errors = error_analysis(camera_pos_interp_tf(end-N+1:end,:),...
@@ -226,12 +236,12 @@ for i = 1:length(trial_dirs)
     
     fig_project = figure(6);
     set(fig_project, 'units','normalized','position', [1/3, 0.3, 2/3, .45] );
-    imshow([left_rect, right_rect]); hold on;
+    imshow([left_img, right_img]); hold on;
     plot(cam_pts_l(:,1), cam_pts_r(:,2), 'g', 'LineWidth', 4, 'DisplayName', 'left-camera');
     plot(fbg_pts_l(:,1), fbg_pts_l(:,2), 'r', 'LineWidth', 2, 'DisplayName', 'left-fbg');
     
-    plt_cam_pts_r = cam_pts_r + [size(left_rect, 2), 0];
-    plt_fbg_pts_r = fbg_pts_r + [size(left_rect, 2), 0];
+    plt_cam_pts_r = cam_pts_r + [size(left_img, 2), 0];
+    plt_fbg_pts_r = fbg_pts_r + [size(left_img, 2), 0];
     plot(plt_cam_pts_r(:,1), plt_cam_pts_r(:,2), 'g-.', 'LineWidth', 4, 'DisplayName', 'right-camera');
     plot(plt_fbg_pts_r(:,1), plt_fbg_pts_r(:,2), 'r-.', 'LineWidth', 2, 'DisplayName', 'right-fbg');
     hold off;

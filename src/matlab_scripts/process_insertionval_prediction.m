@@ -1,4 +1,4 @@
-%% process_insertionval_predition
+%% process_insertionval_prediction
 %
 % script to process insertion validation prediction errors
 %
@@ -10,7 +10,7 @@ configure_env on;
 set(0,'DefaultAxesFontSize',18)
 
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-22-21/";
+expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -29,8 +29,8 @@ data_file = "FBGdata_3d-params.txt";
 camera_pos_file = "left-right_3d-pts.txt";
 
 % saving options
-save_bool = true;
-dataout_file = "FBGdata_predition";
+save_bool = false;
+dataout_file = "FBGdata_prediction";
 if use_weights
     dataout_file = strcat(dataout_file, "_FBG-weights");
     data_file = "FBGdata_FBG-weights_3d-params.txt";
@@ -381,7 +381,8 @@ function [errors, varargout] = compute_camera_errors(shape_cam, shape_fbg, ds)
     arclen_fbg = arclength(shape_fbg');
     
     % generate the arclengths
-    s_cam = 0:ds:arclen_cam;
+%     s_cam = 0:ds:arclen_cam;
+    s_cam = flip(arclen_cam:-ds:0);
     s_fbg = 0:ds:arclen_fbg;
     
     N = min(numel(s_cam), numel(s_fbg));
