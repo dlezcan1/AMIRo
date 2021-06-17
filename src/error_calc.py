@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import image_processing as img_proc
 import matplotlib.pyplot as plt
-import p1_object_attributes as p1
 import itertools
 
 
