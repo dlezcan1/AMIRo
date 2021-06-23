@@ -29,7 +29,7 @@ data_file = "FBGdata_3d-params.txt";
 camera_pos_file = "left-right_3d-pts.txt";
 
 % saving options
-save_bool = false;
+save_bool = true;
 dataout_file = "FBGdata_prediction";
 if use_weights
     dataout_file = strcat(dataout_file, "_FBG-weights");
@@ -323,9 +323,8 @@ for hole_num = hole_nums
         subplot(2,1,2);
         hold off;
         axis equal; grid on;
-        xlabel('z (mm)'); ylabel('x (mm)');
+        xlabel('z (mm)'); ylabel('y (mm)');
         axis equal; grid on;
-        xlabel('z (mm)'); ylabel('x (mm)');
         
         if save_bool
            save_dir = fullfile(expmt_dir, sprintf('Insertion%d/',hole_num));
@@ -385,7 +384,7 @@ function [errors, varargout] = compute_camera_errors(shape_cam, shape_fbg, ds)
     s_cam = flip(arclen_cam:-ds:0);
     s_fbg = 0:ds:arclen_fbg;
     
-    N = min(numel(s_cam), numel(s_fbg));
+    N = min(numel(s_cam(s_cam>40)), numel(s_fbg(s_fbg > 40)));
     
     % interpolate the shapes
     shape_cam_interp = interp_pts(shape_cam', s_cam);
@@ -401,6 +400,7 @@ function [errors, varargout] = compute_camera_errors(shape_cam, shape_fbg, ds)
     varargout{1} = shape_cam_interp_tf';
     
     % compute the errors
+    N = min(numel(s_cam), numel(s_fbg));
     errors = compute_errors(shape_cam_interp_tf(end-N+1:end,:)', ...
                             shape_fbg_interp(end-N+1:end,:)');
     

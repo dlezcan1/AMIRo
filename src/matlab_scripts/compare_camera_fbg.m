@@ -87,7 +87,7 @@ for i = 1:length(trial_dirs)
     else
         s_max = s_camera;
     end
-    N = min(length(s_fbg), length(s_camera)); % minimum number of points to match
+    N = min(length(s_fbg(s_fbg > 40)), length(s_camera(s_camera > 40))); % minimum number of points to match
     
     fbg_pos_interp = interp_pts(fbg_pos, s_fbg);
     camera_pos_interp = interp_pts(camera_pos, s_camera);
@@ -128,8 +128,9 @@ for i = 1:length(trial_dirs)
                 stereoParams.TranslationOfCamera2, fbg_pos_interp_tf, 'ApplyDistortion', true) + px_offset;
               
     % error analysis
-    errors = error_analysis(camera_pos_interp_tf(end-N+1:end,:),...
-                            fbg_pos_interp(end-N+1:end,:));
+    N_overlap = min(size(camera_pos_interp_tf,1), size(fbg_pos_interp,1));
+    errors = error_analysis(camera_pos_interp_tf(end-N_overlap+1:end,:),...
+                            fbg_pos_interp(end-N_overlap+1:end,:));
     
     % Plotting
     %- 3-D shape 
@@ -197,7 +198,7 @@ for i = 1:length(trial_dirs)
         'linewidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
     xlabel('x [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold'); 
     zlabel('z [mm]', 'FontWeight', 'bold');
-    legend();  
+    legend('Location', 'southeastoutside');  
     axis equal; grid on;
     view([15, 30])
     title(sprintf("Insertion #%d | Stereo Reconstruction", hole_num));
@@ -235,14 +236,14 @@ for i = 1:length(trial_dirs)
     sgtitle(sprintf("Insertion #%d | Stereo Reconstruction", hole_num));
     
     fig_project = figure(6);
-    set(fig_project, 'units','normalized','position', [1/3, 0.3, 2/3, .45] );
+    set(fig_project, 'units','normalized','position', [1/3, 0.3, 2/3, .55] );
     imshow([left_img, right_img]); hold on;
-    plot(cam_pts_l(:,1), cam_pts_r(:,2), 'g', 'LineWidth', 4, 'DisplayName', 'left-camera');
+    plot(cam_pts_l(:,1), cam_pts_r(:,2), 'g', 'LineWidth', 2, 'DisplayName', 'left-camera');
     plot(fbg_pts_l(:,1), fbg_pts_l(:,2), 'r', 'LineWidth', 2, 'DisplayName', 'left-fbg');
     
     plt_cam_pts_r = cam_pts_r + [size(left_img, 2), 0];
     plt_fbg_pts_r = fbg_pts_r + [size(left_img, 2), 0];
-    plot(plt_cam_pts_r(:,1), plt_cam_pts_r(:,2), 'g-.', 'LineWidth', 4, 'DisplayName', 'right-camera');
+    plot(plt_cam_pts_r(:,1), plt_cam_pts_r(:,2), 'g-.', 'LineWidth', 2, 'DisplayName', 'right-camera');
     plot(plt_fbg_pts_r(:,1), plt_fbg_pts_r(:,2), 'r-.', 'LineWidth', 2, 'DisplayName', 'right-fbg');
     hold off;
     title("Left-Right Needle Shape Image Projections"); legend('Location', 'best');
