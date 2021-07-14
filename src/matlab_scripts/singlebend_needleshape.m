@@ -55,7 +55,8 @@ function [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip
     curvs_aa = curvatures(:, aa_base_locs >= 0)*1e-3; % convert curvatures to 1/mm
     curvs_aa = [curvs_aa; zeros(1,size(curvs_aa, 2))];
     s_aa = s(s_idx_aa);
-        
+    disp("Current sensors for shape sensing.");
+    disp(s_aa);
     
     %% Determine w_init and kc from measured curvatures (optimization)
     % initial cost values
@@ -92,6 +93,7 @@ end
 %% Helper functions
 % cost function for needle shape
 function y = costfn_shape_singlebend(eta,data,s_index_meas,ds,N,B,Binv,scalef,weights) 
+    weights = weights(1:numel(s_index_meas));
     weights = weights/sum(weights, 'all');
     % unpack the variables
     w_init = eta(1:3); 
