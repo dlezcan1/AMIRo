@@ -112,4 +112,5 @@ data/
 # matlab autosave files
 *.asv
 
-
+# pycharm files
+.idea/
