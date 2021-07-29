@@ -9,6 +9,7 @@ Created on Jul 28, 2021
 import argparse
 import glob
 import os
+import re
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -106,7 +107,7 @@ def combine_fbgdata_summary( fbg_summary_files: list, curvature_values: list, nu
 
     header = [ 'Curvature (1/m)', 'time' ] + ch_aa_head
 
-    all_data_df = pd.DataFrame(np.zeros((0, len(header))), columns=header )
+    all_data_df = pd.DataFrame( np.zeros( (0, len( header )) ), columns=header )
 
     for fbgdata_file, curvature in zip( fbg_summary_files, curvature_values ):
         df = pd.read_excel( fbgdata_file, sheet_name='Summary', index_col=0 )  # load in the df
@@ -115,7 +116,7 @@ def combine_fbgdata_summary( fbg_summary_files: list, curvature_values: list, nu
 
         all_data_df = all_data_df.append( df, ignore_index=True )  # append the new dataframe
 
-    # for 
+    # for
 
     # create the summary data frame by averaging the curvatures
     summary_df = all_data_df.groupby( header[ 0 ] ).mean()
@@ -149,11 +150,17 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
     for d in sum( dirs_degs.values(), [ ] ):
         if os.path.isdir( d ):
             print( "Processing FBG data directory:", d )
-            combine_fbgdata_directory( d, fbg_needle.num_channels, fbg_needle.num_aa, save=True )
-            print( 'Completed FBG data directory:', d )
-            print()
+        if os.path.exists( os.path.join( d, 'fbgdata.xlsx' ) ):
+            print( "Already processed. Continuing..." )
 
         # if
+        else:
+            combine_fbgdata_directory( d, fbg_needle.num_channels, fbg_needle.num_aa, save=True )
+            print( 'Completed FBG data directory:', d )
+
+        # else
+        print()
+
     # for
 
     # iterate through each of the angles to get the FBG data files to summarize the curvature trials
@@ -185,7 +192,7 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
         # Plot and save linear fits wavelength shift vs curvature and curvature per angle
         fig, axs = plt.subplots( fbg_needle.num_aa, sharex='col' )
         fig.set_size_inches( [ 13, 8 ] )
-        for aa_i in range( 1, fbg_needle.num_aa ):
+        for aa_i in range( 1, fbg_needle.num_aa + 1 ):
             mask_signals = (aa_i == aa_assignments)  # determine which columns of the FBG signals to get
             mask = np.append( [ False, True, False ], mask_signals )  # include the curvatures and remove time
 
@@ -195,7 +202,7 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
             # plot linear fits
             line_colors = { c.get_label(): c.get_color() for c in axs[ aa_i - 1 ].get_children() if
                             isinstance( c, mpl.lines.Line2D ) }
-            for ch_aa_idx in np.where( np.append( 2 * [ False ], mask_signals ) ):
+            for ch_aa_idx in np.where( np.append( 3 * [ False ], mask_signals ) )[ 0 ]:
                 # get the linear fit
                 m, b, R_sq = _linear_fit( summary_df[ 'Curvature (1/m)' ], summary_df.iloc[ :, ch_aa_idx ] )
                 k = np.linspace( summary_df[ 'Curvature (1/m)' ].min(), summary_df[ 'Curvature (1/m)' ].max(), 100 )
@@ -217,7 +224,7 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
 
         # save the figure
         outpath = os.sep.join( os.path.normpath( fbgdata_dir[ 0 ] ).split( os.sep )[ :-2 ] )
-        outfile_fig = os.path.join( outpath, f"{angle}deg_aa-signals-curvature.png" )
+        outfile_fig = os.path.join( outpath, f"{angle}_deg_aa-signals-curvature.png" )
         fig.savefig( outfile_fig )
         print( "Saved figure:", outfile_fig )
         plt.close( fig=fig )
@@ -252,7 +259,7 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
 
         # change the values for the signals
         proc_total_df.loc[ proc_total_df[ 'angle' ] == angle, ch_aa_name ] = signal_shifts
-        proc_Tcomp_total_df[ proc_Tcomp_total_df[ 'angle' ] == angle, ch_aa_name ] = Tcomp_signal_shifts
+        proc_Tcomp_total_df.loc[ proc_Tcomp_total_df[ 'angle' ] == angle, ch_aa_name ] = Tcomp_signal_shifts
 
     # for
 
@@ -264,6 +271,7 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
         proc_Tcomp_total_df.to_excel( xl_writer, sheet_name='T Comp. Processed Signals' )
 
     # with
+    print( f"Saved data file: {outfile_total_df}" )
 
     # TODO: Plot and save linear fits wavelength shift vs curvature_x and curvature_y
 
@@ -276,7 +284,7 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
 
 # jig_calibration
 
-def jig_validation(directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ):
+def jig_validation( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ):
     """ Perform jig validation"""
     pass
 
@@ -290,6 +298,10 @@ def main( args=None ):
 
     # if
 
+    # set-up
+    dir_pattern = r".*([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format( os.sep.replace( '\\', '\\\\' ) )
+
+    # display the arguments
     print( 'angles:', args.angles )
     print( 'needle_json:', args.fbgParamFile )
     print( 'calibDirectory:', args.calibDirectory )
@@ -307,12 +319,27 @@ def main( args=None ):
     # Prepare calibration directories
     calib_dirs_degs = { }
     for angle in args.angles:
-        calib_dirs_degs[ angle ] = glob.glob( os.path.join( args.calibDirectory, f'{angle}_deg', '*/*' ) )
+        calib_dirs_degs[ angle ] = [ ]
 
+        # filter out the non-applicable curavtures
+        for d in glob.glob( os.path.join( args.calibDirectory, f'{angle}_deg', '*/*' ) ):
+            res = re.search( dir_pattern, os.path.normpath( d ) )  # search for the path pattern
+            if res is not None:
+                ang, curv = res.groups()
+                ang, curv = float( ang ), float( curv )  # convert strings to floats
+
+                # if this is not a valid calibration curvature
+                if curv in args.calib_curvatures:
+                    calib_dirs_degs[ angle ].append( os.path.normpath( d ) )
+                # if
+            # if
+        # for
+        print( angle, ':', calib_dirs_degs[ angle ] )
+        print()
     # for
 
     # TODO: perform jig calibration
-    jig_calibration( args.calibDirectory, calib_dirs_degs, fbg_needle, args.calib_curvatures)
+    jig_calibration( args.calibDirectory, calib_dirs_degs, fbg_needle, args.calib_curvatures )
 
     # check if validation is configured, if so, perform validation
     if (len( args.valid_curvatures ) > 0) and (args.validDirectory is not None):
@@ -320,8 +347,21 @@ def main( args=None ):
         valid_dirs_degs = { }
 
         for angle in args.angles:
-            valid_dirs_degs[ angle ] = glob.glob( os.path.join( args.validDirectory, f'{angle}_deg', '*/*' ) )
+            valid_dirs_degs[ angle ] = [ ]
 
+            # filter out the non-applicable curavtures
+            for d in glob.glob( os.path.join( args.validDirectory, f'{angle}_deg', '*/*' ) ):
+                res = re.search( dir_pattern, os.path.normpath( d ) )  # search for the path pattern
+                if res is not None:
+                    ang, curv = res.groups()
+                    ang, curv = float( ang ), float( curv )  # convert strings to floats
+
+                    # if this is not a valid calibration curvature
+                    if curv in args.calib_curvatures:
+                        valid_dirs_degs[ angle ].append( os.path.normpath( d ) )
+                    # if
+                # if
+            # for
         # for
 
         # TODO: ensure that the FBG needle is up-to-date with the calibraiton matrices
