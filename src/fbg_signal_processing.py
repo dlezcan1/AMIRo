@@ -9,12 +9,12 @@ Created on Jul 28, 2021
 import numpy as np
 
 
-def process_signals( signals, ref_wavelengths ):
+def process_signals( signals:np.ndarray, ref_wavelengths:np.ndarray ) -> np.ndarray:
     """ Remove reference wavelengths from the signals
 
     """
 
-    return signals - ref_wavelengths
+    return signals - ref_wavelengths.reshape(1,-1)
 
 
 # process_signals

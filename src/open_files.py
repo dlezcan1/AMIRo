@@ -10,21 +10,8 @@ Created on Jul 28, 2021
 import numpy as np
 import pandas as pd
 
-from itertools import product
+from FBGNeedle import FBGNeedle
 
-
-def generate_ch_aa( num_channels: int, num_active_areas: int ) -> (list, list, list):
-    """ Generate the CHX | AAY list
-        
-    """
-    channels = [ f"CH{i}" for i in range( 1, num_channels + 1 ) ]
-    active_areas = [ f"AA{i}" for i in range( 1, num_active_areas + 1 ) ]
-    channel_active_area = [ " | ".join( (ch, aa) ) for ch, aa in product( channels, active_areas ) ]
-
-    return channel_active_area, channels, active_areas
-
-
-# generate_ch_aa
 
 def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> pd.DataFrame:
     """ Read in the FBG data file
@@ -40,7 +27,7 @@ def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> p
     # with
 
     # generate column names
-    ch_aa, channels, active_areas = generate_ch_aa( num_channels, num_active_areas )
+    ch_aa, channels, active_areas = FBGNeedle.generate_ch_aa( num_channels, num_active_areas )
     columns = [ 'time' ] + ch_aa
 
     # generate empty data table to return
