@@ -140,7 +140,25 @@ def combine_fbgdata_summary( fbg_summary_files: list, curvature_values: list, nu
 
 # combine_fbgdata_summary
 
-def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ):
+def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ) -> FBGNeedle:
+    """ Perform jig calibration """
+    # process the FBG signals
+    total_df, _, proc_Tcomp_total_df = jig_process_signals( directory, dirs_degs, fbg_needle, curvatures_list )
+
+    # TODO: perform calibration via least squares formulation
+
+    # TODO: output results to a log file
+
+    # TODO: update and save the calibrated fbg_needle
+
+    return fbg_needle
+
+
+# jig_calibration
+
+def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ) -> (
+        pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    """ Process the FBG signals """
     # set-up
     aa_assignments = np.array( fbg_needle.assignments_AA() )
     ch_assignments = np.array( fbg_needle.assignments_CH() )
@@ -236,8 +254,8 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
     # Determine the FBG Data matrices
     # determine the curvature vectors based on the angles
     header = [ 'angle', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', 'time' ] + ch_aa_name
-    total_df[ header[ 2 ] ] = total_df[ 'Curvature (1/m)' ] * np.cos( np.deg2rad( total_df[ 'angle' ] ) )
-    total_df[ header[ 3 ] ] = total_df[ 'Curvature (1/m)' ] * np.sin( np.deg2rad( total_df[ 'angle' ] ) )
+    total_df[ header[ 2 ] ] = total_df[ 'Curvature (1/m)' ] * np.cos( np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
+    total_df[ header[ 3 ] ] = total_df[ 'Curvature (1/m)' ] * np.sin( np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
     total_df = total_df[ header ]  # reorganize the table
 
     # perform signal processing
@@ -277,16 +295,17 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
 
     # TODO: Plot and save linear fits for T Comp. wavelength shift vs curvature_x and curvature_y
 
-    # TODO: perform calibration via least squares formulation
-
-    # TODO: perform validation
+    return total_df, proc_total_df, proc_Tcomp_total_df
 
 
-# jig_calibration
+# jig_process_signals
 
 def jig_validation( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ):
     """ Perform jig validation"""
-    pass
+    # process the FBG signals
+    total_df, _, proc_Tcomp_total_df = jig_process_signals( directory, dirs_degs, fbg_needle, curvatures_list )
+
+    # TODO: evaluate the validation
 
 
 # jig_validation
@@ -338,8 +357,8 @@ def main( args=None ):
         print()
     # for
 
-    # TODO: perform jig calibration
-    jig_calibration( args.calibDirectory, calib_dirs_degs, fbg_needle, args.calib_curvatures )
+    # Perform the jig calibration
+    fbg_needle = jig_calibration( args.calibDirectory, calib_dirs_degs, fbg_needle, args.calib_curvatures )
 
     # check if validation is configured, if so, perform validation
     if (len( args.valid_curvatures ) > 0) and (args.validDirectory is not None):
@@ -364,7 +383,7 @@ def main( args=None ):
             # for
         # for
 
-        # TODO: ensure that the FBG needle is up-to-date with the calibraiton matrices
+        # TODO: ensure that the FBG needle is up-to-date with the calibration matrices
 
         # TODO: perform jig validation
         jig_validation( args.validDirectory, valid_dirs_degs, fbg_needle, args.valid_curvatures )
