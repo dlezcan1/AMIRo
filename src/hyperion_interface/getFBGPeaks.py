@@ -19,7 +19,7 @@ from datetime import datetime
 
 import numpy as np
 
-from hyperion_interface.hyperion import HCommTCPPeaksStreamer
+from hyperion import HCommTCPPeaksStreamer
 
 TIME_FMT = "%H-%M-%S.%f"
 DEFAULT_OUTFILE = "fbgdata_%Y-%m-%d_%H-%M-%S.txt"
@@ -71,7 +71,6 @@ def main( args: argparse.Namespace ):
     """ Method to run the script for gathering data from the si155 fbg interrogator. """
     # interrogator instantiations
     ipaddress = args.ip
-    print(args.N)
 
     global DEFAULT_OUTFILE
 
@@ -94,14 +93,12 @@ def main( args: argparse.Namespace ):
     peaks_streamer = HCommTCPPeaksStreamer( ipaddress, loop, queue )
     t0 = time.perf_counter()
     
-
+    if args.N >= 0:
+        count = 0
     
     with open( outfile, 'w+' ) as writestream:
 
         async def write_peaks():
-            if args.N > 0:
-                count = 0
-
             while True:
                 try:
                     peak_data = await queue.get()  
@@ -129,7 +126,6 @@ def main( args: argparse.Namespace ):
                     
                     if args.N > 0 and count > args.N:
                         peaks_streamer.stop_streaming()
-                        raise KeyboardInterrupt() # interrupt signal
                         break
                     
                     # if

@@ -5,13 +5,14 @@ Created on Dec 12, 2019
           curvature to FBG sensor readings
 '''
 
-import numpy as np
+import glob
+import xlrd
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import glob, re, xlrd
-import time  # for debugging purposes
-from datetime import timedelta, datetime
-from FBGNeedle import FBGNeedle
+
+from sensorized_needles import FBGNeedle
 
 
 def _leastsq_fit( delta_fbg, curvature, outfile: str = '' ):

@@ -18,7 +18,7 @@ import pandas as pd
 
 import fbg_signal_processing
 import open_files
-from FBGNeedle import FBGNeedle
+from sensorized_needles import FBGNeedle
 
 
 def _linear_fit( x, y ) -> (float, float, float):

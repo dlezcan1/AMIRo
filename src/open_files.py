@@ -10,7 +10,7 @@ Created on Jul 28, 2021
 import numpy as np
 import pandas as pd
 
-from FBGNeedle import FBGNeedle
+from sensorized_needles import FBGNeedle
 
 
 def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> pd.DataFrame:

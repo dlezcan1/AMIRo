@@ -14,7 +14,7 @@ from datetime import datetime
 
 import numpy as np
 
-from hyperion_interface.hyperion import Hyperion
+from hyperion import Hyperion
 
 TIME_FMT = "%H-%M-%S.%f"
 
@@ -24,12 +24,13 @@ def parsepeakdata( data: dict, interrogator: Hyperion ):
     timestamp = datetime.fromtimestamp( data[ "timestamp" ] )  # parse timestamp
     peaks = np.zeros( 0 )
     for channel in range( 1, interrogator.channel_count + 1 ):
-        peaks = np.append( peaks, data[ 'data' ][ channel ] )
+        peaks = np.append( peaks, data['data'][channel] )
     
     # parse timestamp and peak date into str formats 
     str_ts = timestamp.strftime( TIME_FMT )
     
-    str_peaks = np.array2string( peaks, precision = 10, separator = ', ' )
+    str_peaks = np.array2string( peaks, precision = 10, separator = ', ',
+                                 max_line_width=np.inf )
     str_peaks = str_peaks.strip( "[]" )  # remove the brackets
     print( str_ts + ": " + str_peaks + '\n' )
     

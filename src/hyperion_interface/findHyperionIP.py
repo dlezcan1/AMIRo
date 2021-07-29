@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 
-from hyperion_interface.hyperion import Hyperion
+from hyperion import Hyperion
 
 
 def main( *args ):
