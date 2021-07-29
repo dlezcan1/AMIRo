@@ -67,28 +67,29 @@ def main( args: argparse.Namespace ):
     MAX_CHANNELS = interrogator.channel_count
     wavelengths = interrogator.spectra.wavelengths
 
-    # prepare the plot
-    fig = plt.figure()
-    ax = fig.add_subplot( 111 )
-    lines = { }
-
-    for i in range( 1, MAX_CHANNELS + 1 ):
-        lines[ i ], = ax.plot( wavelengths, np.zeros_like( wavelengths ), label=f"CH{i}" )
-
-    # for
-    fig.suptile(f"Spectrum of Interrogator: {args.IP}")
-    ax.legend()
-    ax.set_xlabel('Wavelength (nm)')
-    ax.set_ylabel('Power (dB)')
-
     async def stream_spectra():
+        nonlocal wavelengths, MAX_CHANNELS
+        # prepare the plot
+        fig = plt.figure()
+        ax = fig.add_subplot( 111 )
+        lines = { }
+
+        for i in range( 1, MAX_CHANNELS + 1 ):
+            lines[ i ], = ax.plot( wavelengths, np.zeros_like( wavelengths ), label=f"CH{i}" )
+
+        # for
+        fig.suptile( f"Spectrum of Interrogator: {args.IP}" )
+        ax.legend()
+        ax.set_xlabel( 'Wavelength (nm)' )
+        ax.set_ylabel( 'Power (dB)' )
+
         while True:
             try:
                 spectra_data = await queue.get()
                 queue.task_done()
 
-                # check if the streaming is streaming any data
-                if spectra_data[ 'data' ]:
+                # check if the streaming is streaming any data and the plot window hasn't closed
+                if spectra_data[ 'data' ] and plt.fignum_exists( fig.number ):
                     serial_numbers.append( spectra_data[ 'data' ].header.serial_number )
 
                     # update y-data for all of the plots
@@ -99,11 +100,10 @@ def main( args: argparse.Namespace ):
                         fig.canvas_flush_events()
 
                     # for
-
                 # if
 
                 else:
-                    print( "Writing peak data has ended." )
+                    spectra_streamer.stop_streaming()
                     break  # streaming has ended
 
                 # else
@@ -122,16 +122,16 @@ def main( args: argparse.Namespace ):
     try:
         print( "Running spectrum plotter" )
         loop.run_until_complete( spectra_streamer.stream_data() )
-        plt.close('all')
+        plt.close( 'all' )
+
+    # try
 
     except KeyboardInterrupt:
         spectra_streamer.stop_streaming()
         plt.close( 'all' )
         print( "Streaming has ended." )
 
-    # with
-
-
+    # except
 # main
 
 
