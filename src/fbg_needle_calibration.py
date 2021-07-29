@@ -156,8 +156,9 @@ def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, cur
 
 # jig_calibration
 
-def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ) -> (
-        pd.DataFrame, pd.DataFrame, pd.DataFrame):
+def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list,
+                         outfile_base: str = ""
+                         ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     """ Process the FBG signals """
     # set-up
     aa_assignments = np.array( fbg_needle.assignments_AA() )
@@ -186,8 +187,8 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
     header = [ 'angle', 'Curvature (1/m)', 'time' ] + ch_aa_name
     for angle, fbgdata_dir in dirs_degs.items():
         fbgdata_files = [ os.path.join( d, 'fbgdata.xlsx' ) for d in fbgdata_dir ]
-        outfile_base = os.path.join( directory, f"FBGResults_{angle}_deg" )
-        out_fbgresult_file = outfile_base + ".xlsx"
+        outfile_fbgbase = os.path.join( directory, f"{outfile_base}FBGResults_{angle}_deg" )
+        out_fbgresult_file = outfile_fbgbase + ".xlsx"
 
         # consolidate the FBG data directories into one FBG file
         summary_df, *_ = combine_fbgdata_summary( fbgdata_files, curvatures_list, fbg_needle.num_channels,
@@ -242,7 +243,7 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
 
         # save the figure
         outpath = os.sep.join( os.path.normpath( fbgdata_dir[ 0 ] ).split( os.sep )[ :-2 ] )
-        outfile_fig = os.path.join( outpath, f"{angle}_deg_aa-signals-curvature.png" )
+        outfile_fig = os.path.join( outpath, f"{outfile_base}{angle}_deg_aa-signals-curvature.png" )
         fig.savefig( outfile_fig )
         print( "Saved figure:", outfile_fig )
         plt.close( fig=fig )
@@ -282,7 +283,7 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
     # for
 
     # save the tables
-    outfile_total_df = os.path.join( directory, 'all-curvatures-signals.xlsx' )
+    outfile_total_df = os.path.join( directory, f'{outfile_base}all-curvatures-signals.xlsx' )
     with pd.ExcelWriter( outfile_total_df ) as xl_writer:
         total_df.to_excel( xl_writer, sheet_name='Raw Signals' )
         proc_total_df.to_excel( xl_writer, sheet_name='Processed Signals' )
@@ -291,9 +292,127 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
     # with
     print( f"Saved data file: {outfile_total_df}" )
 
-    # TODO: Plot and save linear fits wavelength shift vs curvature_x and curvature_y
+    # Plot linear fits wavelength shift vs curvature_x and curvature_y
+    color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :fbg_needle.num_aa ]
+    pt_style = [ c + '.' for c in color_scheme ]  # point styles
 
-    # TODO: Plot and save linear fits for T Comp. wavelength shift vs curvature_x and curvature_y
+    fig_proc, axs_proc = plt.subplots( nrows=fbg_needle.num_aa, ncols=2, sharex='col' )
+    fig_proc.set_size_inches( [ 14, 9 ] )
+
+    for aa_i in range( 1, fbg_needle.num_aa + 1 ):
+        mask_signals = (aa_assignments == aa_i)
+        mask_x = np.append( [ False, False, True, False, False ], mask_signals )  # curvature_x and AA signals
+        mask_y = np.append( [ False, False, False, True, False ], mask_signals )  # curvature and AA signals
+
+        # plot the processed signals
+        proc_total_df.iloc[ :, mask_x ].plot( x='Curvature_x (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 0 ] )
+        proc_total_df.iloc[ :, mask_y ].plot( x='Curvature_y (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 1 ] )
+
+        # fit lines to the processed signals
+        line_colors = { c.get_label(): c.get_color() for c in axs_proc[ aa_i - 1, 0 ].get_children() if
+                        isinstance( c, mpl.lines.Line2D ) }
+        for ch_aa_idx in np.where( np.append( 5 * [ False ], mask_signals ) )[ 0 ]:
+            # get the x linear fit
+            mx, bx, R_sqx = _linear_fit( proc_total_df[ 'Curvature_x (1/m)' ], proc_total_df.iloc[ :, ch_aa_idx ] )
+            kx = np.linspace( proc_total_df[ 'Curvature_x (1/m)' ].min(), proc_total_df[ 'Curvature_x (1/m)' ].max(),
+                              100
+                              )
+            sigx = mx * kx + bx
+
+            # get the y linear fit
+            my, by, R_sqy = _linear_fit( proc_total_df[ 'Curvature_y (1/m)' ], proc_total_df.iloc[ :, ch_aa_idx ] )
+            ky = np.linspace( proc_total_df[ 'Curvature_y (1/m)' ].min(), proc_total_df[ 'Curvature_y (1/m)' ].max(),
+                              100
+                              )
+            sigy = my * ky + by
+
+            # get the current plot color
+            ch_aa = proc_total_df.columns[ ch_aa_idx ]
+            color = line_colors[ ch_aa ]
+
+            # plot the linear fit
+            axs_proc[ aa_i - 1, 0 ].plot( kx, sigx, color=color, label=ch_aa + " linear" )
+            axs_proc[ aa_i - 1, 1 ].plot( ky, sigy, color=color, label=ch_aa + " linear" )
+
+        # for
+        axs_proc[ aa_i - 1, 0 ].legend()  # turn on the legends
+        axs_proc[ aa_i - 1, 1 ].legend()
+        axs_proc[ aa_i - 1, 0 ].set_ylabel( 'Signal Shifts (nm)' )  # set y-axis labels
+
+    # for
+
+    # plot formatting
+    fig_proc.suptitle( 'Signal Shifts vs Curvature (X | Y)' )
+    axs_proc[ -1, 0 ].set_xlabel( 'Curvature X (1/m)' )  # set x axis labels
+    axs_proc[ -1, 1 ].set_xlabel( 'Curvature Y (1/m)' )
+
+    # plot the T compensated processed signals
+    fig_proc_Tcomp, axs_proc_Tcomp = plt.subplots( nrows=fbg_needle.num_aa, ncols=2, sharex='col' )
+    fig_proc_Tcomp.set_size_inches( [ 14, 9 ] )
+    for aa_i in range( 1, fbg_needle.num_aa + 1 ):
+        mask_signals = (aa_assignments == aa_i)
+        mask_x = np.append( [ False, False, True, False, False ], mask_signals )  # curvature_x and AA signals
+        mask_y = np.append( [ False, False, False, True, False ], mask_signals )  # curvature and AA signals
+
+        # plot the processed signals
+        proc_Tcomp_total_df.iloc[ :, mask_x ].plot( x='Curvature_x (1/m)', style=pt_style,
+                                                    ax=axs_proc_Tcomp[ aa_i - 1, 0 ]
+                                                    )
+        proc_Tcomp_total_df.iloc[ :, mask_y ].plot( x='Curvature_y (1/m)', style=pt_style,
+                                                    ax=axs_proc_Tcomp[ aa_i - 1, 1 ]
+                                                    )
+
+        # fit lines to the processed signals
+        line_colors = { c.get_label(): c.get_color() for c in axs_proc_Tcomp[ aa_i - 1, 0 ].get_children() if
+                        isinstance( c, mpl.lines.Line2D ) }
+        for ch_aa_idx in np.where( np.append( 5 * [ False ], mask_signals ) )[ 0 ]:
+            # get the x linear fit
+            mx, bx, R_sqx = _linear_fit( proc_Tcomp_total_df[ 'Curvature_x (1/m)' ],
+                                         proc_Tcomp_total_df.iloc[ :, ch_aa_idx ]
+                                         )
+            kx = np.linspace( proc_Tcomp_total_df[ 'Curvature_x (1/m)' ].min(),
+                              proc_Tcomp_total_df[ 'Curvature_x (1/m)' ].max(),
+                              100
+                              )
+            sigx = mx * kx + bx
+
+            # get the y linear fit
+            my, by, R_sqy = _linear_fit( proc_Tcomp_total_df[ 'Curvature_y (1/m)' ],
+                                         proc_Tcomp_total_df.iloc[ :, ch_aa_idx ]
+                                         )
+            ky = np.linspace( proc_Tcomp_total_df[ 'Curvature_y (1/m)' ].min(),
+                              proc_Tcomp_total_df[ 'Curvature_y (1/m)' ].max(),
+                              100
+                              )
+            sigy = my * ky + by
+
+            # get the current plot color
+            ch_aa = proc_Tcomp_total_df.columns[ ch_aa_idx ]
+            color = line_colors[ ch_aa ]
+
+            # plot the linear fit
+            axs_proc_Tcomp[ aa_i - 1, 0 ].plot( kx, sigx, color=color, label=ch_aa + " linear" )
+            axs_proc_Tcomp[ aa_i - 1, 1 ].plot( ky, sigy, color=color, label=ch_aa + " linear" )
+
+        # for
+        axs_proc_Tcomp[ aa_i - 1, 0 ].legend()  # turn on the legends
+        axs_proc_Tcomp[ aa_i - 1, 1 ].legend()
+        axs_proc_Tcomp[ aa_i - 1, 0 ].set_ylabel( 'Signal Shifts (nm)' )  # set y-axis labels
+
+    # for
+
+    # plot formatting
+    fig_proc_Tcomp.suptitle( 'T Compensated Signal Shifts vs Curvature (X | Y)' )
+    axs_proc_Tcomp[ -1, 0 ].set_xlabel( 'Curvature X (1/m)' )  # set x axis labels
+    axs_proc_Tcomp[ -1, 1 ].set_xlabel( 'Curvature Y (1/m)' )
+
+    # Plot and save plots for (T Comp.) wavelength shift vs curvature_x and curvature_y
+    outfile_fig_proc_base = os.path.join( directory, outfile_base + "all-curvatures_xy-signal-shifts{}.png" )
+    fig_proc.savefig( outfile_fig_proc_base.format( '' ) )  # save the processd signals shifts
+    print( "Saved processed signals figure:", outfile_fig_proc_base.format( '' ) )
+
+    fig_proc_Tcomp.savefig( outfile_fig_proc_base.format( '-T-Comp' ) )  # save the processed signals shifts
+    print( "Saved T compensated processed signals figure:", outfile_fig_proc_base.format( '-T-Comp' ) )
 
     return total_df, proc_total_df, proc_Tcomp_total_df
 
@@ -305,7 +424,7 @@ def jig_validation( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curv
     # process the FBG signals
     total_df, _, proc_Tcomp_total_df = jig_process_signals( directory, dirs_degs, fbg_needle, curvatures_list )
 
-    # TODO: evaluate the validation
+    # TODO: evaluate the calibration on the validation dataset
 
 
 # jig_validation
@@ -385,7 +504,7 @@ def main( args=None ):
 
         # TODO: ensure that the FBG needle is up-to-date with the calibration matrices
 
-        # TODO: perform jig validation
+        # Perform jig validation
         jig_validation( args.validDirectory, valid_dirs_degs, fbg_needle, args.valid_curvatures )
 
     # if
