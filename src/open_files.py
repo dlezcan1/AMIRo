@@ -32,8 +32,7 @@ def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> p
 
     # generate empty data table to return
     ret_val = pd.DataFrame( np.zeros( (0, 1 + num_channels * num_active_areas) ),
-                            columns=columns
-                            )
+                            columns=columns )
     ret_val = ret_val.astype( { 'time': 'datetime64[ns]' } )
 
     # iterate through each of the lines

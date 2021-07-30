@@ -55,8 +55,7 @@ class Needle( object ):
 
         rotx = lambda t: np.array( [ [ 1, 0, 0 ],
                                      [ 0, np.cos( t ), -np.sin( t ) ],
-                                     [ 0, np.sin( t ), np.cos( t ) ] ]
-                                   )
+                                     [ 0, np.sin( t ), np.cos( t ) ] ] )
 
         return shape
 
@@ -72,8 +71,7 @@ class FBGNeedle( object ):
     """
 
     def __init__( self, length: float, num_channels: int, sensor_location: list = [ ],
-                  calibration_mats: dict = { }, weights: dict = { }
-                  ):
+                  calibration_mats: dict = { }, weights: dict = { } ):
         """
         Constructor
 
@@ -122,10 +120,10 @@ class FBGNeedle( object ):
         """ Magic str method """
         msg = "Needle length (mm): {}".format( self.length )
         msg += "\nNumber of FBG Channels: {:d}".format( self.num_channels )
-        msg += "\nNumber of Active Areas: {:d}".format( self.num_aa )
+        msg += "\nNumber of Active Areas: {:d}".format( self.num_activeAreas )
         msg += "\nSensor Locations (mm):"
-        if self.num_aa > 0:
-            for i in range( self.num_aa ):
+        if self.num_activeAreas > 0:
+            for i in range( self.num_activeAreas ):
                 msg += "\n\t{:d}: {}".format( i + 1, self.sensor_location[ i ] )
 
             # for
@@ -171,9 +169,16 @@ class FBGNeedle( object ):
 
     @property
     def num_aa( self ):
+        DeprecationWarning( 'num_aa is deprecated. Please use num_activeAreas.' )
         return len( self.sensor_location )
 
     # num_aa
+
+    @property
+    def num_activeAreas( self ):
+        return len( self.sensor_location )
+
+    # num_activeAreas
 
     @property
     def num_channels( self ):
@@ -236,7 +241,7 @@ class FBGNeedle( object ):
                 # if
 
                 # if not, check to see if it is an AA index [1, #AA]
-                elif key in range( 1, self.num_aa + 1 ):
+                elif key in range( 1, self.num_activeAreas + 1 ):
                     loc = self.sensor_location[ key - 1 ]
 
                 # elif
@@ -277,7 +282,7 @@ class FBGNeedle( object ):
                 # if
 
                 # if not, check to see if it is an AA index [1, #AA]
-                elif key in range( 1, self.num_aa + 1 ):
+                elif key in range( 1, self.num_activeAreas + 1 ):
                     loc = self.sensor_location[ key - 1 ]
 
                 # elif
@@ -325,7 +330,7 @@ class FBGNeedle( object ):
 
     def assignments_AA( self ) -> list:
         """ Instance method of assignments_aa """
-        return FBGNeedle.assignments_aa( self.num_channels, self.num_aa )
+        return FBGNeedle.assignments_aa( self.num_channels, self.num_activeAreas )
 
     # assignments_AA
 
@@ -338,7 +343,7 @@ class FBGNeedle( object ):
 
     def assignments_CH( self ) -> list:
         """ Instance method of assignments_ch """
-        return FBGNeedle.assignments_ch( self.num_channels, self.num_aa )
+        return FBGNeedle.assignments_ch( self.num_channels, self.num_activeAreas )
 
     # assignments_ch
 
@@ -357,7 +362,7 @@ class FBGNeedle( object ):
 
     def generate_chaa( self ) -> (list, list, list):
         """ Instance method of generate_ch_aa"""
-        return FBGNeedle.generate_ch_aa( self.num_channels, self.num_aa )
+        return FBGNeedle.generate_ch_aa( self.num_channels, self.num_activeAreas )
 
     # generate_chaa
 
@@ -425,8 +430,7 @@ class FBGNeedle( object ):
 
         # instantiate the FBGNeedle class object
         fbg_needle = FBGNeedle( data[ 'length' ], data[ '# channels' ], sensor_locations,
-                                cal_mats, weights
-                                )
+                                cal_mats, weights )
 
         # return the instantiation
         return fbg_needle
@@ -446,7 +450,7 @@ class FBGNeedle( object ):
         # place the saved data into the json file
         data[ "length" ] = self.length
         data[ "# channels" ] = self.num_channels
-        data[ "# active areas" ] = self.num_aa
+        data[ "# active areas" ] = self.num_activeAreas
 
         if self.sensor_location:
             data[ "Sensor Locations" ] = { }
