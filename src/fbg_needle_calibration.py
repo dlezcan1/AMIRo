@@ -9,6 +9,7 @@ Summary: This is a script to perform FBG needle calibration along with a class i
 """
 import argparse
 import glob
+import itertools
 import os
 import re
 
@@ -24,7 +25,7 @@ from sensorized_needles import FBGNeedle
 
 # TODO: class implementation
 class FBGNeedleJigCalibrator:
-    directory_pattern = r".*([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format(
+    directory_pattern = r".*{0}([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format(
             os.sep.replace( '\\', '\\\\' ) )  # directory pattern file structure
 
     def __init__( self, fbg_needle: FBGNeedle,
@@ -55,15 +56,18 @@ class FBGNeedleJigCalibrator:
         self.is_calibrated = False
 
         # set up the total dataframe
-        col_header = [ "type", "angle", "Curvature (1/m)", "Curvature_x (1/m)", "Curvature_y (1/m)", "time" ] + \
-                     self.fbg_needle.generate_chaa()[ 0 ]
-        self.total_df = pd.DataFrame( columns=col_header )
+        self.__col_header = [ "type", "angle", "Curvature (1/m)", "Curvature_x (1/m)", "Curvature_y (1/m)", "time" ] + \
+                            self.fbg_needle.generate_chaa()[ 0 ]
+        self.__pred_col_header = [ "AA{} Predicted Curvature_{} (1/m)".format( aa_i, ax ) for aa_i, ax in
+                                   itertools.product( range( 1, self.fbg_needle.num_activeAreas + 1 ), [ 'x', 'y' ] ) ]
+        self.total_df = pd.DataFrame( columns=self.__col_header )
         self.proc_total_df = self.total_df.copy()  # processed signals
         self.proc_Tcomp_total_df = self.proc_total_df.copy()  # T. compensated processed signals
+        self.calval_df = pd.DataFrame( columns=self.__col_header + self.__pred_col_header )  # calibration validation df
 
         # configure the calibration datasets
-        self.calib_dataset = self.configure_dataset( self.calib_directory, self.calib_curvatures, self.calib_angles )
-        self.valid_dataset = self.configure_dataset( self.valid_directory, self.valid_curvatures, self.valid_angles )
+        self.calib_dataset = self.configure_dataset( self.calib_directory, self.calib_angles, self.calib_curvatures )
+        self.valid_dataset = self.configure_dataset( self.valid_directory, self.valid_angles, self.valid_curvatures )
 
     # __init__
 
@@ -152,6 +156,8 @@ class FBGNeedleJigCalibrator:
             # make sure that the directory matches
             if res is not None:
                 angle, curvature = res.groups()
+                angle = float( angle )
+                curvature = float( curvature )
 
                 # only include desired curvatures and angles
                 if (angle in angles) and (curvature in curvatures):
@@ -193,14 +199,18 @@ class FBGNeedleJigCalibrator:
 
         # grab all of the data 
         for d, angle, curvature in dataset:
+            print( f"Processing directory: {d}" )
             summary_df, _ = combine_fbgdata_directory( d, self.fbg_needle.num_channels, self.fbg_needle.num_activeAreas,
                                                        save=save )
-            summary_df[ 'angle' ] = angle
-            summary_df[ 'Curvature (1/m)' ] = curvature
-            summary_df[ 'type' ] = type_exp
+
+            new_row = summary_df.mean( numeric_only=True )
+            new_row[ 'time' ] = summary_df[ 'time' ].max()
+            new_row[ 'angle' ] = angle
+            new_row[ 'Curvature (1/m)' ] = curvature
+            new_row[ 'type' ] = type_exp
 
             # append the dataset
-            total_df = total_df.append( summary_df, ignore_index=True )
+            total_df = total_df.append( new_row, ignore_index=True )
 
         # for
 
@@ -210,10 +220,10 @@ class FBGNeedleJigCalibrator:
 
         # process the signals
         for angle in total_df[ 'angle' ].unique():
-            total_angle_df = total_df.iloc[ total_df[ 'angle' ] == angle ]
+            total_angle_df = total_df.loc[ total_df[ 'angle' ] == angle ]
             proc_total_angle_df = total_angle_df.copy()
             proc_total_Tcomp_angle_df = proc_total_angle_df.copy()
-            ref_wavelength = total_angle_df[ ch_aa_head ].iloc[ total_angle_df[ 'Curvature (1/m)' ] == 0 ].to_numpy()
+            ref_wavelength = total_angle_df.loc[ total_angle_df[ 'Curvature (1/m)' ] == 0, ch_aa_head ].to_numpy()
             signals = total_angle_df[ ch_aa_head ].to_numpy()
 
             proc_signals = fbg_signal_processing.process_signals( signals, ref_wavelength )
@@ -242,23 +252,36 @@ class FBGNeedleJigCalibrator:
 
         """
         # process dataset
+        print( "Processing calibration dataset..." )
         total_df, proc_total_df, proc_Tcomp_total_df = self.process_dataset( self.calib_dataset, 'calibration',
                                                                              save=save )
+        print( "Processed calibration dataset." )
+        print()
 
         # add the signals to our datasets
         self.total_df = self.total_df.append( total_df, ignore_index=True )
         self.proc_total_df = self.proc_total_df.append( proc_total_df, ignore_index=True )
         self.proc_Tcomp_total_df = self.proc_Tcomp_total_df.append( proc_Tcomp_total_df, ignore_index=True )
 
-        # perform the calibration on the calibration dataset
-        calibration_df = self.proc_Tcomp_total_df.iloc[ self.proc_Tcomp_total_df[ 'type' ] == 'calibration', : ]
+        # perform the calibration on the calibration dataset (use Tcomp data)
+        print( "Calibrating FBG sensors...", end=' ' )
+        calibration_df = self.proc_Tcomp_total_df.loc[ self.proc_Tcomp_total_df[ 'type' ] == 'calibration', : ]
 
         cal_mats, calib_errors = calibrate_sensors_jig( calibration_df, fbg_needle=self.fbg_needle,
                                                         weights_rule=self.weight_rule )
 
         # update fbg_needle
         self.is_calibrated = True
-        self.fbg_needle.set_calibration_matrices( cal_mats )
+        self.fbg_needle.cal_matrices = cal_mats
+        print( "Calibrated." )
+        print()
+
+        # determine predicted curvatures
+        curv_prediction = self.fbg_needle.curvatures_processed(
+                calibration_df[ self.fbg_needle.generate_chaa()[ 0 ] ].to_numpy() )
+        calibration_df[ self.__pred_col_header ] = curv_prediction.swapaxes( 1, 2 ).reshape( -1,
+                                                                                             2 * self.fbg_needle.num_activeAreas )
+        self.calval_df = self.calval_df.append( calibration_df, ignore_index=True )  # add to the calval_df
 
         # save the results
         if save:
@@ -279,6 +302,7 @@ class FBGNeedleJigCalibrator:
             self.fbg_needle.save_json( fbgneedle_param_outfile )
             print( f"Saved calibrated needle parameters: {fbgneedle_param_outfile}" )
             self.__write_calibration_errors( calib_errors, calib_error_logfile )
+            print()
 
         # if
 
@@ -288,10 +312,11 @@ class FBGNeedleJigCalibrator:
 
     def run_validation( self, save: bool = True ) -> bool:
         """ Perform FBG needle validation"""
-        # TODO: class perform validation
         # process dataset
+        print( "Processing validation dataset..." )
         total_df, proc_total_df, proc_Tcomp_total_df = self.process_dataset( self.valid_dataset, 'validation',
                                                                              save=save )
+        print( "Processed valdiation dataset." )
 
         # add the signals to our datasets
         self.total_df = self.total_df.append( total_df, ignore_index=True )
@@ -299,9 +324,18 @@ class FBGNeedleJigCalibrator:
         self.proc_Tcomp_total_df = self.proc_Tcomp_total_df.append( proc_Tcomp_total_df, ignore_index=True )
 
         # perform validation on the validation dataset
-        validation_df = self.proc_Tcomp_total_df.iloc[ self.proc_Tcomp_total_df[ 'type' ] == 'validation', : ]
+        validation_df = self.proc_Tcomp_total_df.loc[ self.proc_Tcomp_total_df[ 'type' ] == 'validation', : ]
 
-        return False
+        # perform reprojection errors
+        print( "Computing errors...", end=' ' )
+        curv_prediction = self.fbg_needle.curvatures_processed(
+                validation_df[ self.fbg_needle.generate_chaa()[ 0 ] ].to_numpy() )
+        validation_df[ self.__pred_col_header ] = curv_prediction.swapaxes( 1, 2 ).reshape( -1,
+                                                                                            2 * self.fbg_needle.num_activeAreas )
+        self.calval_df = self.calval_df.append( validation_df, ignore_index=True )  # add to the calval_df
+        print( "Computed." )
+
+        return True
 
     # run_validation
 
@@ -314,7 +348,7 @@ class FBGNeedleJigCalibrator:
 
     # run_calibration_validation
 
-    def save_processed_data( self, outfile_base: str, outdir: str = '' ):
+    def save_processed_data( self, outfile_base: str = '', outdir: str = '' ):
         """ Save the plots and Excel sheets """
         # Output the Excel sheets of the data
         data_outfile = f"{outfile_base}Jig-Calibration-Validation-Data.xlsx"
@@ -323,6 +357,7 @@ class FBGNeedleJigCalibrator:
             self.total_df.to_excel( xl_writer, sheet_name='Raw Signals' )
             self.proc_total_df.to_excel( xl_writer, sheet_name='Processed Signals' )
             self.proc_Tcomp_total_df.to_excel( xl_writer, sheet_name='T Comp. Processed Signals' )
+            self.calval_df.to_excel( xl_writer, sheet_name='Calibration Validation Dataset' )
 
         # with
         print( f"Saved data file: {data_outfile}" )
@@ -331,13 +366,13 @@ class FBGNeedleJigCalibrator:
         # set-up
         color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :self.fbg_needle.num_activeAreas ]
         pt_style = [ c + '.' for c in color_scheme ]  # point styles/
-        ch_aa_head = self.fbg_needle.generate_ch_aa()
+        ch_aa_head = self.fbg_needle.generate_chaa()[ 0 ]
 
         for exp_type in self.total_df[ 'type' ].unique():
             # grab the specific dataset
-            sub_total_df = self.total_df.iloc[ self.total_df[ 'type' ] == exp_type, : ]
-            sub_proc_total_df = self.proc_total_df.iloc[ self.proc_total_df[ 'type' ] == exp_type, : ]
-            sub_proc_Tcomp_total_df = self.proc_Tcomp_total_df.iloc[ self.proc_Tcomp_total_df[ 'type' ] == exp_type, : ]
+            sub_total_df = self.total_df.loc[ self.total_df[ 'type' ] == exp_type, : ]
+            sub_proc_total_df = self.proc_total_df.loc[ self.proc_total_df[ 'type' ] == exp_type, : ]
+            sub_proc_Tcomp_total_df = self.proc_Tcomp_total_df.loc[ self.proc_Tcomp_total_df[ 'type' ] == exp_type, : ]
 
             # Plot signals vs. Raw Curvature per angle
             for angle in sub_total_df[ 'angle' ].unique():
@@ -349,6 +384,7 @@ class FBGNeedleJigCalibrator:
 
                     # plot the raw signals
                     sub_total_df.loc[ sub_total_df[ 'angle' ] == angle, head_aa_i ].plot( x='Curvature (1/m)',
+                                                                                          y=ch_aa_i,
                                                                                           style=pt_style,
                                                                                           ax=axs_raw[ aa_i - 1 ] )
 
@@ -394,8 +430,10 @@ class FBGNeedleJigCalibrator:
                 head_aa_i = [ 'Curvature_x (1/m)', 'Curvature_y (1/m)' ] + ch_aa_i
 
                 # plot the processed signals
-                sub_proc_total_df[ head_aa_i ].plot( x='Curvature_x (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 0 ] )
-                sub_proc_total_df[ head_aa_i ].plot( x='Curvature_y (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 1 ] )
+                sub_proc_total_df[ head_aa_i ].plot( x='Curvature_x (1/m)', y=ch_aa_i, style=pt_style,
+                                                     ax=axs_proc[ aa_i - 1, 0 ] )
+                sub_proc_total_df[ head_aa_i ].plot( x='Curvature_y (1/m)', y=ch_aa_i, style=pt_style,
+                                                     ax=axs_proc[ aa_i - 1, 1 ] )
 
                 # fit lines to processed signals
                 line_colors = { c.get_label(): c.get_color() for c in axs_proc[ aa_i - 1, 0 ].get_children() if
@@ -429,7 +467,7 @@ class FBGNeedleJigCalibrator:
             axs_proc[ -1, 0 ].set_xlabel( 'Curvature X (1/m)' )  # set x axis labels
             axs_proc[ -1, 1 ].set_xlabel( 'Curvature Y (1/m)' )
 
-            outfile_fig_proc = os.path.join( outdir, f"{outfile_base}_{exp_type}_all-curvatures-xy_signal-shifts.png" )
+            outfile_fig_proc = os.path.join( outdir, f"{outfile_base}{exp_type}_all-curvatures-xy_signal-shifts.png" )
             fig_proc.savefig( outfile_fig_proc )
             print( "Saved figure:", outfile_fig_proc )
             plt.close( fig=fig_proc )
@@ -443,9 +481,9 @@ class FBGNeedleJigCalibrator:
                 head_aa_i = [ 'Curvature_x (1/m)', 'Curvature_y (1/m)' ] + ch_aa_i
 
                 # plot the proc_Tcompessed signals
-                sub_proc_Tcomp_total_df[ head_aa_i ].plot( x='Curvature_x (1/m)', style=pt_style,
+                sub_proc_Tcomp_total_df[ head_aa_i ].plot( x='Curvature_x (1/m)', y=ch_aa_i, style=pt_style,
                                                            ax=axs_proc_Tcomp[ aa_i - 1, 0 ] )
-                sub_proc_Tcomp_total_df[ head_aa_i ].plot( x='Curvature_y (1/m)', style=pt_style,
+                sub_proc_Tcomp_total_df[ head_aa_i ].plot( x='Curvature_y (1/m)', y=ch_aa_i, style=pt_style,
                                                            ax=axs_proc_Tcomp[ aa_i - 1, 1 ] )
 
                 # fit lines to proc_Tcompessed signals
@@ -481,7 +519,7 @@ class FBGNeedleJigCalibrator:
             axs_proc_Tcomp[ -1, 1 ].set_xlabel( 'Curvature Y (1/m)' )
 
             outfile_fig_proc_Tcomp = os.path.join( outdir,
-                                                   f"{outfile_base}_{exp_type}_all-curvatures-xy_signal-shifts-T-comp.png" )
+                                                   f"{outfile_base}{exp_type}_all-curvatures-xy_signal-shifts-T-comp.png" )
             fig_proc_Tcomp.savefig( outfile_fig_proc_Tcomp )
             print( "Saved figure:", outfile_fig_proc_Tcomp )
             plt.close( fig=fig_proc_Tcomp )
@@ -612,7 +650,7 @@ def calibrate_sensors_jig( *args, **kwargs ) -> (dict, dict):
 
         # turn the values into a dict of numpy array's
         curvatures = { aa_i: curvatures_single.to_numpy() for aa_i in range( 1, num_active_areas + 1 ) }
-        signals = { aa_i: signals_tot.iloc[ :, aa_assignments == aa_i ].to_numpy() for aa_i in
+        signals = { aa_i: signals_tot.loc[ :, aa_assignments == aa_i ].to_numpy() for aa_i in
                     range( 1, num_active_areas + 1 ) }
 
     # if
@@ -690,7 +728,7 @@ def combine_fbgdata_directory( directory: str, num_channels: int, num_active_are
         # if
 
         # add the mean values to the summary_df
-        new_row = df.mean()  # mean peak values
+        new_row = df.mean( numeric_only=True )  # mean peak values
         new_row[ 'time' ] = df[ 'time' ].max()  # latest time
 
         summary_df = summary_df.append( new_row, ignore_index=True )
@@ -907,7 +945,7 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
             mask_signals = (aa_i == aa_assignments)  # determine which columns of the FBG signals to get
             mask = np.append( [ False, True, False ], mask_signals )  # include the curvatures and remove time
 
-            summary_df.iloc[ :, mask ].plot( x='Curvature (1/m)', style='.', ax=axs[ aa_i - 1 ] )
+            summary_df.loc[ :, mask ].plot( x='Curvature (1/m)', style='.', ax=axs[ aa_i - 1 ] )
             axs[ aa_i - 1 ].set_ylabel( 'signal (nm)' )
 
             # plot linear fits
@@ -996,8 +1034,8 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
         mask_y = np.append( [ False, False, False, True, False ], mask_signals )  # curvature and AA signals
 
         # plot the processed signals
-        proc_total_df.iloc[ :, mask_x ].plot( x='Curvature_x (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 0 ] )
-        proc_total_df.iloc[ :, mask_y ].plot( x='Curvature_y (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 1 ] )
+        proc_total_df.loc[ :, mask_x ].plot( x='Curvature_x (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 0 ] )
+        proc_total_df.loc[ :, mask_y ].plot( x='Curvature_y (1/m)', style=pt_style, ax=axs_proc[ aa_i - 1, 1 ] )
 
         # fit lines to the processed signals
         line_colors = { c.get_label(): c.get_color() for c in axs_proc[ aa_i - 1, 0 ].get_children() if
@@ -1044,10 +1082,10 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
         mask_y = np.append( [ False, False, False, True, False ], mask_signals )  # curvature and AA signals
 
         # plot the processed signals
-        proc_Tcomp_total_df.iloc[ :, mask_x ].plot( x='Curvature_x (1/m)', style=pt_style,
-                                                    ax=axs_proc_Tcomp[ aa_i - 1, 0 ] )
-        proc_Tcomp_total_df.iloc[ :, mask_y ].plot( x='Curvature_y (1/m)', style=pt_style,
-                                                    ax=axs_proc_Tcomp[ aa_i - 1, 1 ] )
+        proc_Tcomp_total_df.loc[ :, mask_x ].plot( x='Curvature_x (1/m)', style=pt_style,
+                                                   ax=axs_proc_Tcomp[ aa_i - 1, 0 ] )
+        proc_Tcomp_total_df.loc[ :, mask_y ].plot( x='Curvature_y (1/m)', style=pt_style,
+                                                   ax=axs_proc_Tcomp[ aa_i - 1, 1 ] )
 
         # fit lines to the processed signals
         line_colors = { c.get_label(): c.get_color() for c in axs_proc_Tcomp[ aa_i - 1, 0 ].get_children() if
@@ -1169,86 +1207,44 @@ def main( args=None ):
     print( fbg_needle )
     print()
 
-    # perform needle calibration
-    if (len( args.calib_curvatures ) > 0) and (args.calibDirectory is not None):
-        # prepare calibrated fbg_needle parameter file
-        needleparam_outfile = "needle_params_{}.json".format(
-                os.path.normpath( args.calibDirectory ).split( os.sep )[ -1 ] )
-        needleparam_outfile = os.path.join( needle_param_dir, needleparam_outfile )
+    # set-up weighting rule
+    if args.cutoff_weights is not None:
+        weights_rule = lambda k, i: args.cutoff_weights[ 0 ] if np.linalg.norm( k ) <= args.cutoff_weights[ 1 ] else \
+            args.cutoff_weights[ 2 ]
+    else:
+        weights_rule = None
 
-        # prepare cutoff weighting rule
-        if args.cutoff_weights is not None:
-            weights_rule = lambda k, i: args.cutoff_weights[ 0 ] if np.linalg.norm( k ) <= args.cutoff_weights[ 1 ] else \
-                args.cutoff_weights[ 2 ]
-            needleparam_outfile = needleparam_outfile.replace( '.json', '_weights.json' )
-        # if
+    # else
 
-        else:
-            weights_rule = lambda k, i: 1
+    # configure jig calibrator
+    jig_calibrator = FBGNeedleJigCalibrator( fbg_needle, args.calibDirectory, args.calib_curvatures, args.angles,
+                                             valid_directory=args.validDirectory,
+                                             valid_curvatures=args.valid_curvatures, valid_angles=args.angles,
+                                             weight_rule=weights_rule )
 
-        # else
+    # perform calibration and validation
+    if len( jig_calibrator.valid_dataset ) > 0:  # validation dataset not configured
+        print( "Performing calibration, validation not configured..." )
+        jig_calibrator.run_calibration( save=True )
 
-        # Prepare calibration directories
-        calib_dirs_degs = { }
-        for angle in args.angles:
-            calib_dirs_degs[ angle ] = [ ]
+    # if
+    else:
+        print( "Performing calibraton and validation..." )
+        jig_calibrator.run_calibration_validation( save=True )
 
-            # filter out the non-applicable curavtures
-            for d in glob.glob( os.path.join( args.calibDirectory, f'{angle}_deg', '*/*' ) ):
-                res = re.search( dir_pattern, os.path.normpath( d ) )  # search for the path pattern
-                if res is not None:
-                    ang, curv = res.groups()
-                    ang, curv = float( ang ), float( curv )  # convert strings to floats
+    # else
+    print()
 
-                    # if this is not a valid calibration curvature
-                    if curv in args.calib_curvatures:
-                        calib_dirs_degs[ angle ].append( os.path.normpath( d ) )
-                    # if
-                # if
-            # for
-            print( angle, ':', calib_dirs_degs[ angle ] )
-            print()
+    print( "Saving all data..." )
+    jig_calibrator.save_processed_data( outfile_base='', outdir=jig_calibrator.calib_directory )
+    print( "Data saved." )
+    print()
 
-        # for
+    print( "Calibrated FBG Needle:" )
+    print( jig_calibrator.fbg_needle )
+    print()
 
-        # Perform the jig calibration
-        fbg_needle = jig_calibration( args.calibDirectory, calib_dirs_degs, fbg_needle, args.calib_curvatures,
-                                      weights_rule=weights_rule
-                                      )
-
-        # save the calibrated fbg_needle
-        fbg_needle.save_json( needleparam_outfile )
-        print( f"Saved calibrated needle params: {needleparam_outfile}" )
-
-    # if: jig calibration
-
-    # check if validation is configured, if so, perform validation
-    if (len( args.valid_curvatures ) > 0) and (args.validDirectory is not None):
-        # Prepare validation directories
-        valid_dirs_degs = { }
-
-        for angle in args.angles:
-            valid_dirs_degs[ angle ] = [ ]
-
-            # filter out the non-applicable curavtures
-            for d in glob.glob( os.path.join( args.validDirectory, f'{angle}_deg', '*/*' ) ):
-                res = re.search( dir_pattern, os.path.normpath( d ) )  # search for the path pattern
-                if res is not None:
-                    ang, curv = res.groups()
-                    ang, curv = float( ang ), float( curv )  # convert strings to floats
-
-                    # if this is not a valid calibration curvature
-                    if curv in args.calib_curvatures:
-                        valid_dirs_degs[ angle ].append( os.path.normpath( d ) )
-                    # if
-                # if
-            # for
-        # for
-
-        # Perform jig validation
-        jig_validation( args.validDirectory, valid_dirs_degs, fbg_needle, args.valid_curvatures )
-
-    # if: jig validation
+    print( "Program completed." )
 
 
 # main

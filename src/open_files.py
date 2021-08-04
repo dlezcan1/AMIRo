@@ -34,6 +34,8 @@ def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> p
     ret_val = pd.DataFrame( np.zeros( (0, 1 + num_channels * num_active_areas) ),
                             columns=columns )
     ret_val = ret_val.astype( { 'time': 'datetime64[ns]' } )
+    ret_val = ret_val.astype(
+            { ca: 'float64' for ca in FBGNeedle.generate_ch_aa( num_channels, num_active_areas )[ 0 ] } )
 
     # iterate through each of the lines
     for line in lines:
@@ -49,6 +51,10 @@ def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> p
         ret_val = ret_val.append( new_row, ignore_index=True )
 
     # for
+
+    ret_val = ret_val.astype( { 'time': 'datetime64[ns]' } )
+    ret_val = ret_val.astype(
+            { ca: 'float64' for ca in FBGNeedle.generate_ch_aa( num_channels, num_active_areas )[ 0 ] } )
 
     return ret_val
 

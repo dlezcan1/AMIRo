@@ -8,6 +8,10 @@ This is a class file for FBG Needle parameterizations
 import json
 from itertools import product
 from os import path
+from warnings import warn
+from typing import Union
+
+import fbg_signal_processing
 
 import numpy as np
 
@@ -113,6 +117,7 @@ class FBGNeedle( object ):
         self.sensor_location = sensor_location
         self.cal_matrices = calibration_mats
         self.weights = weights
+        self.ref_wavelengths = np.zeros( self.num_channels * self.num_activeAreas )  # reference wavelengths
 
     # __init__
 
@@ -303,21 +308,21 @@ class FBGNeedle( object ):
 
     ######################## FUNCTIONS ######################################
 
-    def aa_cal( self, aa_num: str ):
+    def aa_cal( self, aax: str ):
         """ Function to get calibration matrix from AAX indexing """
-        return self.cal_matrices[ self.aa_loc( aa_num ) ]
+        return self.cal_matrices[ self.aa_loc( aax ) ]
 
     # aa_cal
 
-    def aa_idx( self, aa_num: str ):
+    def aa_idx( self, aax: str ):
         """ Function to get value from AAX indexing """
-        return int( "".join( filter( str.isdigit, aa_num ) ) ) - 1
+        return int( "".join( filter( str.isdigit, aax ) ) ) - 1
 
     # get_aa
 
-    def aa_loc( self, aa_num: str ):
+    def aa_loc( self, aax: str ):
         """ Function to get location from AAX indexing """
-        return self.sensor_location[ self.aa_idx( aa_num ) ]
+        return self.sensor_location[ self.aa_idx( aax ) ]
 
     # aa_loc
 
@@ -346,6 +351,132 @@ class FBGNeedle( object ):
         return FBGNeedle.assignments_ch( self.num_channels, self.num_activeAreas )
 
     # assignments_ch
+
+    def curvatures_raw( self, raw_signals: Union[ dict, np.ndarray ], temp_comp: bool = True ) -> \
+            Union[ dict, np.ndarray ]:
+        """ Determine the curvatures from signals input
+
+                    Args:
+                        raw_signals: ({AA_index: signals} | numpy array of signals (can be multi-row))
+                                      must be only the raw signals
+                        temp_comp: bool (Default True) of whether to use temperature compensation
+
+                    Return:
+                        (dict of {AA_index: curvature_xy} | numpy array of size 2 x num_activeAreas of curvature_xy)
+        """
+        curvatures = { }
+        aa_assignments = self.assignments_AA()
+
+        if isinstance( raw_signals, dict ):
+            proc_signals = np.zeros( self.num_channels * self.num_activeAreas )
+            raw_signals = { }
+            for aa_i, raw_signal in raw_signals.items():
+                # get the appropriate calibration matrix
+                aa_idx = aa_i if isinstance( aa_i, int ) else int( "".join( filter( str.isdigit, aa_i ) ) )
+                aa_i_mask = list( map( lambda aa: aa == aa_idx, aa_assignments ) )
+                base_signal = self.ref_wavelengths[ aa_i_mask ]
+
+                # process the signal
+                proc_signal = fbg_signal_processing.process_signals( raw_signal, base_signal )
+                proc_signals[ aa_i_mask ] = proc_signal
+
+            # for
+
+            # temperature compensate
+            if temp_comp:
+                proc_signals = fbg_signal_processing.temperature_compensation( proc_signals, self.num_channels,
+                                                                               self.num_activeAreas )
+
+            # if
+
+            curvatures = self.curvatures_processed( proc_signals )
+
+        # if
+
+        elif isinstance( raw_signals, np.ndarray ):
+            # process the signals
+            proc_signals = fbg_signal_processing.process_signals( raw_signals, self.ref_wavelengths )
+            if temp_comp:
+                proc_signals = fbg_signal_processing.temperature_compensation( proc_signals, self.num_channels,
+                                                                               self.num_activeAreas )
+
+            # if
+
+            if raw_signals.ndim == 1 and proc_signals.ndim == 2 and proc_signals.shape[ 0 ] == 1:
+                proc_signals = proc_signals.squeeze( axis=0 )
+
+            # if
+
+            curvatures = self.curvatures_processed( proc_signals )
+
+        # elif
+
+        else:
+            raise TypeError( "raw_signals must be a 'dict' or 'numpy.ndarray'" )
+
+        # else
+
+        return curvatures
+
+    # curvatures_raw
+
+    def curvatures_processed( self, proc_signals: Union[ dict, np.ndarray ] ) -> Union[ dict, np.ndarray ]:
+        """ Determine the curvatures from signals input
+
+            Args:
+                proc_signals: {AA_index: processed signal} must be processed and temperature compensated
+
+        """
+
+        if isinstance( proc_signals, dict ):
+            curvatures = { }
+            for aa_i, proc_signal in proc_signals.items():
+                # get the appropriate calibration matrix
+                C_aa_i = self.aa_cal( f"AA{aa_i}" ) if isinstance( aa_i, int ) else self.aa_cal( aa_i )
+
+                curvatures[ aa_i ] = C_aa_i @ proc_signal  # 2 x num_AA @ num_AA x 1
+
+            # for
+
+        # if
+
+        elif isinstance( proc_signals, np.ndarray ):
+            # initalize curvatures
+            if proc_signals.ndim == 1:
+                curvatures = np.zeros( (2, self.num_activeAreas) )
+            elif proc_signals.ndim == 2:
+                curvatures = np.zeros( (proc_signals.shape[ 0 ], 2, self.num_activeAreas) )
+            else:
+                raise IndexError( "'proc_signals' dimensions must be <= 2." )
+
+            for aa_i in range( 1, self.num_activeAreas + 1 ):
+                mask_aa_i = list( map( lambda aa: aa == aa_i, self.assignments_AA() ) )
+
+                C_aa_i = self.aa_cal( f"AA{aa_i}" )
+
+                if proc_signals.ndim == 1:
+                    proc_signals_aa_i = proc_signals[ mask_aa_i ]
+                    curvatures[ :, aa_i - 1 ] = C_aa_i @ proc_signals_aa_i
+
+                # if
+
+                else:
+                    proc_signals_aa_i = proc_signals[ :, mask_aa_i ]
+                    curvatures[ :, :, aa_i - 1 ] = proc_signals_aa_i @ C_aa_i.T
+
+                # else
+            # for
+
+        # else
+
+        else:
+            raise TypeError( "'proc_signals' must be a 'dict' or 'numpy.ndarray'" )
+
+        # else
+
+        return curvatures
+
+    # curvatures_processed
 
     @staticmethod
     def generate_ch_aa( num_channels: int, num_active_areas: int ) -> (list, list, list):
@@ -486,7 +617,7 @@ class FBGNeedle( object ):
 
     def set_calibration_matrices( self, cal_mats: dict ):
         """ This function is to set the calibration matrices after instantiation """
-
+        warn( DeprecationWarning( "Use function property setter obj.cal_matrices = ..." ) )
         self.cal_matrices = cal_mats
 
     # set_calibration_matrices

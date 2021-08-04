@@ -6,27 +6,23 @@ Packages here include automation of processing needle calibration data and perfo
 The caliibration method currently uses a simple least squares method. 
 
 ### Code for calibration:
-* `calibrationMatrix.py`
-* `FBGNeedle.py`: class file for FBG-sensorized needle wrapper
-* `fbgCalibration.py`
+* `fbg_needle_calibration.py`: script for calibrating FBGNeedles
+* `sensorized_needles.py`: class file for FBG-sensorized needle wrapper
+* `open_files.py`: library for reading in experimental data files
+* `fbg_signal_processing.py`: library of FBG signal processing methods 
 
-### Code for FBG signal processing
-* `hyperion.py`: hyperion si155 interrogator python interface. 
+### `hyperion_interface` Code for FBG interface 
+* `hyperion.py`: hyperion si155 interrogator python interface library.
 * `async_getFBGPeaks.py`
 * `basic_getFBGPeaks.py`
+* `getFBGPeaks.py`
 * `findHyperionIP.py`
-* several bash scripts in `src/bash_scripts/`
+* `plotFBGPeaks.py`: script to see the spectrum ov the interrogator
+* several bash scripts in `src/bash_scripts/` for operating these scripts during experiment
 
-## Needle segmentation
-Code here is used for needle segmentation tasks for ground truth image reconstruction of needles insertions.
+### `matlab_scripts` MATLAB Functions for shape sensing and data analysis
+This is where analysis in MATLAB is performed. Current version is for MATLAB R2021a
 
-### Code
-* `image_processing.py`
-* `needle_segmentation_functions.py`
-* `needle_segmentation_scipt.py`
-* `needle_segmentation_test.py`
-* `stereo_needle_proc.py`: stereo image processing for needle segmentation and 3-D reconstruction
-
-## Data
-There are several images including stereo needle insertions and needle calibration monocular images used for needle segmentation tasks. 
-FBG signal data here is from FBG-interlaced needles from calibrations performed using jig and 2-D needle segmentations.
+### Other Repositories
+* `shape_sensing`: For FBG needle shape sensing
+* `amiro-cv`: for computer vision applications of needle shape sensing experiments
