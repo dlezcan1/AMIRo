@@ -106,11 +106,15 @@ venv.bak/
 # eclipse project stuff
 .*project
 
-# data directory
-data/
+# data directory except needle param json files
+data/*
+!data/needle_[0-9]CH_[0-9]AA*/
+data/needle_[0-9]CH_[0-9]AA*/*
+!data/needle_[0-9]CH_[0-9]AA*/needle_params*.json
 
 # matlab autosave files
 *.asv
 
 # pycharm files
 .idea/
+

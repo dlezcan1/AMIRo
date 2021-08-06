@@ -1,0 +1,11 @@
+{
+    "length": 160,
+    "# channels": 3,
+    "# active areas": 4,
+    "Sensor Locations": {
+        "1": 149,
+        "2": 129,
+        "3": 94,
+        "4": 59
+    }
+}
