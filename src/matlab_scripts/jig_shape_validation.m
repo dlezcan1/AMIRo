@@ -52,7 +52,7 @@ if ~isempty(AA_weights)
 end
 
 %% Load FBGNeedle python class
-fbg_needle = py.FBGNeedle.FBGNeedle.load_json(fbgneedle_param);
+fbg_needle = py.sensorized_needles.FBGNeedle.load_json(fbgneedle_param);
 disp("FBGNeedle class loaded.")
 
 % channel list
