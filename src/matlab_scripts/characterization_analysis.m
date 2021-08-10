@@ -4,17 +4,17 @@
 %
 % - written by: Dimitri Lezcano
 
-function characterization_analysis(data_dir, num_ch, num_aa, num_trials, depths)
+function characterization_analysis(data_dir, num_ch, num_aa, num_trials, depths, ch_remap)
     arguments
         data_dir    string;        
         num_ch      double {mustBeInteger, mustBePositive};
         num_aa      double {mustBeInteger, mustBePositive};
         num_trials  double {mustBeInteger, mustBePositive};
-        depths      (1,:) {mustBePositive};
+        depths      (1,:)  {mustBeNonnegative};
+        ch_remap    (1,:)  {mustBeInteger, mustBePositive} = 1:num_ch*num_aa;
     end
     %% Set-up
     set(0, 'defaultLineLineWidth', 1);
-    
     
     % initalizations
     data_files = struct();
@@ -42,7 +42,7 @@ function characterization_analysis(data_dir, num_ch, num_aa, num_trials, depths)
     % set-up data table (trial_num, depth, ch, load?, wavelengths
     ch_aa_pairs = cart_product((1:num_ch)', (1:num_aa)');
     ch_aa_names = split(strip(sprintf("CH%d_AA%d ", ch_aa_pairs'), 'right', ' '), ' ', 2);
-    var_types = ["uint8", "double", "uint8", "categorical", repmat(["double"], 1, num_ch*num_aa)];
+    var_types = ["uint8", "double", "uint8", "categorical", repmat("double", 1, num_ch*num_aa)];
     var_names = ["trial", "depth", "CH", "load", ch_aa_names];
     data_tbl = table('Size', [0,4 + num_ch*num_aa], 'VariableTypes', var_types,...
                     'VariableNames', var_names);
@@ -64,31 +64,67 @@ function characterization_analysis(data_dir, num_ch, num_aa, num_trials, depths)
                    fprintf('Depth: %.1f mm\n', d);
 
                    sheet_name_d = sprintf(sheet_name, trial, d);
+                   
+                   if d == max(depths) % only do load 
+                       % read in data table
+                       load_mat   = readmatrix(data_files.(CHi).load,   'Sheet', sheet_name_d);
+                       
+                       % remap and resave the wavelengths
+                       if any(ch_remap ~= 1:num_ch*num_aa)
+                           load_mat   = load_mat(:,ch_remap);
+                           
+                           writematrix(load_mat, data_files.(CHi).load, 'Sheet', sheet_name_d);
+                           disp("Rewrote load matrix for channel remapping")
+                       end
+                       
+                       % get the mean wavelengths
+                       load_wls   = mean(load_mat);                       
 
-                   % read in data table
-                   load_mat   = readmatrix(data_files.(CHi).load,   'Sheet', sheet_name_d);
-                   unload_mat = readmatrix(data_files.(CHi).unload, 'Sheet', sheet_name_d);
+                       % append the values to the table
+                       data_tbl{end+1, 1:3} = [trial, d, ch_i]; %#ok<AGROW>
+                                           
+                       % load values
+                       data_tbl.load(end)                    = 'load';
+                       data_tbl{end,end-num_ch*num_aa+1:end} = load_wls;
 
-                   % get the mean wavelengths
-                   load_wls   = mean(load_mat);
-                   unload_wls = mean(unload_mat);
+                   else
+                       % read in data table
+                       load_mat   = readmatrix(data_files.(CHi).load,   'Sheet', sheet_name_d);
+                       unload_mat = readmatrix(data_files.(CHi).unload, 'Sheet', sheet_name_d);
+                       
+                       % remap and resave the wavelengths
+                       if any(ch_remap ~= 1:num_ch*num_aa)
+                           load_mat   = load_mat(:,ch_remap);
+                           unload_mat = unload_mat(:,ch_remap);
+                           
+                           writematrix(load_mat, data_files.(CHi).load, 'Sheet', sheet_name_d);
+                           disp("Rewrote load matrix for channel remapping")
+                           
+                           writematrix(unload_mat, data_files.(CHi).unload, 'Sheet', sheet_name_d);
+                           disp("Rewrote unload matrix for channel remapping")
+                       end
+                       
+                       % get the mean wavelengths
+                       load_wls   = mean(load_mat);
+                       unload_wls = mean(unload_mat);
 
-                   % append the values to the table
-                   data_tbl{end+1:end+2, 1:3} = [trial, d,                   ch_i;
-                                                 trial, max(depths) - d + 1, ch_i];
+                       % append the values to the table
+                       data_tbl{end+1:end+2, 1:3} = [trial, d, ch_i;
+                                                     trial, d, ch_i];
 
-                   % load values
-                   data_tbl.load(end-1)                    = 'load';
-                   data_tbl{end-1,end-num_ch*num_aa+1:end} = load_wls;
+                       % load values
+                       data_tbl.load(end-1)                    = 'load';
+                       data_tbl{end-1,end-num_ch*num_aa+1:end} = load_wls;
 
-                   % unload values
-                   data_tbl.load(end)                      = 'unload';
-                   data_tbl{end,end-num_ch*num_aa+1:end}   = unload_wls;
-
+                       % unload values
+                       data_tbl.load(end)                      = 'unload';
+                       data_tbl{end,end-num_ch*num_aa+1:end}   = unload_wls;
+                   end
                end
                fprintf("End of trial\n\n");
             end
-           disp(' ');
+            
+            disp(' ');
         end
         warning('on');
 
