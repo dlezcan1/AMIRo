@@ -7,9 +7,11 @@ This is a class file for FBG Needle parameterizations
 """
 import json
 from itertools import product
-from os import path
+
+import os
 from warnings import warn
 from typing import Union
+import argparse
 
 import fbg_signal_processing
 
@@ -19,7 +21,7 @@ import numpy as np
 class Needle( object ):
     """ basic Needle class """
 
-    def __init__( self, length: float ):
+    def __init__( self, length: float, serial_number: str ):
         """ constructor
 
             Args:
@@ -27,9 +29,8 @@ class Needle( object ):
 
 
         """
-        self._length = None
-
-        self.length = length
+        self._length = length
+        self._serial_number = serial_number
 
     # __init__
 
@@ -40,28 +41,16 @@ class Needle( object ):
 
     # length
 
-    @length.setter
-    def length( self, length ):
-        if not self._length and length > 0:
-            self._length = length
+    @property
+    def serial_number( self ):
+        return self._serial_number
 
-        # if
-
-    # length: setter
+    # serial_number
 
     # =============== FUNCTIONS ==================================#
     def constant_curv_2d( self, wx, ds: float = 0.5 ):
         """ returns the constant curvature shape given by the rotation about wx """
         raise NotImplementedError( "'constant_curv_2d' is not implemented yet." )
-        s = np.arange( 0, self.length, ds )  # arclength points
-
-        shape = np.zeros( (3, len( s )), dtype=float )  # 3-D shape of the needle
-
-        rotx = lambda t: np.array( [ [ 1, 0, 0 ],
-                                     [ 0, np.cos( t ), -np.sin( t ) ],
-                                     [ 0, np.sin( t ), np.cos( t ) ] ] )
-
-        return shape
 
     # constant_curv_2d
 
@@ -69,12 +58,12 @@ class Needle( object ):
 # class: Needle  
 
 
-class FBGNeedle( object ):
+class FBGNeedle( Needle ):
     """
     This is a class for FBG Needle parameters containment.
     """
 
-    def __init__( self, length: float, num_channels: int, sensor_location: list = [ ],
+    def __init__( self, length: float, serial_number: str, num_channels: int, sensor_location: list = [ ],
                   calibration_mats: dict = { }, weights: dict = { } ):
         """
         Constructor
@@ -87,11 +76,6 @@ class FBGNeedle( object ):
         """
 
         # data checking
-        if length <= 0:
-            raise ValueError( "'length' must be > 0." )
-
-        # if
-
         if num_channels <= 0:
             raise ValueError( "'num_channels' must be > 0." )
 
@@ -104,17 +88,15 @@ class FBGNeedle( object ):
 
         # if
 
+        super().__init__( length, serial_number )
+
         # property set-up (None so that they are set once)
-        self._length = None
-        self._num_channels = None
-        self._sensor_location = None
+        self._num_channels = num_channels
+        self._sensor_location = list( sensor_location )
         self._cal_matrices = { }
         self._weights = { }
 
         # assignments
-        self.length = length
-        self.num_channels = num_channels
-        self.sensor_location = sensor_location
         self.cal_matrices = calibration_mats
         self.weights = weights
         self.ref_wavelengths = np.zeros( self.num_channels * self.num_activeAreas )  # reference wavelengths
@@ -123,7 +105,8 @@ class FBGNeedle( object ):
 
     def __str__( self ):
         """ Magic str method """
-        msg = "Needle length (mm): {}".format( self.length )
+        msg = "Serial Number: {}".format( self.serial_number )
+        msg += "\nNeedle length (mm): {}".format( self.length )
         msg += "\nNumber of FBG Channels: {:d}".format( self.num_channels )
         msg += "\nNumber of Active Areas: {:d}".format( self.num_activeAreas )
         msg += "\nSensor Locations (mm):"
@@ -158,21 +141,6 @@ class FBGNeedle( object ):
 
     ############################## PROPERTIES ######################################
     @property
-    def length( self ):
-        return self._length
-
-    # length
-
-    @length.setter
-    def length( self, length ):
-        if not self._length and length > 0:
-            self._length = length
-
-        # if
-
-    # length: setter
-
-    @property
     def num_aa( self ):
         DeprecationWarning( 'num_aa is deprecated. Please use num_activeAreas.' )
         return len( self.sensor_location )
@@ -191,36 +159,11 @@ class FBGNeedle( object ):
 
     # num_channels
 
-    @num_channels.setter
-    def num_channels( self, num_chs ):
-        if not self._num_channels and num_chs >= 0:
-            self._num_channels = num_chs
-
-        # if
-
-    # num_channels: setter
-
     @property
     def sensor_location( self ):
         return self._sensor_location
 
     # sensor_locations
-
-    @sensor_location.setter
-    def sensor_location( self, sensor_locations: list ):
-        if not self._sensor_location:
-            if sensor_locations is None:
-                self._sensor_location = None
-
-            # if
-
-            else:
-                self._sensor_location = list( sensor_locations )
-
-            # else 
-        # if
-
-    # sensor_location: setter
 
     @property
     def cal_matrices( self ):
@@ -560,7 +503,7 @@ class FBGNeedle( object ):
         # else
 
         # instantiate the FBGNeedle class object
-        fbg_needle = FBGNeedle( data[ 'length' ], data[ '# channels' ], sensor_locations,
+        fbg_needle = FBGNeedle( data[ 'length' ], data[ 'serial number' ], data[ '# channels' ], sensor_locations,
                                 cal_mats, weights )
 
         # return the instantiation
@@ -576,12 +519,9 @@ class FBGNeedle( object ):
             - outfile: str, the output json file to be saved.
         
         """
-        data = { }  # initialize the json dictionary
-
         # place the saved data into the json file
-        data[ "length" ] = self.length
-        data[ "# channels" ] = self.num_channels
-        data[ "# active areas" ] = self.num_activeAreas
+        data = { "serial number" : self.serial_number, "length": self.length, "# channels": self.num_channels,
+                 "# active areas": self.num_activeAreas }  # initialize the json dictionary
 
         if self.sensor_location:
             data[ "Sensor Locations" ] = { }
@@ -633,33 +573,64 @@ class FBGNeedle( object ):
 # class: FBGNeedle
 
 
+def __get_argparser() -> argparse.ArgumentParser:
+    """ Parse cli arguments"""
+    # Setup parsed arguments
+    parser = argparse.ArgumentParser( description="Make a new needle FBG parameter" )
+
+    parser.add_argument( 'length', type=float, help='The entire length of the FBG needle' )
+    parser.add_argument( 'num_channels', type=int, help='The number of channels in the FBG needle' )
+
+    parser.add_argument( 'sensor_locations', type=float, nargs='+', help='Sensor locations from the tip of the needle' )
+    parser.add_argument( 'needle_num', type=int, help='The number of channels in the FBG needle' )
+
+    return parser
+
+
+# __get_argparser
+
 def main( args=None ):
-    # create and FBGNeedle json
-    directory = "../data/needle_3CH_4AA_v3"
+    parser = __get_argparser()
+    pargs = parser.parse_args( args )
 
     # FBG needle parameters
-    length = 160  # mm
-    num_chs = 3
-    aa_locs_tip = np.cumsum( [ 11, 20, 35, 35 ] )[ ::1 ]  # 4 AA needle
-    aa_locs = (length - aa_locs_tip).tolist()
+    length = pargs.length  # mm
+    num_chs = pargs.num_channels
+    # aa_locs_tip = np.cumsum( [ 11, 20, 35, 35 ] )[ ::1 ]  # 4 AA needle
+    aa_locs = (length - np.array( pargs.sensor_locations )).tolist()
+
+    needle_num = pargs.needle_num
+    serial_number = "{:d}CH-{:d}AA-{:04d}".format( num_chs, len( aa_locs ), needle_num )
+    directory = os.path.join( '..', 'data', serial_number )
 
     # new FBG needle
-    new_needle = FBGNeedle( length, num_chs, aa_locs )
+    new_needle = FBGNeedle( length, serial_number, num_chs, aa_locs )
 
     print( "New needle parameters:" )
     print( new_needle )
     print()
 
-    save_file = path.join( directory, 'needle_params.json' )
-    new_needle.save_json( save_file )
-    print( f"Saved new needle json: {save_file}" )
+    if not os.path.isdir( directory ):
+        os.mkdir( directory )
+
+    # if
+
+    save_file = os.path.join( directory, 'needle_params.json' )
+    if not os.path.isfile( save_file ):
+        new_needle.save_json( save_file )
+        print( f"Saved new needle json: {save_file}" )
+
+    # if
+    else:
+        raise OSError( "Needle parameter file already exists: {}".format( save_file ) )
+
+    # else
 
 
 # main
 
 # for debugging purposes and creating new FBGneedle param files
 if __name__ == "__main__" or False:
-    # TODO: argparsing
     main()
 
 # if: __main__

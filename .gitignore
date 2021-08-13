@@ -108,9 +108,9 @@ venv.bak/
 
 # data directory except needle param json files
 data/*
-!data/needle_[0-9]CH_[0-9]AA*/
-data/needle_[0-9]CH_[0-9]AA*/*
-!data/needle_[0-9]CH_[0-9]AA*/needle_params*.json
+!data/[0-9]CH-[0-9]AA-*/
+data/[0-9]CH-[0-9]AA-*/**
+!data/[0-9]CH-[0-9]AA-*/needle_params*.json
 
 # matlab autosave files
 *.asv
