@@ -12,6 +12,7 @@ import glob
 import itertools
 import os
 import re
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -811,6 +812,7 @@ def combine_fbgdata_summary( fbg_summary_files: list, curvature_values: list, nu
 def jig_calibration( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list,
                      calib_error_logfile: str = None, weights_rule: callable = lambda k, i: 1 ) -> FBGNeedle:
     """ Perform jig calibration """
+    warnings.warn( DeprecationWarning( 'Use class implementation of jig calibration.' ) )
     # process the FBG signals
     total_df, _, proc_Tcomp_total_df = jig_process_signals( directory, dirs_degs, fbg_needle, curvatures_list )
 
@@ -1142,7 +1144,7 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
 
 def jig_validation( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle, curvatures_list: list ):
     """ Perform jig validation"""
-
+    warnings.warn( DeprecationWarning( 'Use class implementation of jig calibration.' ) )
     # ensure that the FBG needle is up-to-date with the calibration matrices
     assert (all( aa_i in fbg_needle.cal_matrices.keys() for aa_i in range( 1, fbg_needle.num_activeAreas + 1 ) ))
 
@@ -1188,7 +1190,7 @@ def main( args=None ):
     args = parser.parse_args( args )
 
     # set-up
-    dir_pattern = r".*([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format( os.sep.replace( '\\', '\\\\' ) )
+    # dir_pattern = r".*([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format( os.sep.replace( '\\', '\\\\' ) )
 
     # display the arguments
     print( 'angles:', args.angles )
@@ -1201,7 +1203,6 @@ def main( args=None ):
     print()
 
     # load FBGNeedle
-    needle_param_dir = os.path.split( args.fbgParamFile )[ 0 ]
     fbg_needle = FBGNeedle.load_json( args.fbgParamFile )
     print( "Current FBG Needle:" )
     print( fbg_needle )
@@ -1223,7 +1224,7 @@ def main( args=None ):
                                              weight_rule=weights_rule )
 
     # perform calibration and validation
-    if len( jig_calibrator.valid_dataset ) > 0:  # validation dataset not configured
+    if len( jig_calibrator.valid_dataset ) == 0:  # validation dataset not configured
         print( "Performing calibration, validation not configured..." )
         jig_calibrator.run_calibration( save=True )
 
