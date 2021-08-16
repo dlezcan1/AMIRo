@@ -9,14 +9,11 @@ Created on Nov 26, 2019
           asynchronously using the AsyncHyperion class.
 '''
 
-import asyncio
 import sys
-import time
-from datetime import datetime
-
 import numpy as np
-
-from hyperion import AsyncHyperion
+import asyncio, timeit, time
+from datetime import datetime
+from hyperion import  AsyncHyperion
 
 TIME_FMT = "%H-%M-%S.%f"
 DEFAULT_OUTFILE = "data/%Y-%m-%d_%H-%M-%S.txt"
@@ -49,8 +46,7 @@ def parsepeakdata( data: dict ):
     # parse timestamp and peak date into str formats 
     str_ts = timestamp.strftime( TIME_FMT )
     
-    str_peaks = np.array2string( peaks, precision = 10, separator = ', ',
-                                 max_line_width=np.inf )
+    str_peaks = np.array2string( peaks, precision = 10, separator = ', ' )
     str_peaks = str_peaks.strip( '[]' )  # remove the brackets
 #    print( str_ts + ": " + str_peaks + '\n' )
     

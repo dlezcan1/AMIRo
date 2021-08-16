@@ -10,21 +10,20 @@ Created on Nov 26, 2019
 '''
 
 import sys
-from datetime import datetime
-
 import numpy as np
+import time
+from datetime import datetime
+from hyperion import Hyperion
 
-from hyperion_interface.hyperion import Hyperion
-
-TIME_FMT = "%H-%M-%S.%f"
+TIME_FMT = "%H-%M-%S.%f"    
 
 
-def parsepeakdata( data: dict, interrogator: Hyperion ):
+def parsepeakdata( data: dict , interrogator: Hyperion ):
     """ Method to parse the peak data into a good format for printing """
-    timestamp = datetime.fromtimestamp( data[ "timestamp" ] )  # parse timestamp
+    timestamp = datetime.fromtimestamp( data["timestamp"] )  # parse timestamp
     peaks = np.zeros( 0 )
     for channel in range( 1, interrogator.channel_count + 1 ):
-        peaks = np.append( peaks, data[ 'data' ][ channel ] )
+        peaks = np.append( peaks, data['data'][channel] )
     
     # parse timestamp and peak date into str formats 
     str_ts = timestamp.strftime( TIME_FMT )

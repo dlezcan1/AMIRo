@@ -24,7 +24,6 @@ import open_files
 from sensorized_needles import FBGNeedle
 
 
-# TODO: class implementation
 class FBGNeedleJigCalibrator:
     directory_pattern = r".*{0}([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format(
             os.sep.replace( '\\', '\\\\' ) )  # directory pattern file structure

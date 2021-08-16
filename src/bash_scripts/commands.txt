@@ -1,0 +1,18 @@
+terminator -l dimitri & exit
+	- this command opens up the terminals you need for needle calibration
+
+./getFBGPeaks.py
+	This file is to view the FBG Peaks
+	-h for help
+	i.e. If you want to check the file for FBG Peaks w/o saving type
+		"./getFBGPeaks.py -v -o /dev/null [IP]"
+
+./runFBGcollection.bash [dir] [IP]
+	This file is to run a loop of saving FBG peak data. This is NOT used for the calibration b/c it does not include the time directories
+
+
+./NgetFBGdata.bash [-d dir] [IP]
+	This file is to run a loop of saving FBG peak data. Every time it is run, it adds an extra time directory for the data to be saved in. This IS used for calibration.
+
+python3 plotFBGSpectra.py [IP]
+	This file is to run the visualization of the FBG peaks and spectra over the 4 Channels of a Hyperion interrogator (si155) 

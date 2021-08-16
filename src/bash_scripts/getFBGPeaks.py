@@ -12,24 +12,22 @@ Created on Nov 26, 2019
           asynchronously using the HCommTCPPeaksstreamer.
 '''
 
-import argparse
-import asyncio
-import time
-from datetime import datetime
-
+import sys
 import numpy as np
-
-from hyperion_interface.hyperion import HCommTCPPeaksStreamer
+import argparse
+import asyncio, timeit, time
+from datetime import datetime
+from hyperion import  HCommTCPPeaksStreamer
 
 TIME_FMT = "%H-%M-%S.%f"
 DEFAULT_OUTFILE = "fbgdata_%Y-%m-%d_%H-%M-%S.txt"
 MAX_CHANNELS = 4
 
-parser = argparse.ArgumentParser( description="Function to get FBG data and write to a log file." )
-parser.add_argument( "ip", nargs="?", type=str, default="10.162.34.16" )
-parser.add_argument( "-o", "--output", type=str, dest="outfile", default=None )
-parser.add_argument( '-v', '--verbose', action="store_true" )
-parser.add_argument( '-d', '--directory', type=str, default='', dest='dir' )
+parser = argparse.ArgumentParser(description= "Function to get FBG data and write to a log file.")
+parser.add_argument("ip", nargs="?",type=str, default="10.162.34.16")
+parser.add_argument("-o","--output",type=str, dest="outfile", default=None)
+parser.add_argument('-v','--verbose', action="store_true")
+parser.add_argument('-d', '--directory', type=str, default='',dest='dir')
 parser.add_argument('-N','--number-points', type=int, default= -1, dest='N')
 
 def create_outfile( filename: str = None ):

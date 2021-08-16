@@ -9,14 +9,11 @@ Created on Nov 26, 2019
           asynchronously using the AsyncHyperion class.
 '''
 
-import asyncio
 import sys
-import time
-from datetime import datetime
-
 import numpy as np
-
-from hyperion_interface.hyperion import AsyncHyperion
+import asyncio, timeit, time
+from datetime import datetime
+from hyperion import  AsyncHyperion
 
 TIME_FMT = "%H-%M-%S.%f"
 DEFAULT_OUTFILE = "data/%Y-%m-%d_%H-%M-%S.txt"

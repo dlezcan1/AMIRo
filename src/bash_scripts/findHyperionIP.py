@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
+from hyperion import Hyperion
 import sys
 
-from hyperion_interface.hyperion import Hyperion
-
-
-def main( *args ):
+def main(*args):
 	ipbase = "10.162.34.{}"
 
-	for i in range( 2, 256 ):
+	for i in range(2,256):
 		try:
-			h = Hyperion( ipbase.format( i ) )
+			h = Hyperion(ipbase.format(i))
 			h.serial_number
 			break
 
