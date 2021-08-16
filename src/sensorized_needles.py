@@ -578,6 +578,8 @@ def __get_argparser() -> argparse.ArgumentParser:
     # Setup parsed arguments
     parser = argparse.ArgumentParser( description="Make a new needle FBG parameter" )
 
+    parser.add_argument( '--update-params', type=str, default=None, help='Update the FBG needle parameter file',
+                         dest='update_file' )
     parser.add_argument( 'length', type=float, help='The entire length of the FBG needle' )
     parser.add_argument( 'num_channels', type=int, help='The number of channels in the FBG needle' )
 
@@ -603,11 +605,27 @@ def main( args=None ):
     serial_number = "{:d}CH-{:d}AA-{:04d}".format( num_chs, len( aa_locs ), needle_num )
     directory = os.path.join( '..', 'data', serial_number )
 
-    # new FBG needle
-    new_needle = FBGNeedle( length, serial_number, num_chs, aa_locs )
+    if pargs.update_file is not None:
+        save_file = os.path.normpath(pargs.update_file)
+        directory = save_file.split(os.sep)[-1]
+        print( "Updated needle parameters:" )
+        needle = FBGNeedle.load_json( save_file )
 
-    print( "New needle parameters:" )
-    print( new_needle )
+        # update the needle parameters
+        needle._length = length
+        needle._serial_number = serial_number
+        needle._num_channels = num_chs
+        needle._sensor_location = aa_locs
+    # if
+
+    else:
+        save_file = os.path.join( directory, 'needle_params.json' )
+        print( "New needle parameters:" )
+        needle = FBGNeedle( length, serial_number, num_chs, aa_locs )
+
+    # else
+
+    print( needle )
     print()
 
     if not os.path.isdir( directory ):
@@ -615,9 +633,8 @@ def main( args=None ):
 
     # if
 
-    save_file = os.path.join( directory, 'needle_params.json' )
-    if not os.path.isfile( save_file ):
-        new_needle.save_json( save_file )
+    if not os.path.isfile( save_file ) or (pargs.update_file is not None):
+        needle.save_json( save_file )
         print( f"Saved new needle json: {save_file}" )
 
     # if
