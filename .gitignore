@@ -111,6 +111,7 @@ data/*
 !data/[0-9]CH-[0-9]AA-*/
 data/[0-9]CH-[0-9]AA-*/**
 !data/[0-9]CH-[0-9]AA-*/needle_params*.json
+!data/[0-9]CH-[0-9]AA-*/needle_params*.log
 
 # matlab autosave files
 *.asv

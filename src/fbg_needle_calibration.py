@@ -35,7 +35,7 @@ class FBGNeedleJigCalibrator:
         self.calib_angles = calib_angles  # experimental angles
         self.calib_directory = os.path.normpath( calib_directory )
         self.calib_curvatures = calib_curvatures
-        self.valid_directory = os.path.normpath( valid_directory )
+        self.valid_directory = os.path.normpath( valid_directory ) if valid_directory is not None else valid_directory
         self.valid_curvatures = valid_curvatures
         self.valid_angles = valid_angles
 
@@ -145,6 +145,11 @@ class FBGNeedleJigCalibrator:
 
         """
         dataset = [ ]
+
+        if directory is None:
+            return dataset
+
+        # if
 
         # Search for all of the directories
         directories = glob.glob( os.path.join( directory, '*_deg/*/*/' ) )  # get all of the files
@@ -291,6 +296,9 @@ class FBGNeedleJigCalibrator:
 
             if self.weighted:
                 fbgneedle_param_outfile = fbgneedle_param_outfile.replace( '.json', '_weighted.json' )
+                self.calval_df[ 'Curvature Weights' ] = [ self.weight_rule( row, idx ) for row, idx in zip(
+                        self.calval_df[ [ 'Curvature_x (1/m)', 'Curvature_y (1/m)' ] ].to_numpy(),
+                        self.calval_df.index._data ) ]
 
             # if
 
@@ -330,7 +338,7 @@ class FBGNeedleJigCalibrator:
         print( "Computing errors...", end=' ' )
         curv_prediction = self.fbg_needle.curvatures_processed(
                 validation_df[ self.fbg_needle.generate_chaa()[ 0 ] ].to_numpy() )
-        validation_df[ self.__pred_col_header ] = curv_prediction.swapaxes( 1, 2 ).reshape( -1,
+        validation_df.loc[:, self.__pred_col_header ] = curv_prediction.swapaxes( 1, 2 ).reshape( -1,
                                                                                             2 * self.fbg_needle.num_activeAreas )
         self.calval_df = self.calval_df.append( validation_df, ignore_index=True )  # add to the calval_df
         print( "Computed." )
@@ -353,6 +361,9 @@ class FBGNeedleJigCalibrator:
         # Output the Excel sheets of the data
         data_outfile = f"{outfile_base}Jig-Calibration-Validation-Data.xlsx"
         data_outfile = os.path.join( outdir, data_outfile )
+        if self.weighted:
+            data_outfile = data_outfile.replace( '.xlsx', '_weighted.xlsx' )
+
         with pd.ExcelWriter( data_outfile ) as xl_writer:
             self.total_df.to_excel( xl_writer, sheet_name='Raw Signals' )
             self.proc_total_df.to_excel( xl_writer, sheet_name='Processed Signals' )
@@ -394,10 +405,12 @@ class FBGNeedleJigCalibrator:
                     for ch_i in range( 1, self.fbg_needle.num_channels + 1 ):
                         # linear fit
                         ch_i_aa_i = "CH{0} | AA{1}".format( ch_i, aa_i )
-                        m, b, R_sq = _linear_fit( sub_total_df[ 'Curvature (1/m)' ],
-                                                  sub_total_df[ ch_i_aa_i ] )
-                        k_fit = np.linspace( sub_total_df[ 'Curvature (1/m)' ].min(),
-                                             sub_total_df[ 'Curvature (1/m)' ].max(), 100 )
+                        m, b, R_sq = _linear_fit(
+                                sub_total_df.loc[ sub_total_df[ 'angle' ] == angle, 'Curvature (1/m)' ],
+                                sub_total_df.loc[ sub_total_df[ 'angle' ] == angle, ch_i_aa_i ] )
+                        k_fit = np.linspace(
+                                sub_total_df.loc[ sub_total_df[ 'angle' ] == angle, 'Curvature (1/m)' ].min(),
+                                sub_total_df.loc[ sub_total_df[ 'angle' ] == angle, 'Curvature (1/m)' ].max(), 100 )
                         sig_fit = m * k_fit + b
 
                         axs_raw[ aa_i - 1 ].plot( k_fit, sig_fit, color=line_colors[ ch_i_aa_i ],
@@ -414,6 +427,9 @@ class FBGNeedleJigCalibrator:
                 fig_raw.suptitle( f"{angle} deg: Raw Signals vs. Curvature" )
                 outfile_fig_raw = os.path.join( outdir,
                                                 f"{outfile_base}{angle}_deg_{exp_type}_aa-signals-curvature.png" )
+                if self.weighted:
+                    outfile_fig_raw = outfile_fig_raw.replace( '.png', '_weighted.png' )
+
                 fig_raw.savefig( outfile_fig_raw )
                 print( "Saved figure:", outfile_fig_raw )
                 plt.close( fig=fig_raw )
@@ -468,6 +484,9 @@ class FBGNeedleJigCalibrator:
             axs_proc[ -1, 1 ].set_xlabel( 'Curvature Y (1/m)' )
 
             outfile_fig_proc = os.path.join( outdir, f"{outfile_base}{exp_type}_all-curvatures-xy_signal-shifts.png" )
+            if self.weighted:
+                outfile_fig_proc = outfile_fig_proc.replace( '.png', '_weighted.png' )
+
             fig_proc.savefig( outfile_fig_proc )
             print( "Saved figure:", outfile_fig_proc )
             plt.close( fig=fig_proc )
@@ -520,6 +539,9 @@ class FBGNeedleJigCalibrator:
 
             outfile_fig_proc_Tcomp = os.path.join( outdir,
                                                    f"{outfile_base}{exp_type}_all-curvatures-xy_signal-shifts-T-comp.png" )
+            if self.weighted:
+                outfile_fig_proc_Tcomp = outfile_fig_proc_Tcomp.replace( '.png', '_weighted.png' )
+
             fig_proc_Tcomp.savefig( outfile_fig_proc_Tcomp )
             print( "Saved figure:", outfile_fig_proc_Tcomp )
             plt.close( fig=fig_proc_Tcomp )
@@ -1198,7 +1220,7 @@ def main( args=None ):
     print( 'validDirectory:', args.validDirectory )
     print( 'calibCurvatures:', args.calib_curvatures )
     print( 'validCurvatures:', args.valid_curvatures )
-    print( 'cuttoff_weight_rule:', args.cutoff_weights )
+    print( 'cutoff_weight_rule:', args.cutoff_weights )
     print()
 
     # load FBGNeedle

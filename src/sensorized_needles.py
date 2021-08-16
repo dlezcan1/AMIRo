@@ -194,8 +194,25 @@ class FBGNeedle( Needle ):
 
                 # elif
 
+                else:
+                    raise KeyError( "Sensor location is not a valid sensor location" )
+
+                # else
+
             # elif
 
+            elif isinstance( key, float ):
+                if key in self.sensor_location:
+                    loc = key
+
+                # if
+
+                else:
+                    raise KeyError( "Sensor location is not a valid sensor location." )
+
+                # else
+
+            # elif
             else:
                 raise ValueError( "'{}' is not recognized as a valid key.".format( key ) )
 
@@ -475,7 +492,7 @@ class FBGNeedle( Needle ):
             cal_mats = { }
             for loc, c_mat in data[ "Calibration Matrices" ].items():
                 if isinstance( loc, str ):
-                    loc = int( "".join( filter( str.isdigit, loc ) ) )
+                    loc = float( loc )
                 cal_mats[ loc ] = np.array( c_mat )
 
             # for
@@ -606,8 +623,8 @@ def main( args=None ):
     directory = os.path.join( '..', 'data', serial_number )
 
     if pargs.update_file is not None:
-        save_file = os.path.normpath(pargs.update_file)
-        directory = save_file.split(os.sep)[-1]
+        save_file = os.path.normpath( pargs.update_file )
+        directory = os.path.dirname( save_file )
         print( "Updated needle parameters:" )
         needle = FBGNeedle.load_json( save_file )
 
@@ -635,7 +652,7 @@ def main( args=None ):
 
     if not os.path.isfile( save_file ) or (pargs.update_file is not None):
         needle.save_json( save_file )
-        print( f"Saved new needle json: {save_file}" )
+        print( f"Saved needle parameter json: {save_file}" )
 
     # if
     else:

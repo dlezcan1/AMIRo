@@ -1,0 +1,12 @@
+{
+    "serial number": "3CH-4AA-0004",
+    "length": 165.0,
+    "# channels": 3,
+    "# active areas": 4,
+    "Sensor Locations": {
+        "1": 65.0,
+        "2": 100.0,
+        "3": 135.0,
+        "4": 155.0
+    }
+}
