@@ -5,51 +5,43 @@
 % - written by: Dimitri Lezcano
 
 set(0,'DefaultAxesFontSize',24);
-
+clear;
 %% Set-up 
 % options
 save_bool = true;
 process_only = false;
 
 % python set-up
-if ispc % windows file system
-    pydir = "..\";
-    
-else
-    pydir = "../";
-    
-end
+pydir = fullfile('../');
 
 if count(py.sys.path, pydir) == 0
     insert(py.sys.path, int32(0), pydir);
 end
 
 % file set-up
-directory = "../../data/needle_3CH_4AA_v2/";
-fbgneedle_param = directory + "needle_params-Jig_Calibration_03-20-21_weighted.json"; % weighted calibration
-fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
+directory = "../../data/3CH-4AA-0004/";
+fbgneedle_param = fullfile(directory, ...
+    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant_weighted_weights.json"); 
 
-% datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-datadir = directory + "Validation_Jig_Calibration_03-20-21/"; % validation data
-data_mats_file = datadir + "Data Matrices_calval.xlsx"; % all data
-% data_mats_file = datadir + "Calibration_Test_Data_Matrices.xlsx";
-
-if contains(fbgneedle_param, 'weighted')
-    data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
-    fig_save_file = datadir + "CalWeight_Jig_Shape_fit";
-else
-    data_mats_proc_file = data_mats_file;
-    fig_save_file = datadir + "Jig_Shape_fit";
-end
-data_mats_proc_file = strrep(data_mats_proc_file, '.xlsx', '_proc.xlsx');
+datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
+data_mats_file = fullfile(datadir, "Jig-Calibration-Validation-Data.xlsx"); % all data
+proc_data_sheet = 'Calibration Validation Dataset';
 
 % paramteter set-up
 jig_offset = 26.0; % the jig offset of full insertion
 % AA_weights = [ 0.613865, 0.386135, 0.000000, 0.000000 ]; [ 0.774319, 0.090095, 0.135586 ]; % [AA1, AA2, AA3, AA4] reliability weighting
-if ~isempty(AA_weights)
-    fig_save_file = fig_save_file + "_weighted";
-    
+fig_save_file = fullfile(datadir, "Jig_Shape_fit");
+if contains(fbgneedle_param, 'clinically-relevant')
+    data_mats_file = strrep(data_mats_file, '.xlsx', '_clinically-relevant.xlsx');
+    fig_save_file = strcat(fig_save_file, '_clinically-relevant');
 end
+
+if contains(fbgneedle_param, 'weighted')
+    data_mats_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
+    fig_save_file = strcat(fig_save_file, '_weighted');
+end
+
+
 
 %% Load FBGNeedle python class
 fbg_needle = py.sensorized_needles.FBGNeedle.load_json(fbgneedle_param);
@@ -58,14 +50,28 @@ disp("FBGNeedle class loaded.")
 % channel list
 ch_list = 1:double(fbg_needle.num_channels);
 CH_list = "CH" + ch_list;
-aa_list = 1:double(fbg_needle.num_aa);
+aa_list = 1:double(fbg_needle.num_activeAreas);
 AA_list = "AA" + aa_list; % the "AAX" string version
 
-%% load the data matrices
+% check for AA_weights
+if py.len(fbg_needle.weights) > 0
+    AA_weights = [];
+    for AA_i = AA_list
+        AA_weights = [AA_weights, fbg_needle.weights{fbg_needle.aa_loc(AA_i)}];
+    end
+    
+    fig_save_file = fig_save_file + "_weights";
+else
+    AA_weights = [];
+end
+
+%% load the data matrices TODO
 data_mats = struct();
+tbl = readtable(data_mats_file, 'Sheet', proc_data_sheet, ...
+        'VariableNamingRule', 'preserve', 'ReadRowNames', true); % remove the first column (exp #)
 for AA_i = AA_list
-    data_mats.(AA_i) = readtable(data_mats_file, 'Sheet', AA_i, ...
-        'PreserveVariableNames', false, 'ReadRowNames', true); % remove the first column (exp #)
+    data_mats.(AA_i) = tbl(:,{'type', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', ...
+        [char(AA_i), ' Predicted Curvature_x (1/m)'], [char(AA_i), ' Predicted Curvature_y (1/m)']});
     disp(AA_i + " loaded.");
 end
 disp(' ');
@@ -73,50 +79,24 @@ disp(' ');
 %% determine the calculated curvature for each AA
 for AA_i = AA_list
     cal_mat = double(fbg_needle.aa_cal(AA_i).T);
-    signal_mat = data_mats.(AA_i)(:, CH_list).Variables;
-    curvature_mat = signal_mat * cal_mat;
-    data_mats.(AA_i).PredCurvX = curvature_mat(:,1);
-    data_mats.(AA_i).PredCurvY = curvature_mat(:,2);
-    data_mats.(AA_i).PredCurv = vecnorm(curvature_mat, 2, 2);
+    data_mats.(AA_i).PredCurvX = data_mats.(AA_i).(char(AA_i + " Predicted Curvature_x (1/m)"));
+    data_mats.(AA_i).PredCurvY = data_mats.(AA_i).(char(AA_i + " Predicted Curvature_y (1/m)"));
+    data_mats.(AA_i).PredCurv = vecnorm([data_mats.(AA_i).PredCurvX, data_mats.(AA_i).PredCurvY], 2, 2);
     disp("Calculated predicted curvature vector from " + AA_i + ".");
 end
 disp(" ");
 
-%% Save the data as a processed data matrices file
-if save_bool
-    % the AA processed data
-    for AA_i = AA_list
-        writetable(data_mats.(AA_i),data_mats_proc_file, 'Sheet', AA_i, ...
-            'WriteRowNames', true);
-    end
-
-    fprintf("Wrote processed data file: %s\n", data_mats_proc_file);
-    
-    % the AA weighting for shape analaysis
-    if ~isempty(AA_weights)
-        writematrix([AA_list; AA_weights], fig_save_file + "_weights.csv");
-        disp("Wrote file: " + fig_save_file + "_weights.csv");
-
-    end
-    
-    disp(" ");
-end
-
-if process_only
-    disp('Program Terminated.');
-    return;
-end
 %% Process the data shapes
 s = 0:0.5:(double(fbg_needle.length) - jig_offset); % the arclength points
-num_expmts = length(data_mats.AA1.Curvature);
+num_expmts = size(data_mats.AA1,1);
 
 % iterate over all of the experiments
 shape_results = cell(num_expmts, 1);
 for exp_num = 1:num_expmts
-    EXPMT_i.curvature = data_mats.AA1.Curvature(exp_num);
-    EXPMT_i.curv_act = [data_mats.AA1{exp_num,["CurvatureX", "CurvatureY"]}'; 0]/1000; % actual curvature vector
+    EXPMT_i.curvature = data_mats.AA1{exp_num, 'Curvature (1/m)'};
+    EXPMT_i.curv_act = [data_mats.AA1{exp_num,["Curvature_x (1/m)", "Curvature_y (1/m)"]}'; 0]/1000; % actual curvature vector
     EXPMT_i.ref_angle = rad2deg(atan2(EXPMT_i.curv_act(2), EXPMT_i.curv_act(1)));
-    
+    EXPMT_i.type = data_mats.AA1.type{exp_num};
     
     % get the measured curvatures @ each AA
     EXPMT_i.w_AA = zeros(3, length(AA_list));
@@ -177,13 +157,13 @@ for exp_num = 1:num_expmts
     xlim([0, 1.1*max(s)]); ylim([0, max([1.1 * err_r, 1])]);
     legend('Location', 'northwest')
     
-    sgtitle("\kappa = " + sprintf("%.3f at %d^o about z-axis", expmt_i.curvature, expmt_i.ref_angle), ...
+    sgtitle("\kappa = " + sprintf("%.3f at %.1f^o about z-axis | %s", expmt_i.curvature, expmt_i.ref_angle, expmt_i.type), ...
         'fontsize', 30, 'fontweight', 'bold');
     
     % saving
     if save_bool
-        saveas(gcf, fig_save_file + sprintf("_k_%.3f_ang_%ddeg.png", expmt_i.curvature, expmt_i.ref_angle));
-        disp("Saved figure: " + fig_save_file + sprintf("_k_%.3f_ang_%ddeg.png", expmt_i.curvature, expmt_i.ref_angle));
+        saveas(gcf, fig_save_file + sprintf("_k_%.3f_ang_%.1fdeg.png", expmt_i.curvature, expmt_i.ref_angle));
+        disp("Saved figure: " + fig_save_file + sprintf("_k_%.3f_ang_%.1fdeg.png", expmt_i.curvature, expmt_i.ref_angle));
     end
 end
 

@@ -25,6 +25,28 @@ from sensorized_needles import FBGNeedle
 
 
 class FBGNeedleJigCalibrator:
+    """
+        fbg_needle: FBGNeedle to be calibratied
+
+        calib_angles: the calibration jig angles used
+        valid_angles: the validation angles used
+
+        calib_directory: the calibration jig directory
+        valid_directory: the validation jig directory
+
+        calib_curvatures: the curvatures that will be used for needle calibration
+        valid_curvatures: the curvatures that will be used to validate the needle calibration
+
+        weight_rule: the curvature weighting rule for the jig calibration
+        weighted:    whether curvature weighting is configured
+
+        DataFrames:
+            total_df:            the raw signal means of the individual insertion trials
+            proc_total_df:       the processed signal means of the individual insertion trials
+            proc_Tcomp_total_df: the temperature compensated processed signal means of the individual insertion trials
+            calval_df:           The dataframe used for calibration and validation.
+
+    """
     directory_pattern = r".*{0}([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format(
             os.sep.replace( '\\', '\\\\' ) )  # directory pattern file structure
 
@@ -66,8 +88,10 @@ class FBGNeedleJigCalibrator:
         self.calval_df = pd.DataFrame( columns=self.__col_header + self.__pred_col_header )  # calibration validation df
 
         # configure the calibration datasets
-        self.calib_dataset = self.configure_dataset( self.calib_directory, self.calib_angles, self.calib_curvatures )
-        self.valid_dataset = self.configure_dataset( self.valid_directory, self.valid_angles, self.valid_curvatures )
+        self.calib_dataset = self.configure_dataset( self.calib_directory, self.calib_angles,
+                                                     self.calib_curvatures + self.valid_curvatures + [ 0 ] )
+        self.valid_dataset = self.configure_dataset( self.valid_directory, self.valid_angles,
+                                                     self.calib_curvatures + self.valid_curvatures + [ 0 ] )
 
     # __init__
 
@@ -134,10 +158,31 @@ class FBGNeedleJigCalibrator:
 
     # __write_calibration_errors
 
+    def assign_dataset_type( self, curvatures: list, type: str ):
+        """ Assign the dataset type for all of the DataFrames for all of a selected curvature to
+            the new type
+        """
+        # get masks
+        mask_func = lambda k: k in curvatures and k != 0  # don't assign a 0-curvature baseline
+        mask_calval_df = list( map( mask_func, self.calval_df[ 'Curvature (1/m)' ] ) )
+        mask_total_df = list( map( mask_func, self.total_df[ 'Curvature (1/m)' ] ) )
+        mask_proc_total_df = list( map( mask_func, self.proc_total_df[ 'Curvature (1/m)' ] ) )
+        mask_proc_Tcomp_total_df = list(
+                map( mask_func, self.proc_Tcomp_total_df[ 'Curvature (1/m)' ] ) )
+
+        # assign new type
+        self.calval_df.loc[ mask_calval_df, 'type' ] = type
+        self.total_df.loc[ mask_total_df, 'type' ] = type
+        self.proc_total_df.loc[ mask_proc_total_df, 'type' ] = type
+        self.proc_Tcomp_total_df.loc[ mask_proc_Tcomp_total_df, 'type' ] = type
+
+    # assign_dataset_type
+
     @staticmethod
     def configure_dataset( directory: str, angles: list, curvatures: list ) -> list:
         """ Configure dataset
 
+            curvatures excluded in order to allow for mapping later
 
             Returns dataset list of
                 [(data directory, experiment angle, curvature (1/m))]
@@ -165,6 +210,7 @@ class FBGNeedleJigCalibrator:
                 curvature = float( curvature )
 
                 # only include desired curvatures and angles
+                # if angle in angles: # process all the curvatures and then remap the angles
                 if (angle in angles) and (curvature in curvatures):
                     dataset.append( (d, angle, curvature) )
 
@@ -177,18 +223,19 @@ class FBGNeedleJigCalibrator:
 
     # configure_dataset
 
-    def process_dataset( self, dataset: list, type_exp: str, save: bool = True ) -> (
+    def process_dataset( self, dataset: list, type_exp: str, save: bool = True, add_dataset: bool = False ) -> (
             pd.DataFrame, pd.DataFrame, pd.DataFrame):
         """ Process the signals and the datasets 
         
             Args:
                 dataset: list of tuples - (data_dir, angle, curvature)
-                type_exp: string of experiment type ('calibration' or 'validation')
+                type_exp: string of experiment type ('calibration' or 'validation' or 'not-assigned')
+                save: boolean, whether to save the results to an output file
+                add_dataset: whether to add the dataset to the current dataset
 
         """
-
         # argument checking
-        type_exp_valid_args = [ 'calibration', 'validation' ]
+        type_exp_valid_args = [ 'calibration', 'validation', 'not-assigned' ]
         if type_exp not in type_exp_valid_args:
             raise ValueError( "'type_exp' must be in " + str( type_exp_valid_args ) )
 
@@ -221,9 +268,9 @@ class FBGNeedleJigCalibrator:
 
         # calculate the Curvature_x, Curvature_y
         total_df[ 'Curvature_x (1/m)' ] = total_df[ 'Curvature (1/m)' ] * np.cos(
-            np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
+                np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
         total_df[ 'Curvature_y (1/m)' ] = total_df[ 'Curvature (1/m)' ] * np.sin(
-            np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
+                np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
 
         # process the signals
         for angle in total_df[ 'angle' ].unique():
@@ -247,29 +294,40 @@ class FBGNeedleJigCalibrator:
 
         # for
 
+        # output the signals
+        if save:
+            out_dir = os.path.commonpath( [ ds[ 0 ] for ds in dataset ] )
+            out_file = os.path.join( out_dir, f'{type_exp}-all-signals.xlsx' )
+            with pd.ExcelWriter( out_file ) as xl_writer:
+                total_df.to_excel( xl_writer, sheet_name='Raw Signals' )
+                proc_total_df.to_excel( xl_writer, sheet_name='Processed Signals' )
+                proc_Tcomp_total_df.to_excel( xl_writer, sheet_name='T Comp. Processed Signals' )
+
+            # with
+
+            print( "Wrote all signals to:", out_file )
+
+        # save
+
+        # add the dataset to the current datasets
+        if add_dataset:
+            self.total_df = self.total_df.append( total_df, ignore_index=True )
+            self.proc_total_df = self.proc_total_df.append( proc_total_df, ignore_index=True )
+            self.proc_Tcomp_total_df = self.proc_Tcomp_total_df.append( proc_Tcomp_total_df, ignore_index=True )
+
+        # if
+
         return total_df, proc_total_df, proc_Tcomp_total_df
 
     # process_dataset
 
-    def run_calibration( self, save: bool = True ):
+    def run_calibration( self, save: bool = True, fbgneedle_param_outfile: str = None ):
         """ Perform FBG needle calibration procedure
 
             Args:
                 save: boolean (Default: True) on whether to save the new fbgneedle and calibration errors or not.
 
         """
-        # process dataset
-        print( "Processing calibration dataset..." )
-        total_df, proc_total_df, proc_Tcomp_total_df = self.process_dataset( self.calib_dataset, 'calibration',
-                                                                             save=save )
-        print( "Processed calibration dataset." )
-        print()
-
-        # add the signals to our datasets
-        self.total_df = self.total_df.append( total_df, ignore_index=True )
-        self.proc_total_df = self.proc_total_df.append( proc_total_df, ignore_index=True )
-        self.proc_Tcomp_total_df = self.proc_Tcomp_total_df.append( proc_Tcomp_total_df, ignore_index=True )
-
         # perform the calibration on the calibration dataset (use Tcomp data)
         print( "Calibrating FBG sensors...", end=' ' )
         calibration_df = self.proc_Tcomp_total_df.loc[ self.proc_Tcomp_total_df[ 'type' ] == 'calibration', : ]
@@ -293,8 +351,16 @@ class FBGNeedleJigCalibrator:
         # save the results
         if save:
             # format the output files
-            fbgneedle_param_outfile = "needle_params_{}.json".format(
-                    os.path.normpath( self.calib_directory ).split( os.sep )[ -1 ] )
+            if fbgneedle_param_outfile is None:
+                fbgneedle_param_outfile = "needle_params_{}.json".format(
+                        os.path.normpath( self.calib_directory ).split( os.sep )[ -1 ] )
+
+            # if
+            else:
+                fbgneedle_param_outfile = fbgneedle_param_outfile.format(
+                        os.path.normpath( self.calib_directory ).split( os.sep )[ -1 ] )
+
+            # else
 
             if self.weighted:
                 fbgneedle_param_outfile = fbgneedle_param_outfile.replace( '.json', '_weighted.json' )
@@ -322,17 +388,6 @@ class FBGNeedleJigCalibrator:
 
     def run_validation( self, save: bool = True ) -> bool:
         """ Perform FBG needle validation"""
-        # process dataset
-        print( "Processing validation dataset..." )
-        total_df, proc_total_df, proc_Tcomp_total_df = self.process_dataset( self.valid_dataset, 'validation',
-                                                                             save=save )
-        print( "Processed valdiation dataset." )
-
-        # add the signals to our datasets
-        self.total_df = self.total_df.append( total_df, ignore_index=True )
-        self.proc_total_df = self.proc_total_df.append( proc_total_df, ignore_index=True )
-        self.proc_Tcomp_total_df = self.proc_Tcomp_total_df.append( proc_Tcomp_total_df, ignore_index=True )
-
         # perform validation on the validation dataset
         validation_df = self.proc_Tcomp_total_df.loc[ self.proc_Tcomp_total_df[ 'type' ] == 'validation', : ]
 
@@ -357,9 +412,9 @@ class FBGNeedleJigCalibrator:
 
     # run_validation
 
-    def run_calibration_validation( self, save: bool = True ):
+    def run_calibration_validation( self, save: bool = True, fbgneedle_param_outfile: str = None ):
         """ Calibrate and validate the needle"""
-        ret_cal = self.run_calibration( save=save )
+        ret_cal = self.run_calibration( save=save, fbgneedle_param_outfile=fbgneedle_param_outfile )
         ret_val = self.run_validation( save=save )
 
         return ret_cal, ret_val
@@ -368,6 +423,7 @@ class FBGNeedleJigCalibrator:
 
     def save_processed_data( self, outfile_base: str = '', outdir: str = '' ):
         """ Save the plots and Excel sheets """
+        # TODO: change processed data file names per type
         # set-up
         color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :self.fbg_needle.num_activeAreas ]
         pt_style = [ c + '.' for c in color_scheme ]  # point styles/
@@ -1263,6 +1319,8 @@ def __get_argparser() -> argparse.ArgumentParser:
     parser.add_argument( '--cutoff-weight-rule', dest='cutoff_weights', type=float, nargs=3, default=None,
                          metavar=('weight<=threshold', 'threshold', 'weight>threshold'),
                          help="Weighting thresholding values for a weighted calibration procedure." )
+    parser.add_argument( '--new-needleparam-file', type=str, default=None,
+                         help="The output needle parameter file" )
 
     return parser
 
@@ -1310,14 +1368,28 @@ def main( args=None ):
                                              weight_rule=weights_rule )
 
     # perform calibration and validation
-    if len( jig_calibrator.valid_dataset ) == 0:  # validation dataset not configured
+    if len( jig_calibrator.valid_dataset ) == 0 or (jig_calibrator.valid_curvatures == [0]):  # validation dataset not configured
         print( "Performing calibration, validation not configured..." )
-        jig_calibrator.run_calibration( save=True )
+        jig_calibrator.process_dataset( jig_calibrator.calib_dataset, 'calibration', save=False, add_dataset=True )
+
+        jig_calibrator.assign_dataset_type( jig_calibrator.calib_curvatures, 'calibration' )
+
+        jig_calibrator.run_calibration( save=True, fbgneedle_param_outfile=args.new_needleparam_file )
 
     # if
     else:
-        print( "Performing calibraton and validation..." )
-        jig_calibrator.run_calibration_validation( save=True )
+        print( "Performing calibration and validation..." )
+        print( "Processing calibration dataset..." )
+        jig_calibrator.process_dataset( jig_calibrator.calib_dataset, 'calibration', save=False, add_dataset=True )
+        print()
+
+        print( "Processing validation dataset..." )
+        jig_calibrator.process_dataset( jig_calibrator.valid_dataset, 'validation', save=False, add_dataset=True )
+
+        jig_calibrator.assign_dataset_type( jig_calibrator.calib_curvatures, 'calibration' )
+        jig_calibrator.assign_dataset_type( jig_calibrator.valid_curvatures, 'validation' )
+
+        jig_calibrator.run_calibration_validation( save=True, fbgneedle_param_outfile=args.new_needleparam_file )
 
     # else
     print()

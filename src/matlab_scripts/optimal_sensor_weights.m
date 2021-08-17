@@ -5,49 +5,38 @@
 %
 % - written by: Dimitri Lezcano
 
+clear;
 %% Set-up 
 % options
 save_bool = true;
 
 % python set-up
-if ispc % windows file system
-    pydir = "..\";
-    
-else
-    pydir = "../";
-    
-end
+pydir = fullfile('../');
 
 if count(py.sys.path, pydir) == 0
     insert(py.sys.path, int32(0), pydir);
 end
 
 % file set-up
-directory = "../../data/needle_3CH_4AA_v2/";
-fbgneedle_param = directory + "needle_params-Jig_Calibration_03-20-21_weighted.json"; % weighted calibration
+directory = "../../data/3CH-4AA-0004/";
+fbgneedle_param = fullfile(directory, ...
+    "needle_params_08-16-2021_Jig-Calibration_all.json");   % weighted calibration
 fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
-% datadir = directory + "Jig_Calibration_08-05-20/"; % calibration data
-datadir = directory + "Validation_Jig_Calibration_03-20-21/"; % validation data
-data_mats_file = datadir + "Data Matrices_calval.xlsx";
-
-if contains(fbgneedle_param, 'weighted')
-    data_mats_proc_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
-    fig_save_file = datadir + "CalWeight_Jig_Shape_fit";
-else
-    data_mats_proc_file = data_mats_file;
-    fig_save_file = datadir + "Jig_Shape_fit";
-end
-
-data_mats_proc_file = strrep(data_mats_proc_file, '.xlsx', '_proc.xlsx');
+datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
+data_mats_file = fullfile(datadir, "Jig-Calibration-Validation-Data.xlsx"); % all data
+proc_data_sheet = 'Calibration Validation Dataset';
+fig_save_file = fullfile(datadir, "Jig_Shape_fit");
 
 % paramteter set-up
 jig_offset = 26.0; % the jig offset of full insertion
-% AA_weights = [];% [1, 0.9, 0.3, 0.0]; % [AA1, AA2, AA3, AA4] reliability weighting
-% if ~isempty(AA_weights)
-%     fig_save_file = fig_save_file + "_weighted";
-%     
-% end
+equal_weighting_lambda = 1; % weighting of how close to equal weighting
+curv_weighting = true;
+
+if contains(fbgneedle_param, 'weighted')
+%     data_mats_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
+    fig_save_file = strcat(fig_save_file, '_weighted');
+end
 
 %% Load FBGNeedle python class
 fbg_needle = py.sensorized_needles.FBGNeedle.load_json(fbgneedle_param);
@@ -59,18 +48,23 @@ CH_list = "CH" + ch_list;
 aa_list = 1:double(fbg_needle.num_aa);
 AA_list = "AA" + aa_list; % the "AAX" string version
 
-%% load the processed data matrices
+%% load the data matrices TODO
 data_mats = struct();
+tbl = readtable(data_mats_file, 'Sheet', proc_data_sheet, ...
+        'VariableNamingRule', 'preserve', 'ReadRowNames', true); % remove the first column (exp #)
 for AA_i = AA_list
-    data_mats.(AA_i) = readtable(data_mats_proc_file, 'Sheet', AA_i, ...
-        'PreserveVariableNames', false, 'ReadRowNames', true); % remove the first column (exp #)
+    data_mats.(AA_i) = tbl(:,{'type', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', ...
+        [char(AA_i), ' Predicted Curvature_x (1/m)'], [char(AA_i), ' Predicted Curvature_y (1/m)']});
     disp(AA_i + " loaded.");
 end
 disp(' ');
 
 %% Consolidate the readings into one W data matrix
 % get the actual curvature we are trying to fit
-W_act_aai = data_mats.(AA_i)(:, ["CurvatureX", "CurvatureY"]).Variables;
+calib_mask = strcmp(data_mats.AA1.('type'), 'calibration');
+valid_mask = strcmp(data_mats.AA1.('type'), 'validation');
+mask = calib_mask | valid_mask;
+W_act_aai = data_mats.(AA_i){mask, ["Curvature_x (1/m)", "Curvature_y (1/m)"]};
 w_act = reshape(W_act_aai', [], 1);
 
 % get the W data matrix
@@ -79,7 +73,7 @@ for i = 1:length(AA_list)
     AA_i = AA_list(i);
     
     % get the data matrices for this AA
-    W_meas_aai = data_mats.(AA_i)(:, ["PredCurvX", "PredCurvY"]).Variables;
+    W_meas_aai = data_mats.(AA_i){mask, AA_i +[ " Predicted Curvature_x (1/m)", " Predicted Curvature_y (1/m)"]};
     
     % add it to the measurement array
     W(:, i) = reshape(W_meas_aai', [], 1);
@@ -92,10 +86,29 @@ end
 % w_act = [w_act; 1];
 
 %% perform the non-negative least squares fit
-curv_weight = curv_weight_rule(abs(w_act),false);
+curv_weight = curv_weight_rule(abs(w_act),~curv_weighting);
 D = sqrt(diag(curv_weight));
-weights = lsqlin(D*W, D*w_act, [], [], ones(1, size(W, 2)), [1], [0, 0, 0.075, 0.025], []); % set lower bound
+% D = D./size(D, 1);
+
+% equal weighting here
+A_eq_wgt = equal_weighting_lambda * eye(length(AA_list));
+b_eq_wgt = equal_weighting_lambda * ones(length(AA_list),1)/length(AA_list);
+
+A = [D*W; A_eq_wgt];
+b = [D*w_act; b_eq_wgt]; 
+weights = lsqlin(A, b, [], [], ones(1, size(W, 2)), [1], [0, 0, 0.075, 0.025], []); % set lower bound
 weights = weights./sum(weights); % normalize just in case
+disp(" ");
+
+% diaplay results
+if curv_weighting
+    disp("Curvature weighting: Clinically Relevant");
+else
+    disp("Curvature weighting: Equal");
+end
+
+fprintf("Equal Weigting lambda: %f\n", equal_weighting_lambda);
+disp(" ");
 
 disp("Weights:");
 disp([AA_list; reshape(weights, 1, [])] )
@@ -103,7 +116,10 @@ base_print = ['[ ', repmat('%f, ', 1, size(W, 2) - 1), '%f ]\n\n'];
 fprintf(base_print, weights);
 
 disp('Total error');
-disp(norm((W * weights - w_act)))
+error = norm((W * weights - w_act));
+disp(error)
+disp("Mean Error");
+disp(2*error/size(W,1));
 
 %% save the weights to the fbg_needle 
 py_dict_weights = py.dict();
