@@ -5,17 +5,16 @@ This is a class file for FBG Needle parameterizations
 
 @author: Dimitri Lezcano
 """
-import json
-from itertools import product
-
-import os
-from warnings import warn
-from typing import Union
 import argparse
-
-import fbg_signal_processing
+import json
+import os
+from itertools import product
+from typing import Union
+from warnings import warn
 
 import numpy as np
+
+import fbg_signal_processing
 
 
 class Needle( object ):
@@ -130,9 +129,7 @@ class FBGNeedle( Needle ):
                     msg += " | weight: " + str( self.weights[ loc ] )
 
                 # if
-
             # for
-
         # if
 
         return msg
@@ -252,7 +249,23 @@ class FBGNeedle( Needle ):
 
                 # elif
 
+                else:
+                    raise ValueError( "'{}' is not recognized as a valid key.".format( key ) )
+
+                # else
+
             # elif
+
+            elif isinstance( key, float ):
+                if key in self.sensor_location:
+                    loc = key
+
+                # if
+
+                else:
+                    raise ValueError( "'{}' is not recognized as a valid key.".format( key ) )
+
+                # else
 
             else:
                 raise ValueError( "'{}' is not recognized as a valid key.".format( key ) )
@@ -508,9 +521,9 @@ class FBGNeedle( Needle ):
             weights = { }
             for loc, weight in data[ 'weights' ].items():
                 if isinstance( loc, str ):
-                    loc = int( "".join( filter( str.isdigit, loc ) ) )
+                    loc = float( loc )
 
-                weights[ loc ] = int( weight )
+                weights[ loc ] = float( weight )
                 # for
         # if
 
