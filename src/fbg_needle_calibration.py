@@ -210,7 +210,7 @@ class FBGNeedleJigCalibrator:
 
             new_row = summary_df.mean( numeric_only=True )
             new_row[ 'time' ] = summary_df[ 'time' ].max()
-            new_row[ 'angle' ] = angle
+            new_row[ 'angle' ] = angle - 90  # rotate back into needle coordinate frame
             new_row[ 'Curvature (1/m)' ] = curvature
             new_row[ 'type' ] = type_exp
 
@@ -220,8 +220,10 @@ class FBGNeedleJigCalibrator:
         # for
 
         # calculate the Curvature_x, Curvature_y
-        total_df[ 'Curvature_x (1/m)' ] = total_df[ 'Curvature (1/m)' ] * np.cos( np.deg2rad( total_df[ 'angle' ] ) )
-        total_df[ 'Curvature_y (1/m)' ] = total_df[ 'Curvature (1/m)' ] * np.sin( np.deg2rad( total_df[ 'angle' ] ) )
+        total_df[ 'Curvature_x (1/m)' ] = total_df[ 'Curvature (1/m)' ] * np.cos(
+            np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
+        total_df[ 'Curvature_y (1/m)' ] = total_df[ 'Curvature (1/m)' ] * np.sin(
+            np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
 
         # process the signals
         for angle in total_df[ 'angle' ].unique():
@@ -338,8 +340,16 @@ class FBGNeedleJigCalibrator:
         print( "Computing errors...", end=' ' )
         curv_prediction = self.fbg_needle.curvatures_processed(
                 validation_df[ self.fbg_needle.generate_chaa()[ 0 ] ].to_numpy() )
-        validation_df.loc[:, self.__pred_col_header ] = curv_prediction.swapaxes( 1, 2 ).reshape( -1,
-                                                                                            2 * self.fbg_needle.num_activeAreas )
+        validation_df.loc[ :, self.__pred_col_header ] = \
+            curv_prediction.swapaxes( 1, 2 ).reshape( -1, 2 * self.fbg_needle.num_activeAreas )
+
+        if self.weighted:
+            validation_df[ 'Curvature Weights' ] = [ self.weight_rule( row, idx ) for row, idx in zip(
+                    validation_df[ [ 'Curvature_x (1/m)', 'Curvature_y (1/m)' ] ].to_numpy(),
+                    validation_df.index._data ) ]
+
+        # if
+
         self.calval_df = self.calval_df.append( validation_df, ignore_index=True )  # add to the calval_df
         print( "Computed." )
 
@@ -358,6 +368,66 @@ class FBGNeedleJigCalibrator:
 
     def save_processed_data( self, outfile_base: str = '', outdir: str = '' ):
         """ Save the plots and Excel sheets """
+        # set-up
+        color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :self.fbg_needle.num_activeAreas ]
+        pt_style = [ c + '.' for c in color_scheme ]  # point styles/
+        ch_aa_head = self.fbg_needle.generate_chaa()[ 0 ]
+
+        # Predicted and actual curvatures
+        error_fig, axs = plt.subplots( nrows=2, ncols=self.fbg_needle.num_activeAreas )
+        error_fig.set_size_inches( [ 15, 8 ] )
+        sq_style = [ 's' + c for c in color_scheme ]
+        for aa_i in range( 1, self.fbg_needle.num_activeAreas + 1 ):
+            self.calval_df[ f'AA{aa_i} Error Curvature_x (1/m)' ] = \
+                self.calval_df[ f'AA{aa_i} Predicted Curvature_x (1/m)' ] - self.calval_df[ 'Curvature_x (1/m)' ]
+            self.calval_df[ f'AA{aa_i} Error Curvature_y (1/m)' ] = \
+                self.calval_df[ f'AA{aa_i} Predicted Curvature_y (1/m)' ] - self.calval_df[ 'Curvature_y (1/m)' ]
+
+            # plot calibration errors
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'calibration' ].plot( x='Curvature_x (1/m)',
+                                                                                  y=f'AA{aa_i} Error Curvature_x (1/m)',
+                                                                                  ax=axs[ 0, aa_i - 1 ],
+                                                                                  style='.',
+                                                                                  xlabel='Curvature x (1/m)',
+                                                                                  ylabel='Error in Curvature x (1/m)',
+                                                                                  title=f'Error of AA{aa_i}' )
+
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'calibration' ].plot( x='Curvature_y (1/m)',
+                                                                                  y=f'AA{aa_i} Error Curvature_y (1/m)',
+                                                                                  ax=axs[ 1, aa_i - 1 ],
+                                                                                  style='.',
+                                                                                  xlabel='Curvature y (1/m)',
+                                                                                  ylabel='Error in Curvature y (1/m)' )
+
+            # plot validation errors
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'validation' ].plot( x='Curvature_x (1/m)',
+                                                                                 y=f'AA{aa_i} Error Curvature_x (1/m)',
+                                                                                 ax=axs[ 0, aa_i - 1 ],
+                                                                                 style='s',
+                                                                                 xlabel='Curvature x (1/m)',
+                                                                                 ylabel='Error in Curvature x (1/m)' )
+
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'validation' ].plot( x='Curvature_y (1/m)',
+                                                                                 y=f'AA{aa_i} Error Curvature_y (1/m)',
+                                                                                 ax=axs[ 1, aa_i - 1 ],
+                                                                                 style='s',
+                                                                                 xlabel='Curvature y (1/m)',
+                                                                                 ylabel='Error in Curvature y (1/m)' )
+
+            # format the axes
+            axs[ 0, aa_i - 1 ].legend( [ 'calibration', 'validation' ] )
+            axs[ 1, aa_i - 1 ].legend( [ 'calibration', 'validation' ] )
+
+        # for
+        error_fig.suptitle( "Predicted curvature error" )
+        outfile_fig_error = os.path.join( outdir,
+                                          f"{outfile_base}all-curvature-error.png" )
+        if self.weighted:
+            outfile_fig_error = outfile_fig_error.replace( '.png', '_weighted.png' )
+
+        error_fig.savefig( outfile_fig_error )
+        print( "Saved figure: {}".format( outfile_fig_error ) )
+
         # Output the Excel sheets of the data
         data_outfile = f"{outfile_base}Jig-Calibration-Validation-Data.xlsx"
         data_outfile = os.path.join( outdir, data_outfile )
@@ -374,11 +444,6 @@ class FBGNeedleJigCalibrator:
         print( f"Saved data file: {data_outfile}" )
 
         # Output the analytical figures of the signals
-        # set-up
-        color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :self.fbg_needle.num_activeAreas ]
-        pt_style = [ c + '.' for c in color_scheme ]  # point styles/
-        ch_aa_head = self.fbg_needle.generate_chaa()[ 0 ]
-
         for exp_type in self.total_df[ 'type' ].unique():
             # grab the specific dataset
             sub_total_df = self.total_df.loc[ self.total_df[ 'type' ] == exp_type, : ]
