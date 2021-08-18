@@ -21,7 +21,7 @@ end
 % file set-up
 directory = "../../data/3CH-4AA-0004/";
 fbgneedle_param = fullfile(directory, ...
-    "needle_params_08-16-2021_Jig-Calibration_all_weights.json"); 
+    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant_weights.json"); 
 
 datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
 data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
@@ -60,6 +60,8 @@ ch_list = 1:double(fbg_needle.num_channels);
 CH_list = "CH" + ch_list;
 aa_list = 1:double(fbg_needle.num_activeAreas);
 AA_list = "AA" + aa_list; % the "AAX" string version
+ret     = fbg_needle.generate_chaa();
+CH_AA   = cellfun(@char,cell(ret{1}),'UniformOutput',false);
 
 % check for AA_weights
 if py.len(fbg_needle.weights) > 0
@@ -78,17 +80,23 @@ data_mats = struct();
 tbl = readtable(data_mats_file, 'Sheet', proc_data_sheet, ...
         'VariableNamingRule', 'preserve', 'ReadRowNames', true); % remove the first column (exp #)
 for AA_i = AA_list
-    data_mats.(AA_i) = tbl(:,{'type', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', ...
-        [char(AA_i), ' Predicted Curvature_x (1/m)'], [char(AA_i), ' Predicted Curvature_y (1/m)']});
+    CH_AA_i = CH_AA(contains(CH_AA, AA_i));
+    curv_head = {'type', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', ...
+        [char(AA_i), ' Predicted Curvature_x (1/m)'], [char(AA_i), ' Predicted Curvature_y (1/m)']};
+    head_AA_i = cat(2, curv_head, CH_AA_i);
+    data_mats.(AA_i) = tbl(:,head_AA_i);
     disp(AA_i + " loaded.");
 end
 disp(' ');
 
 %% determine the calculated curvature for each AA
 for AA_i = AA_list
+    CH_AA_i = CH_AA(contains(CH_AA, AA_i));
     cal_mat = double(fbg_needle.aa_cal(AA_i).T);
-    data_mats.(AA_i).PredCurvX = data_mats.(AA_i).(char(AA_i + " Predicted Curvature_x (1/m)"));
-    data_mats.(AA_i).PredCurvY = data_mats.(AA_i).(char(AA_i + " Predicted Curvature_y (1/m)"));
+    signals = data_mats.(AA_i){:,CH_AA_i};
+    pred_curv = signals * cal_mat;
+    data_mats.(AA_i).PredCurvX = pred_curv(:,1);
+    data_mats.(AA_i).PredCurvY = pred_curv(:,2);
     data_mats.(AA_i).PredCurv = vecnorm([data_mats.(AA_i).PredCurvX, data_mats.(AA_i).PredCurvY], 2, 2);
     disp("Calculated predicted curvature vector from " + AA_i + ".");
 end

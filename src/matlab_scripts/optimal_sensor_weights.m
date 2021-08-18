@@ -8,7 +8,7 @@
 clear;
 %% Set-up 
 % options
-save_bool = true;
+save_bool = false;
 
 % python set-up
 pydir = fullfile('../');
@@ -63,14 +63,19 @@ ch_list = 1:double(fbg_needle.num_channels);
 CH_list = "CH" + ch_list;
 aa_list = 1:double(fbg_needle.num_aa);
 AA_list = "AA" + aa_list; % the "AAX" string version
+ret     = fbg_needle.generate_chaa();
+CH_AA   = cellfun(@char,cell(ret{1}),'UniformOutput',false);
 
 %% load the data matrices TODO
 data_mats = struct();
 tbl = readtable(data_mats_file, 'Sheet', proc_data_sheet, ...
         'VariableNamingRule', 'preserve', 'ReadRowNames', true); % remove the first column (exp #)
 for AA_i = AA_list
-    data_mats.(AA_i) = tbl(:,{'type', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', ...
-        [char(AA_i), ' Predicted Curvature_x (1/m)'], [char(AA_i), ' Predicted Curvature_y (1/m)']});
+    CH_AA_i = CH_AA(contains(CH_AA, AA_i));
+    curv_head = {'type', 'Curvature (1/m)', 'Curvature_x (1/m)', 'Curvature_y (1/m)', ...
+        [char(AA_i), ' Predicted Curvature_x (1/m)'], [char(AA_i), ' Predicted Curvature_y (1/m)']};
+    head_AA_i = cat(2, curv_head, CH_AA_i);
+    data_mats.(AA_i) = tbl(:,head_AA_i);
     disp(AA_i + " loaded.");
 end
 disp(' ');
@@ -87,9 +92,15 @@ w_act = reshape(W_act_aai', [], 1);
 W = zeros(length(w_act), length(AA_list)); % the measurement array
 for i = 1:length(AA_list)
     AA_i = AA_list(i);
+    CH_AA_i = CH_AA(contains(CH_AA, AA_i));
     
-    % get the data matrices for this AA
-    W_meas_aai = data_mats.(AA_i){mask, AA_i +[ " Predicted Curvature_x (1/m)", " Predicted Curvature_y (1/m)"]};
+    % get the calibration matrix and signals
+    cal_mat = double(fbg_needle.aa_cal(AA_i).T);
+    signals = data_mats.(AA_i){mask,CH_AA_i};
+    
+    % compute the data matrices for this AA
+    W_meas_aai = signals * cal_mat;
+%     W_meas_aai = data_mats.(AA_i){mask, AA_i +[ " Predicted Curvature_x (1/m)", " Predicted Curvature_y (1/m)"]};
     
     % add it to the measurement array
     W(:, i) = reshape(W_meas_aai', [], 1);
