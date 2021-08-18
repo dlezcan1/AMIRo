@@ -423,7 +423,6 @@ class FBGNeedleJigCalibrator:
 
     def save_processed_data( self, outfile_base: str = '', outdir: str = '' ):
         """ Save the plots and Excel sheets """
-        # TODO: change processed data file names per type
         # set-up
         color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :self.fbg_needle.num_activeAreas ]
         pt_style = [ c + '.' for c in color_scheme ]  # point styles/
@@ -686,8 +685,16 @@ def _linear_fit( x, y ) -> (float, float, float):
             slope, y-intercept, R^2 coefficient
 
     """
-    coeffs = np.polyfit( x, y, 1, rcond=None )
-    R_sq = np.corrcoef( x, y )[ 0, 1 ] ** 2  # R^2
+    if len( np.unique( x ) ) < 2:
+        coeffs = (0, np.polyfit( x, y, 0, rcond=None )[ 0 ])
+        R_sq = 1
+
+    # if
+    else:
+        coeffs = np.polyfit( x, y, 1, rcond=None )
+        R_sq = np.corrcoef( x, y )[ 0, 1 ] ** 2  # R^2
+
+    # else
 
     return coeffs[ 0 ], coeffs[ 1 ], R_sq
 
@@ -697,7 +704,7 @@ def _linear_fit( x, y ) -> (float, float, float):
 def _leastsq_fit( signals: np.ndarray, curvatures: np.ndarray, weight_rule: callable ):
     """ Perform least squares fitting of curvatures
         solves
-        argmin_C ||C.signals - curvatures||^2
+        argmin_C ||Weights^(1/2).(C.signals - curvatures)||^2
 
         Args:
             signals: numpy array of shape (N, num_active_areas)
@@ -1368,7 +1375,7 @@ def main( args=None ):
                                              weight_rule=weights_rule )
 
     # perform calibration and validation
-    if len( jig_calibrator.valid_dataset ) == 0 or (jig_calibrator.valid_curvatures == [0]):  # validation dataset not configured
+    if len( jig_calibrator.valid_dataset ) == 0:  # validation dataset not configured
         print( "Performing calibration, validation not configured..." )
         jig_calibrator.process_dataset( jig_calibrator.calib_dataset, 'calibration', save=False, add_dataset=True )
 
@@ -1377,6 +1384,18 @@ def main( args=None ):
         jig_calibrator.run_calibration( save=True, fbgneedle_param_outfile=args.new_needleparam_file )
 
     # if
+    elif all( map( lambda k: k == 0, jig_calibrator.valid_curvatures ) ):
+        print( "Performing calibration, validation not configured..." )
+        jig_calibrator.process_dataset( jig_calibrator.calib_dataset, 'calibration', save=False, add_dataset=True )
+
+        jig_calibrator.process_dataset( jig_calibrator.valid_dataset, 'validation', save=False, add_dataset=True )
+
+        jig_calibrator.assign_dataset_type( jig_calibrator.calib_curvatures, 'calibration' )
+
+        jig_calibrator.run_calibration( save=True, fbgneedle_param_outfile=args.new_needleparam_file )
+
+    # elif
+
     else:
         print( "Performing calibration and validation..." )
         print( "Processing calibration dataset..." )
@@ -1395,6 +1414,7 @@ def main( args=None ):
     print()
 
     print( "Saving all data..." )
+    # TODO: change processed data file names per type of calibration
     jig_calibrator.save_processed_data( outfile_base='', outdir=jig_calibrator.calib_directory )
     print( "Data saved." )
     print()
