@@ -20,23 +20,39 @@ end
 % file set-up
 directory = "../../data/3CH-4AA-0004/";
 fbgneedle_param = fullfile(directory, ...
-    "needle_params_08-16-2021_Jig-Calibration_all.json");   % weighted calibration
+    "needle_params_08-16-2021_Jig-Calibration_weighted.json");   % weighted calibration
 fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
 datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
-data_mats_file = fullfile(datadir, "Jig-Calibration-Validation-Data.xlsx"); % all data
+data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
 proc_data_sheet = 'Calibration Validation Dataset';
-fig_save_file = fullfile(datadir, "Jig_Shape_fit");
+fig_save_file = "Jig_Shape_fit";
 
 % paramteter set-up
 jig_offset = 26.0; % the jig offset of full insertion
 equal_weighting_lambda = 1; % weighting of how close to equal weighting
 curv_weighting = true;
 
-if contains(fbgneedle_param, 'weighted')
-%     data_mats_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
+if contains(fbgneedle_param, '_clinically-relevant')
+    data_mats_file = strcat('clinically-relevant_', data_mats_file);
+    fig_save_file = strcat('clinically-relevant_', fig_save_file);
+elseif contains(fbgneedle_param, '_all')
+    data_mats_file = strcat('all_', data_mats_file);
+    fig_save_file = strcat('all_',fig_save_file);
+else
+    data_mats_file = strcat('jig_', data_mats_file);
+    fig_save_file = strcat('jig_',fig_save_file);
+end
+
+if contains(fbgneedle_param, '_weighted')
+    data_mats_file = strrep(data_mats_file, '.xlsx', '_weighted.xlsx');
     fig_save_file = strcat(fig_save_file, '_weighted');
 end
+
+% add the data directories
+data_mats_file = fullfile(datadir, data_mats_file);
+fig_save_file = fullfile(datadir, fig_save_file);
+disp(data_mats_file);
 
 %% Load FBGNeedle python class
 fbg_needle = py.sensorized_needles.FBGNeedle.load_json(fbgneedle_param);
