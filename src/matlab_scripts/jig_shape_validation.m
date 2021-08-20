@@ -20,8 +20,8 @@ end
 
 % file set-up
 directory = "../../data/3CH-4AA-0004/";
-fbgneedle_param = fullfile(directory, ...
-    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant_weights.json"); 
+fbgneedle_param = fullfile(directory, '08-16-2021_Jig-Calibration',...
+    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant-2_weighted_weights.json"); 
 
 datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
 data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
@@ -37,6 +37,9 @@ if contains(fbgneedle_param, 'clinically-relevant')
 elseif contains(fbgneedle_param, '_all')
     data_mats_file = strcat('all_', data_mats_file);
     fig_save_file = strcat('all_',fig_save_file);
+elseif contains(fbgneedle_param, '_best')
+    data_mats_file = strcat('jig_', data_mats_file);
+    fig_save_file = strcat('best_',fig_save_file);    
 else
     data_mats_file = strcat('jig_', data_mats_file);
     fig_save_file = strcat('jig_',fig_save_file);

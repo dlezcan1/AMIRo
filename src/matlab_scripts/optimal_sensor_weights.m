@@ -8,7 +8,7 @@
 clear;
 %% Set-up 
 % options
-save_bool = false;
+save_bool = true;
 
 % python set-up
 pydir = fullfile('../');
@@ -19,8 +19,8 @@ end
 
 % file set-up
 directory = "../../data/3CH-4AA-0004/";
-fbgneedle_param = fullfile(directory, ...
-    "needle_params_08-16-2021_Jig-Calibration_weighted.json");   % weighted calibration
+fbgneedle_param = fullfile(directory, '08-16-2021_Jig-Calibration',...
+    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant-2_weighted.json");   % weighted calibration
 fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
 datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
