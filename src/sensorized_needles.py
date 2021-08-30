@@ -138,6 +138,12 @@ class FBGNeedle( Needle ):
 
     ############################## PROPERTIES ######################################
     @property
+    def is_calibrated( self ):
+        return (self.cal_matrices is not None) and (len( self._cal_matrices ) > 0)
+
+    # is_calibrated
+
+    @property
     def num_aa( self ):
         DeprecationWarning( 'num_aa is deprecated. Please use num_activeAreas.' )
         return len( self.sensor_location )

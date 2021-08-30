@@ -178,8 +178,8 @@ class FBGNeedleJigCalibrator:
 
     # assign_dataset_type
 
-    @staticmethod
-    def configure_dataset( directory: str, angles: list, curvatures: list ) -> list:
+    @classmethod
+    def configure_dataset(cls, directory: str, angles: list, curvatures: list ) -> list:
         """ Configure dataset
 
             curvatures excluded in order to allow for mapping later
@@ -201,7 +201,7 @@ class FBGNeedleJigCalibrator:
 
         # iteratre through each to see if it matches the trial directory pattern
         for d in directories:
-            res = re.search( FBGNeedleJigCalibrator.directory_pattern, d )
+            res = re.search( cls.directory_pattern, d )
 
             # make sure that the directory matches
             if res is not None:
