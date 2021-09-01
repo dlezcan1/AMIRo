@@ -6,9 +6,8 @@
 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-% expmt_dir = "../../data/needle_3CH_3AA/01-27-2021_Test-Refraction/";
-expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
-trial_dirs = dir(expmt_dir + "Insertion*/");
+expmt_dir = "../../data/3CH-4AA-0004/08-24-2021_Insertion-Expmt/";
+trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
@@ -36,7 +35,7 @@ else
 end
 
 % 3D point file names
-camera_pos_file = "left-right_3d-pts.txt";
+camera_pos_file = "left-right_3d-pts.csv";
 if use_weights == true
     fbg_pos_file = "FBGdata_FBG-weights_3d-position.xls";
 else
@@ -136,8 +135,8 @@ for i = 1:length(trial_dirs)
     %- 3-D shape 
     fig_shape_3d = figure(1);
     set(fig_shape_3d,'units','normalized','position', [0, 0.5, 1/3, .45])
-    plot3(fbg_pos_interp(:,3), fbg_pos_interp(:,1), fbg_pos_interp(:,2), 'g-', 'LineWidth', 2); hold on;
-    plot3(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,1), camera_pos_interp_tf(:,2), 'r-',...
+    plot3(fbg_pos_interp(:,3), fbg_pos_interp(:,1), fbg_pos_interp(:,2), 'r-', 'LineWidth', 2); hold on;
+    plot3(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,1), camera_pos_interp_tf(:,2), 'g-',...
         'LineWidth', 2); 
     hold off;
     legend('FBG', 'Stereo Recons.'); 
@@ -152,16 +151,16 @@ for i = 1:length(trial_dirs)
     set(fig_shape_2d,'units','normalized','position', [1/3, 0.5, 1/3, .45] )
     %-- in-plane
     subplot(2,1,1);
-    plot(fbg_pos_interp(:,3), fbg_pos_interp(:,2), 'g-', 'LineWidth', 2); hold on;
-    plot(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,2), 'r-', 'LineWidth', 2);
+    plot(fbg_pos_interp(:,3), fbg_pos_interp(:,2), 'r-', 'LineWidth', 2); hold on;
+    plot(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,2), 'g-', 'LineWidth', 2);
     hold off;
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     
     %-- out-of-plane
     subplot(2,1,2);
-    plot(fbg_pos_interp(:,3), fbg_pos_interp(:,1), 'g-', 'LineWidth', 2); hold on;
-    plot(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,1), 'r-', 'LineWidth', 2);
+    plot(fbg_pos_interp(:,3), fbg_pos_interp(:,1), 'r-', 'LineWidth', 2); hold on;
+    plot(camera_pos_interp_tf(:,3), camera_pos_interp_tf(:,1), 'g-', 'LineWidth', 2);
     hold off;
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
@@ -171,7 +170,7 @@ for i = 1:length(trial_dirs)
     
     %- error plots
     fig_err = figure(3);
-    s_sub = s_max(end-N+1:end);
+    s_sub = s_max(end-N_overlap+1:end);
     set(fig_err,'units','normalized','position', [2/3, 0.5, 1/3, .45])
     plot(s_max, 0.5 * ones(size(s_max)), 'r--', 'DisplayName', '0.5 mm'); hold on;
     plot(s_sub, errors.L2, 'DisplayName', 'L2 Distance'); 

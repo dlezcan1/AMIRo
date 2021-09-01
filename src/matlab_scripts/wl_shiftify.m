@@ -1,3 +1,4 @@
+
 %% wl_shiftify.m
 %
 % scipt to take fbgdata file and shift the wavelengths using a reference
@@ -10,8 +11,8 @@ save_bool = true;
 
 %% File set-up
 % reference wavelength
-expmt_dir = "../../data/needle_3CH_3AA/01-18-2021_Test-Insertion-Expmt/";
-ref_file = expmt_dir + "Reference_wavelength.xls";
+expmt_dir = "../../data/3CH-4AA-0004/08-24-2021_Insertion-Expmt/";
+ref_file = fullfile(expmt_dir,'Reference', "FBGdata.xls");
 
 % FBGdata file list
 fbgdata_files = dir(expmt_dir + "Insertion*/*/FBGdata.xls");

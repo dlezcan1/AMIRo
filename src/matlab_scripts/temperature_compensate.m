@@ -20,6 +20,6 @@ function fbg_shift_Tcorr = temperature_compensate(fbg_shift)
     end
     
     %% Temperature compensation
-    fbg_shift_Tcorr = fbg_shift - mean(fbg_shift, 2); % subtract out mean of AA's
+    fbg_shift_Tcorr = fbg_shift - mean(fbg_shift, 1); % subtract out mean of AA's
     
 end

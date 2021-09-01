@@ -17,6 +17,8 @@ function configure_env(status)
     shapesensing_src = "../../shape-sensing/src/";
     shapesensing_src = what(shapesensing_src).path;
     
+    pydir = fullfile('../');
+    
     % check for toggle
     if strcmp(status, 'toggle')
         % check if shapesensing_src folder is on the path
@@ -33,6 +35,9 @@ function configure_env(status)
     % configure the environment
     if strcmp(status, 'on')
         addpath(shapesensing_src);
+        if count(py.sys.path, pydir) == 0
+            insert(py.sys.path, int32(0), pydir);
+        end
         disp("Shape sensing environment enabled.");
     else
         rmpath(shapesensing_src);
