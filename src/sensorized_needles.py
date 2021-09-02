@@ -19,21 +19,122 @@ import fbg_signal_processing
 
 class Needle( object ):
     """ basic Needle class """
+    # Needle Diameters (mm)
+    DIAM_17G = 1.473
+    DIAM_18G = 1.27
+    DIAM_19G = 1.067
+    DIAM_20G = 0.908
+    DIAM_21G = 0.819
+    DIAM_GAUGE = { '17G': DIAM_17G,
+                   '18G': DIAM_18G,
+                   '19G': DIAM_19G,
+                   '20G': DIAM_20G,
+                   '21G': DIAM_21G,
+                   }
 
-    def __init__( self, length: float, serial_number: str ):
+    # Young's Modulus (N/mm^2)
+    EMOD_ST_STEEL304 = 200 * 10 ** 3  # N/mm^2
+    EMOD_NITINOL = 83 * 10 ** 3  # N/mm^2
+    EMOD = { 'stainless-steel-304': EMOD_ST_STEEL304,
+             'nitinol'            : EMOD_NITINOL
+             }
+
+    # Poisson's Ratio
+    P_RATIO_ST_STEEL304 = 0.29
+    P_RATIO_NITINOL = 0.33
+    P_RATIO = { 'stainless-steel-304': P_RATIO_ST_STEEL304,
+                'nitinol'            : P_RATIO_NITINOL
+                }
+
+    def __init__( self, length: float, serial_number: str, diameter: float = None, Emod: float = None,
+                  pratio: float = None ):
         """ constructor
 
             Args:
                 - length: float, of the length of the entire needle (mm)
-
+                - serial_number: the Seria number of the needle
+                - diameter: A float of the diameter
+                - Emod: Young's modulus
+                - pratio: Poisson's Ratio of the material
 
         """
         self._length = length
         self._serial_number = serial_number
+        self.diameter = diameter
+        self.Emod = Emod
+        self.pratio = pratio
 
     # __init__
 
-    # =================== PROPERTIES =============================#
+    def __str__( self ):
+        msg = f"Serial Number: {self.serial_number}"
+        msg += "\n" + f"Needle length (mm): {self.length}"
+        msg += "\n" + f"Diameter (mm): {self.diameter}" if self.diameter is not None else ""
+        msg += "\n" + f"Bending Moment of Insertia (mm^4): {self.I_bend}" if self.I_bend is not None else ""
+        msg += "\n" + f"Torsional Moment of Insertia (mm^4): {self.J_torsion}" if self.J_torsion is not None else ""
+        msg += "\n" + f"Young's Modulus, Emod (N/mm^2): {self.Emod}" if self.Emod is not None else ""
+        msg += "\n" + f"Torsional Young's Modulus, Gmod (N/mm^2): {self.Gmod}" if self.Gmod is not None else ""
+
+        return msg
+
+    # __str__
+
+    # =================== PROPERTIES ============================= #
+    @property
+    def B( self ):
+        """ The Stiffness matrix of the needle """
+        if self.Emod > 0 and self.diameter > 0 and self.pratio > 0:
+            return np.diag( [ self.bend_stiffness, self.bend_stiffness, self.torsional_stiffness ] )
+
+        else:
+            return None
+
+    # B
+
+    @property
+    def bend_stiffness( self ):
+        """ The bending stiffness of the needle"""
+        if self.Emod is not None and self.I_bend is not None:
+            return self.Emod * self.I_bend
+
+        else:
+            return None
+
+    # bend_stiffness
+
+    @property
+    def I_bend( self ):
+        """ Bending moment of insetia"""
+        if self.diameter is not None:
+            return np.pi * self.diameter ** 4 / 64
+
+        else:
+            return None
+
+    # I_bend
+
+    @property
+    def J_torsion( self ):
+        """ Torsional moment of inertia"""
+        if self.diameter is not None:
+            return np.pi * self.diameter ** 4 / 32
+
+        else:
+            return None
+
+    # J_torsion
+
+    @property
+    def Gmod( self ):
+        """ Torsional Young's Modulus"""
+        if self.Emod is not None and self.pratio is not None:
+            return self.Emod / (2 * (1 + self.pratio))
+
+        else:
+            return None
+
+    # Gmod
+
     @property
     def length( self ):
         return self._length
@@ -46,15 +147,31 @@ class Needle( object ):
 
     # serial_number
 
-    # =============== FUNCTIONS ==================================#
-    def constant_curv_2d( self, wx, ds: float = 0.5 ):
-        """ returns the constant curvature shape given by the rotation about wx """
-        raise NotImplementedError( "'constant_curv_2d' is not implemented yet." )
+    @property
+    def torsional_stiffness( self ):
+        """ Torsional stiffness of the needle"""
+        if self.Gmod is not None and self.J_torsion is not None:
+            return self.Gmod * self.J_torsion
 
-    # constant_curv_2d
+        else:
+            return None
+
+    # torsional_stiffness
+
+    # =============== FUNCTIONS ================================== #
+    def to_dict( self ) -> dict:
+        """ Convert object to a dictionary"""
+        return { 'serial number': self.serial_number,
+                 'length'       : self.length,
+                 'diamater'     : self.diameter,
+                 'Emod'         : self.Emod,
+                 'pratio'       : self.pratio
+                 }
+
+    # to_dict
 
 
-# class: Needle  
+# class: Needle
 
 
 class FBGNeedle( Needle ):
@@ -63,7 +180,7 @@ class FBGNeedle( Needle ):
     """
 
     def __init__( self, length: float, serial_number: str, num_channels: int, sensor_location: list = [ ],
-                  calibration_mats: dict = { }, weights: dict = { } ):
+                  calibration_mats: dict = { }, weights: dict = { }, **kwargs ):
         """
         Constructor
 
@@ -87,7 +204,7 @@ class FBGNeedle( Needle ):
 
         # if
 
-        super().__init__( length, serial_number )
+        super().__init__( length, serial_number, **kwargs )
 
         # property set-up (None so that they are set once)
         self._num_channels = num_channels
@@ -104,8 +221,7 @@ class FBGNeedle( Needle ):
 
     def __str__( self ):
         """ Magic str method """
-        msg = "Serial Number: {}".format( self.serial_number )
-        msg += "\nNeedle length (mm): {}".format( self.length )
+        msg = super().__str__()
         msg += "\nNumber of FBG Channels: {:d}".format( self.num_channels )
         msg += "\nNumber of Active Areas: {:d}".format( self.num_activeAreas )
         msg += "\nSensor Locations (mm):"
@@ -583,6 +699,8 @@ class FBGNeedle( Needle ):
             # for
         # if
 
+        data = self.to_dict()
+
         # write the data
         with open( outfile, 'w' ) as outfile:
             json.dump( data, outfile, indent=4 )
@@ -590,6 +708,40 @@ class FBGNeedle( Needle ):
         # with
 
     # save_json
+
+    def to_dict( self ) -> dict:
+        """ Dictionary the values here """
+        data = super().to_dict()
+        data[ "# channels" ] = self.num_channels
+        data[ "# active areas" ] = self.num_activeAreas
+
+        if self.sensor_location:
+            data[ "Sensor Locations" ] = { }
+            for i, l in enumerate( self.sensor_location, 1 ):
+                data[ "Sensor Locations" ][ str( i ) ] = l
+
+            # for
+        # if
+
+        if self.cal_matrices:
+            data[ "Calibration Matrices" ] = { }
+            for k, cal_mat in self.cal_matrices.items():
+                data[ "Calibration Matrices" ][ k ] = cal_mat.tolist()
+
+            # for
+        # if
+
+        if self.weights:
+            data[ 'weights' ] = { }
+            for k, weight in self.weights.items():
+                data[ 'weights' ][ k ] = weight
+
+            # for
+        # if
+
+        return data
+
+    # to_dict
 
     def set_calibration_matrices( self, cal_mats: dict ):
         """ This function is to set the calibration matrices after instantiation """
@@ -612,10 +764,20 @@ class FBGNeedle( Needle ):
 def __get_argparser() -> argparse.ArgumentParser:
     """ Parse cli arguments"""
     # Setup parsed arguments
-    parser = argparse.ArgumentParser( description="Make a new needle FBG parameter" )
+    parser = argparse.ArgumentParser( description="Make a new/Update an existing needle FBG parameter" )
 
     parser.add_argument( '--update-params', type=str, default=None, help='Update the FBG needle parameter file',
                          dest='update_file' )
+
+    needle_diam_grp = parser.add_mutually_exclusive_group(required=False)
+    needle_diam_grp.add_argument( '--needle-gauge', type=str, default=None, help='The gauge of the needle (eg. 18G)' )
+    needle_diam_grp.add_argument( '--diameter', type=float, default=None, help='The diameter of the needle (in mm)' )
+
+    material_grp = parser.add_argument_group(title="Material Properties")
+    material_grp.add_argument( '--material', type=str, default=None, help="The material of the needle." )
+    material_grp.add_argument( '--Emod', type=float, default=None, help="Young's Modulus of the needle (in GPa)" )
+    material_grp.add_argument( '--poisson-ratio', type=float, default=None, help="The Poisson's ratio of the needle" )
+
     parser.add_argument( 'length', type=float, help='The entire length of the FBG needle' )
     parser.add_argument( 'num_channels', type=int, help='The number of channels in the FBG needle' )
 
@@ -639,8 +801,32 @@ def main( args=None ):
 
     needle_num = pargs.needle_num
     serial_number = "{:d}CH-{:d}AA-{:04d}".format( num_chs, len( aa_locs ), needle_num )
-    directory = os.path.join( '..', 'data', serial_number )
+    directory = os.path.join( 'data', serial_number )
 
+    # process size parameters
+    if pargs.needle_gauge is not None:
+        diameter = Needle.DIAM_GAUGE[pargs.needle_gauge]
+
+    else:
+        diameter = pargs.diameter
+
+    # process material properties
+    if pargs.material is not None and pargs.Emod is None and pargs.poisson_ratio is None:
+        Emod = Needle.EMOD[pargs.material]
+        pratio = Needle.P_RATIO[pargs.material]
+
+    # if
+    elif pargs.material is not None and (pargs.Emod is not None or pargs.poisson_ratio is not None):
+        raise ValueError("Only can set material type by itself. Can't do custom material properties and material.")
+
+    # elif
+    else:
+        Emod = pargs.Emod
+        pratio = pargs.poisson_ratio
+
+    # else
+
+    # get FBGNeedle instance
     if pargs.update_file is not None:
         save_file = os.path.normpath( pargs.update_file )
         directory = os.path.dirname( save_file )
@@ -652,12 +838,18 @@ def main( args=None ):
         needle._serial_number = serial_number
         needle._num_channels = num_chs
         needle._sensor_location = aa_locs
+        needle.diameter = diameter
+        needle.Emod = Emod
+        needle.pratio = pratio
+
     # if
 
     else:
         save_file = os.path.join( directory, 'needle_params.json' )
         print( "New needle parameters:" )
-        needle = FBGNeedle( length, serial_number, num_chs, aa_locs )
+        Needle(1,2,diameter=1,Emod=1, pratio=1)
+        needle = FBGNeedle( length, serial_number, num_chs, aa_locs, diameter=diameter,
+                            Emod=Emod, pratio=pratio)
 
     # else
 

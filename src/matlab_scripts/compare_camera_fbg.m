@@ -3,10 +3,10 @@
 % this is a script to compare shape sensing methods to FBG shape sensing
 %
 % - written by: Dimitri Lezcano
-
+clear; clc
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/08-24-2021_Insertion-Expmt/";
+expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/";
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -245,7 +245,7 @@ for i = 1:length(trial_dirs)
     plot(plt_cam_pts_r(:,1), plt_cam_pts_r(:,2), 'g-.', 'LineWidth', 2, 'DisplayName', 'right-camera');
     plot(plt_fbg_pts_r(:,1), plt_fbg_pts_r(:,2), 'r-.', 'LineWidth', 2, 'DisplayName', 'right-fbg');
     hold off;
-    title("Left-Right Needle Shape Image Projections"); legend('Location', 'best');
+    title("Left-Right Needle Shape Image Projections"); legend('Location', 'south');
     
     % time update
     t = toc;

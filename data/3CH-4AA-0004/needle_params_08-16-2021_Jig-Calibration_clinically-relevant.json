@@ -1,6 +1,9 @@
 {
     "serial number": "3CH-4AA-0004",
     "length": 165.0,
+    "diamater": 1.27,
+    "Emod": 200000,
+    "pratio": 0.29,
     "# channels": 3,
     "# active areas": 4,
     "Sensor Locations": {

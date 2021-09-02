@@ -10,7 +10,7 @@ configure_env on;
 set(0,'DefaultAxesFontSize',18)
 
 % directories to iterate through
-expmt_dir = "../../data/needle_3CH_4AA_v2/Insertion_Experiment_04-12-21/";
+expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -26,7 +26,7 @@ use_weights = true;
 
 % data file
 data_file = "FBGdata_3d-params.txt";
-camera_pos_file = "left-right_3d-pts.txt";
+camera_pos_file = "left-right_3d-pts.csv";
 
 % saving options
 save_bool = true;
@@ -37,7 +37,7 @@ if use_weights
 end
 
 % needle parameters
-needleparams = load("../../shape-sensing/shapesensing_needle_properties.mat");
+needleparams = load("../../shape-sensing/shapesensing_needle_properties_18G.mat");
 
 %% Iterate over the trial directories
 dir_prev = "";
