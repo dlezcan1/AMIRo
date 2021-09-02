@@ -114,7 +114,7 @@ dir_prev = "";
 kc_vals = [];
 depths = [];
 for i = 1:length(trial_dirs)
-    if ~strcmp(dir_prev, trial_dirs(i).folder) && ~strcmp(dir_prev, "")
+    if (~strcmp(dir_prev, trial_dirs(i).folder) && ~strcmp(dir_prev, "")) 
         % plot depths vs kc
         figure(5);
         plot(depths, kc_vals, '*-');
@@ -263,9 +263,29 @@ for i = 1:length(trial_dirs)
     % update previous directory
     dir_prev = trial_dirs(i).folder;
     
+    if i == length(trial_dirs) % handle the last edge case
+        % plot depths vs kc
+        figure(5);
+        plot(depths, kc_vals, '*-');
+        xlabel("Insertion Depth (mm)"); ylabel("\kappa_c (1/mm)");
+        title(sprintf("Insertion #%d", hole_num) + " | \kappa_c vs Insertion Depth");
+        
+        % save the figure
+        if save_bool
+           saveas(fkc, fileout_base + "_kc-all-insertions.png");
+           fprintf("Saved figure #d: '%s'\n", fkc.Number, fileout_base + "_kc-all-insertions.png");
+        end
+        
+        % empty the values
+        kc_vals = [];
+        depths = [];
+    end
+    
     % output
     fprintf("Finished trial: '%s' in %.2f secs.\n", d, t);
     disp(" ");
+    
+    
 end
 
 %% Completion
