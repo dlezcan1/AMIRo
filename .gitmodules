@@ -4,4 +4,4 @@
 	branch = master
 [submodule "shape-sensing"]
 	path = shape-sensing
-	url = http://github.com/dlezcan1/shape-sensing.git
+	url = https://git.lcsr.jhu.edu/amiro/shape-sensing

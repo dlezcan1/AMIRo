@@ -7,7 +7,7 @@
 %% Set-up
 clear;
 configure_env on;
-set(0,'DefaultAxesFontSize',18)
+set(0,'DefaultAxesFontSize',14)
 
 % directories to iterate through
 expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/";
@@ -268,10 +268,10 @@ if save_bool
     disp(" ");
 end
 %% Plotting
-fig = figure(1);
-set(fig, 'units', 'normalized', 'Position', [0.05,0.05,0.9,0.85])
+% fig = figure(1);
+% set(fig, 'units', 'normalized', 'Position', [0.05,0.05,0.9,0.85])
 % iterate over each insertion hole
-for hole_num = hole_nums
+for hole_num = [] %hole_nums
     subtbl_hole = pred_result_tbl(pred_result_tbl.Ins_Hole == hole_num,:);
     
     for i = 1:numel(L_preds)
@@ -340,6 +340,31 @@ for hole_num = hole_nums
         pause(1);
     end
 end
+
+% Error Plotting
+fig_act_errors = figure(2);
+ax1 = subplot(1,2,1);
+set(fig_act_errors, 'units', 'normalized', 'position',[ 1, 0.0370, 1.0000, 0.8917 ]);
+boxplot(act_result_tbl.RMSE, act_result_tbl.Ins_Hole);
+xlabel('Insertion Hole Number'); ylabel("RMSE (mm)");
+title("Errors per Insertion Hole", 'fontsize', 16);
+
+ax2 = subplot(1,2,2);
+boxplot(act_result_tbl.RMSE, act_result_tbl.L_ref);
+xlabel('Insertion Depth (mm)'); ylabel("RMSE (mm)");
+title("Errors per Insertion Depth", 'fontsize', 16, 'FontWeight', 'bold');
+
+sgtitle("RMSE between Stereo and FBG Reconstructed Shapes", 'FontSize', 22)
+
+ax1.YLim = [0, max([ax1.YLim, ax2.YLim, 2])];
+ax2.YLim = ax1.YLim;
+
+if save_bool
+    saveas(fig_act_errors, fullfile(expmt_dir, strcat(dataout_file, '_rmse_actual_errors.png')));
+    fprintf("Saved figure: %s\n", fullfile(expmt_dir, strcat(dataout_file, '_rmse_actual_errors.png')));
+    
+end
+pause(5);
 %% Saving
 
 
@@ -364,6 +389,8 @@ function errors = compute_errors(shape_ref, shape_pred)
     errors.Max = sqrt(max(dists_sqr(2:end)));
     errors.RMSE = sqrt(mean(dists_sqr(1:end)));
     errors.Tip = sqrt(dists_sqr(end));
+    errors.In_Plane = sqrt(vecnorm(0));
+    errors.Out_Plane = 0;
 
 end
 
