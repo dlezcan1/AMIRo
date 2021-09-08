@@ -9,7 +9,7 @@ configure_env on;
 
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/";
+expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -21,13 +21,13 @@ fbgdata_ref_wl_file = fullfile(expmt_dir, "Reference/Insertion1/0", fbgdata_file
 ref_wl_per_trial = ~isfile(fbgdata_ref_wl_file); % try not to use where possible
 
 % weighted FBG measurement options
-use_weights = true;
+use_weights = true; % CAN CHANGE, BUT PROBABLY KEEP "true"
 
 % python FBGNeedle class usage
-python_fbgneedle = true;
+python_fbgneedle = true; % CAN CHANGE, BUT PROBABLY KEEP "true"
 
 % saving options
-save_bool = true;
+save_bool = true;  % CAN CHANGE 
 fbgout_basefile = "FBGdata";
 if use_weights == true
     fbgout_basefile = fbgout_basefile + "_FBG-weights";
@@ -43,11 +43,11 @@ else
     dir_sep = '/';
 end
 
-% calibraiton matrices file
-calib_dir = "../../data/3CH-4AA-0004/";
-calib_file = fullfile(calib_dir, "needle_params_08-16-2021_Jig-Calibration_best.json");
+% calibration matrices matrices file: CAN CHANGE PER NEEDLE
+needle_dir = "../../data/3CH-4AA-0004/"; % the needle you are using
+needle_calib_file = fullfile(needle_dir, "needle_params_08-16-2021_Jig-Calibration_best.json");
 
-% Initial guesses for kc and w_init
+% Initial guesses for kc and w_init DON'T CHANGE
 kc_i = 0.002;
 w_init_i = [kc_i; 0; 0]; % ideal insertion
 theta0 = 0;
@@ -55,12 +55,13 @@ theta0 = 0;
 %% Load the reference wavelengths
 if ~ref_wl_per_trial % only one reference wavelength
     ref_wls_mat = readmatrix(fbgdata_ref_wl_file, 'sheet', 'Sheet1');
+    ref_wls_mat = ref_wls_mat(all(ref_wls_mat > 0,2),:);  % remove all errors
     ref_wls = mean(ref_wls_mat, 1); % the reference wavelengths
 end
 
-%% Load the calibration matrices and AA locations (from base)
+%% Load the calibration matrices and AA locations (from base) DON'T CHANGE
 if python_fbgneedle
-    fbgneedle = py.sensorized_needles.FBGNeedle.load_json(calib_file);
+    fbgneedle = py.sensorized_needles.FBGNeedle.load_json(needle_calib_file);
     
     num_chs = double(fbgneedle.num_channels);
     num_aas = double(fbgneedle.num_activeAreas);
@@ -78,7 +79,7 @@ if python_fbgneedle
     end
     
 else
-    fbgneedle = jsondecode(fileread(calib_file));
+    fbgneedle = jsondecode(fileread(needle_calib_file));
 
     % AA parsing
     num_aas = fbgneedle.x_ActiveAreas;
