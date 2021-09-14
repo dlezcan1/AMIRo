@@ -9,7 +9,7 @@ set(0,'DefaultAxesFontSize',24);
 clear;
 %% Set-up 
 % options
-save_bool = true;
+save_bool = false;
 process_only = false;
 
 % python set-up
@@ -138,12 +138,14 @@ end
 
 %% Plotting
 close all;
+rmse_all = [];
 for exp_num = 1:num_expmts
     % grab the data
     expmt_i = shape_results{exp_num};
     r_act = expmt_i.r_act;
     r_meas = expmt_i.r_meas;
     err_r = error_s_positions(r_act, r_meas);
+    rmse_all = [rmse_all, sqrt(mean(err_r.^2))];
     err_inplane = error_s_positions_inplane(r_act, r_meas, expmt_i.curv_act);
     
     % start plotting

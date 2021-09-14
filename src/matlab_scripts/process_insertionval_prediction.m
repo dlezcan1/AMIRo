@@ -37,7 +37,7 @@ if use_weights
 end
 
 % loading options
-recalculate = false; % whether to recalculate predictions and errors
+recalculate = true; % whether to recalculate predictions and errors
 
 % needle parameters
 needleparams = load("../../shape-sensing/shapesensing_needle_properties_18G.mat");
@@ -49,23 +49,23 @@ hole_num_prev = 0;
 % set-up result tables 
 % - non-prediction table
 act_col_names = {'Ins_Hole', 'L_ref', ...
-             'cam_shape', 'fbg_shape', 'RMSE', 'MaxError', 'InPlane', 'OutPlane'};
+             'cam_shape', 'fbg_shape', 'kc', 'RMSE', 'MaxError', 'InPlane', 'OutPlane'};
 Nact_cols = numel(act_col_names);
-Nact_err  = Nact_cols - find(strcmp(act_col_names, 'fbg_shape'));
+Nact_err  = Nact_cols - find(strcmp(act_col_names, 'RMSE')) + 1;
 act_col_err_names = act_col_names(end-Nact_err+1:end);
 actcol_types = cat(2, {'uint8'}, repmat({'double'}, 1, Nact_cols-1));
 actcol_units = cat(2, {''}, repmat({'mm'}, 1, Nact_cols-1));
 
 % - prediction table         
 pred_col_names = {'Ins_Hole', 'L_ref', 'L_pred', ...
-             'cam_shape', 'fbgref_shape', 'pred_shape', 'q_optim', ...
+             'cam_shape', 'fbgref_shape', 'pred_shape', 'q_optim', 'kc_act', 'kc_ref', 'kc_pred',  ...
              'FBG_RMSE', 'FBG_MaxError', 'FBG_TipError', 'FBG_InPlaneError', 'FBG_OutPlaneError', ...
              'Cam_RMSE', 'Cam_MaxError', 'Cam_TipError', 'Cam_InPlaneError', 'Cam_OutPlaneError'};
 Npred_cols = numel(pred_col_names);
-Npred_err = Npred_cols - find(strcmp(pred_col_names, "q_optim")); % number of error columns
+Npred_err = Npred_cols - find(strcmp(pred_col_names, "FBG_RMSE")) + 1; % number of error columns
 pred_col_err_names = pred_col_names(end-Npred_err+1:end);
 predcol_types = cat(2, {'uint8'}, repmat({'double'}, 1, Npred_cols-1));
-predcol_units = {'', 'mm', 'mm', 'mm', 'mm', 'mm', ''};
+predcol_units = {'', 'mm', 'mm', 'mm', 'mm', 'mm', '', 'm^-1', 'm^-1', 'm^-1'};
 predcol_units = cat(2, predcol_units, repmat({'mm'}, 1, Npred_err));
 
 % generate the result tables
@@ -89,7 +89,16 @@ if ~isfile(fullfile(expmt_dir, strcat(dataout_file, '_results.mat'))) || recalcu
         L = str2double(trial_dirs(i).name);
         re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
         hole_num = str2double(re_ret{1}{1});
-
+        
+        if hole_num_prev > 0 && hole_num_prev ~= hole_num
+            fprintf("Completed Insertion Hole #%d.\n", hole_num_prev);
+        end
+        
+        if all(L ~= L_preds) % remove Insertion depths not interested in.
+            fprintf("Skipping: %s\n", fullfile(trial_dirs(i).folder, trial_dirs(i).name));
+            continue
+        end
+        
         % get the files
         d = fullfile(trial_dirs(i).folder, trial_dirs(i).name);
         fbg_paramin_file = fullfile(d, data_file);
@@ -112,7 +121,7 @@ if ~isfile(fullfile(expmt_dir, strcat(dataout_file, '_results.mat'))) || recalcu
         % append results to actual result table
         error_init_vals = num2cell(zeros(1,Nact_err));
         act_result_tbl = [act_result_tbl;
-                          {hole_num, L, p_cam_interp_tf, p_fbg_ref, ...
+                          {hole_num, L, p_cam_interp_tf, p_fbg_ref, kc, ...
                           cam_ref_errors.RMSE, cam_ref_errors.Max, ...
                           cam_ref_errors.In_Plane, cam_ref_errors.Out_Plane}];
 
@@ -128,22 +137,20 @@ if ~isfile(fullfile(expmt_dir, strcat(dataout_file, '_results.mat'))) || recalcu
         % compute errors and append to prediction table
         for j = 1:numel(p_preds)
             error_init_vals = num2cell(zeros(1,Npred_err));
-            % append to table        
+            % append to table     
+            kc_pred = kappa_c_p(kc, L, L_preds(j), p);
+            kc_act = -1;
+            kc_ref = kc;
             if L == L_preds(j)
                 pred_result_tbl = [pred_result_tbl;
                               {hole_num, L, L_preds(j), p_cam_interp_tf, p_fbg_ref, p_preds{j}, ...
-                               q_best, error_init_vals{:}}];
+                               q_best, kc_act, kc_ref, kc_pred, error_init_vals{:}}];
             else
                 pred_result_tbl = [pred_result_tbl;
                               {hole_num, L, L_preds(j), zeros(3,0), zeros(3,0), p_preds{j}, ...
-                               q_best, error_init_vals{:}}];
+                               q_best, kc_act, kc_ref, kc_pred, error_init_vals{:}}];
             end
 
-        end
-
-        % generate the insertion prediction error at the end of the insertion hole
-        if hole_num_prev > 0 && hole_num_prev ~= hole_num
-            fprintf("Completed Insertion Hole #%d.\n", hole_num_prev);
         end
 
         % update previous hole number
@@ -172,17 +179,19 @@ if ~isfile(fullfile(expmt_dir, strcat(dataout_file, '_results.mat'))) || recalcu
             subtbl_ref = subtbl(subtbl.L_pred == L_ref,:);
             p_fbg_ref = subtbl_ref(subtbl_ref.L_ref == L_ref, :).fbgref_shape{1};
             p_cam = subtbl_ref(subtbl_ref.L_ref == L_ref, :).cam_shape{1};
-
+            kc_act = subtbl_ref{subtbl_ref.L_ref== L_ref, 'kc_ref'};
+            
             for j = 1:size(subtbl_ref,1)
                 p_pred = subtbl_ref{j,'pred_shape'}{1};
                 N_overlap = min(size(p_cam,2), size(p_pred,2));
-
+                
                 % compute errors
                 errors_fbg = compute_errors(p_fbg_ref, p_pred);
                 errors_cam = compute_errors(p_cam(:,end-N_overlap+1:end), ...
                                             p_pred(:,end-N_overlap+1:end));
 
                 % update table with errors and fbgref and cam shapes
+                subtbl_ref{j,'kc_act'} = kc_act;
                 subtbl_ref{j,'cam_shape'}{1} = p_cam;
                 subtbl_ref{j,'fbgref_shape'}{1} = p_fbg_ref;
 
@@ -191,7 +200,7 @@ if ~isfile(fullfile(expmt_dir, strcat(dataout_file, '_results.mat'))) || recalcu
                 subtbl_ref{j,'Cam_TipError'} = errors_cam.Tip;
                 subtbl_ref{j,'Cam_InPlaneError'} = errors_cam.In_Plane;
                 subtbl_ref{j,'Cam_OutPlaneError'} = errors_cam.Out_Plane;
-
+                
                 subtbl_ref{j,'FBG_RMSE'} = errors_fbg.RMSE;
                 subtbl_ref{j,'FBG_MaxError'} = errors_fbg.Max;
                 subtbl_ref{j,'FBG_TipError'} = errors_fbg.Tip;
