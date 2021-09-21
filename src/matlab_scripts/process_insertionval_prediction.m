@@ -7,17 +7,17 @@
 %% Set-up
 clear;
 configure_env on;
-set(0,'DefaultAxesFontSize',18)
+set(0,'DefaultAxesFontSize',22)
 
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/";
+expmt_dir = "../../data/3CH-4AA-0004/ICRA2022_video/";
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % predicted insertion params
-L_preds = 105:5:120; % static method
+L_preds = 110:5:120; % static method
 p = 0.592;
 ds = 0.5;
 
@@ -368,7 +368,7 @@ end
 
 %% Error Plotting
 % Actual Error Plotting
-pos_adj = [0, 0, 0, -0.05]; % adjust the height of the position
+pos_adj = [0, 0, 0, -0.075]; % adjust the height of the position
 max_yl = 1.25;
 
 % - Per insertion holegit
@@ -380,21 +380,21 @@ ax1_inshole = subplot(1,3,1);
 ax1_inshole.Position = ax1_inshole.Position + pos_adj;
 boxplot(act_result_tbl.RMSE, act_result_tbl.Ins_Hole);
 xlabel('Insertion Hole Number'); ylabel("RMSE (mm)");
-title("RMSE", 'fontsize', 20);
+title("RMSE", 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax2_inshole = subplot(1,3,2);
 ax2_inshole.Position = ax2_inshole.Position + pos_adj;
 boxplot(act_result_tbl.InPlane, act_result_tbl.Ins_Hole);
 xlabel('Insertion Hole Number'); ylabel("In-Plane Error (mm)");
-title("Mean In-Plane Errors", 'fontsize', 20);
+title("Mean In-Plane Errors", 'Fontsize', 22);
 
 % -- Out-of-Plane Errors
 ax3_inshole = subplot(1,3,3);
 ax3_inshole.Position = ax3_inshole.Position + pos_adj;
 boxplot(act_result_tbl.OutPlane, act_result_tbl.Ins_Hole);
 xlabel('Insertion Hole Number'); ylabel("Out-of-Plane Error (mm)");
-title("Mean Out-of-Plane Errors", 'fontsize', 20);
+title("Mean Out-of-Plane Errors", 'Fontsize', 22);
 
 sgtitle("Errors between Stereo and FBG Reconstructed Shapes per Insertion Hole",...
     'FontSize', 22, 'FontWeight', 'bold')
@@ -414,21 +414,21 @@ ax1_Lref.Position = ax1_Lref.Position + pos_adj;
 boxplot(act_result_tbl.RMSE, act_result_tbl.L_ref);
 % hold on; yline(0.5, 'r--', 'DisplayName', '0.5 mm Error'); hold off;
 xlabel('Insertion Depth (mm)'); ylabel("RMSE (mm)");
-title("RMSE", 'fontsize', 20);
+title("RMSE", 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax2_Lref = subplot(1,3,2);
 ax2_Lref.Position = ax2_Lref.Position + pos_adj;
 boxplot(act_result_tbl.InPlane, act_result_tbl.L_ref);
 xlabel('Insertion Depth (mm)'); ylabel("In-Plane Error (mm)");
-title("Mean In-Plane Errors", 'fontsize', 20);
+title("Mean In-Plane Errors", 'Fontsize', 22);
 
 % -- Out-of-Plane Errors
 ax3_Lref = subplot(1,3,3);
 ax3_Lref.Position = ax3_Lref.Position + pos_adj;
 boxplot(act_result_tbl.OutPlane, act_result_tbl.L_ref);
 xlabel('Insertion Depth (mm)'); ylabel("Out-of-Plane Error (mm)");
-title("Mean Out-of-Plane Errors", 'fontsize', 20);
+title("Mean Out-of-Plane Errors", 'Fontsize', 22);
 
 sgtitle("Errors between Stereo and FBG Reconstructed Shapes per Insertion Depth",...
     'FontSize', 22, 'FontWeight', 'bold')
@@ -448,20 +448,20 @@ set(fig_inshole_prederrors, 'units', 'normalized', 'position',[ -1, 0.0370, 1.00
 ax1_inshole_pred = subplot(1,4,1);
 ax1_inshole_pred.Position = ax1_inshole_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_RMSE(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
-xlabel('Insertion Hole'); ylabel('RMSE (mm)'); title('RMSE', 'fontsize', 20);
+xlabel('Insertion Hole'); ylabel('RMSE (mm)'); title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_inshole_pred = subplot(1,4,2);
 ax2_inshole_pred.Position = ax2_inshole_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_TipError(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
-xlabel('Insertion Hole'); ylabel('Tip Error (mm)'); title('Tip Error', 'fontsize', 20);
+xlabel('Insertion Hole'); ylabel('Tip Error (mm)'); title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_inshole_pred = subplot(1,4,3);
 ax3_inshole_pred.Position = ax3_inshole_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_InPlaneError(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
 xlabel('Insertion Hole'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -469,11 +469,11 @@ ax4_inshole_pred = subplot(1,4,4);
 ax4_inshole_pred.Position = ax4_inshole_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_OutPlaneError(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
 xlabel('Insertion Hole'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("FBG Shape Predicted FBG Shape Analysis per Insertion Hole",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_inshole_pred.YLim = [0, max([ax1_inshole_pred.YLim, ax2_inshole_pred.YLim,...
                                  ax3_inshole_pred.YLim, ax4_inshole_pred.YLim,...
                                  max_yl])];
@@ -489,20 +489,20 @@ set(fig_Lref_prederrors, 'units', 'normalized', 'position',[ 1, 0.0370, 1.0000, 
 ax1_Lref_pred = subplot(1,4,1);
 ax1_Lref_pred.Position = ax1_Lref_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_RMSE(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
-xlabel('L_{ref.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'fontsize', 20);
+xlabel('L_{ref.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_Lref_pred = subplot(1,4,2);
 ax2_Lref_pred.Position = ax2_Lref_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_TipError(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
-xlabel('L_{ref.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'fontsize', 20);
+xlabel('L_{ref.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_Lref_pred = subplot(1,4,3);
 ax3_Lref_pred.Position = ax3_Lref_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_InPlaneError(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
 xlabel('L_{ref.} (mm)'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -510,11 +510,11 @@ ax4_Lref_pred = subplot(1,4,4);
 ax4_Lref_pred.Position = ax4_Lref_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_OutPlaneError(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
 xlabel('L_{ref.} (mm)'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("FBG Shape Predicted FBG Shape Analysis per Insertion Depth",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_Lref_pred.YLim = [0, max([ax1_Lref_pred.YLim, ax2_Lref_pred.YLim,...
                                  ax3_Lref_pred.YLim, ax4_Lref_pred.YLim,...
                                  max_yl])];
@@ -530,20 +530,20 @@ set(fig_Lpred_prederrors, 'units', 'normalized', 'position',[ 1, 0.0370, 1.0000,
 ax1_Lpred_pred = subplot(1,4,1);
 ax1_Lpred_pred.Position = ax1_Lpred_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_RMSE(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
-xlabel('L_{pred.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'fontsize', 20);
+xlabel('L_{pred.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_Lpred_pred = subplot(1,4,2);
 ax2_Lpred_pred.Position = ax2_Lpred_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_TipError(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
-xlabel('L_{pred.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'fontsize', 20);
+xlabel('L_{pred.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_Lpred_pred = subplot(1,4,3);
 ax3_Lpred_pred.Position = ax3_Lpred_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_InPlaneError(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
 xlabel('L_{pred.} (mm)'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -551,11 +551,11 @@ ax4_Lpred_pred = subplot(1,4,4);
 ax4_Lpred_pred.Position = ax4_Lpred_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_OutPlaneError(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
 xlabel('L_{pred.} (mm)'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("FBG Shape Predicted FBG Shape Analysis per Predicted Insertion Depth",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_Lpred_pred.YLim = [0, max([ax1_Lpred_pred.YLim, ax2_Lpred_pred.YLim,...
                                  ax3_Lpred_pred.YLim, ax4_Lpred_pred.YLim,...
                                  max_yl])];
@@ -573,7 +573,7 @@ ax1_Ldiff_pred.Position = ax1_Ldiff_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_RMSE(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('RMSE (mm)'); 
-title('RMSE', 'fontsize', 20);
+title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_Ldiff_pred = subplot(1,4,2);
@@ -581,7 +581,7 @@ ax2_Ldiff_pred.Position = ax2_Ldiff_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_TipError(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('Tip Error (mm)'); 
-title('Tip Error', 'fontsize', 20);
+title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_Ldiff_pred = subplot(1,4,3);
@@ -589,7 +589,7 @@ ax3_Ldiff_pred.Position = ax3_Ldiff_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_InPlaneError(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -598,11 +598,11 @@ ax4_Ldiff_pred.Position = ax4_Ldiff_pred.Position + pos_adj;
 boxplot(pred_result_tbl.FBG_OutPlaneError(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("FBG Shape Predicted FBG Shape Analysis per Predicted Insertion Depth Increment",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_Ldiff_pred.YLim = [0, max([ax1_Ldiff_pred.YLim, ax2_Ldiff_pred.YLim,...
                                  ax3_Ldiff_pred.YLim, ax4_Ldiff_pred.YLim,...
                                  max_yl])];
@@ -620,20 +620,20 @@ set(fig_inshole_pred_camerrors, 'units', 'normalized', 'position',[ -1, 0.0370, 
 ax1_inshole_pred_cam = subplot(1,4,1);
 ax1_inshole_pred_cam.Position = ax1_inshole_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_RMSE(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
-xlabel('Insertion Hole'); ylabel('RMSE (mm)'); title('RMSE', 'fontsize', 20);
+xlabel('Insertion Hole'); ylabel('RMSE (mm)'); title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_inshole_pred_cam = subplot(1,4,2);
 ax2_inshole_pred_cam.Position = ax2_inshole_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_TipError(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
-xlabel('Insertion Hole'); ylabel('Tip Error (mm)'); title('Tip Error', 'fontsize', 20);
+xlabel('Insertion Hole'); ylabel('Tip Error (mm)'); title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_inshole_pred_cam = subplot(1,4,3);
 ax3_inshole_pred_cam.Position = ax3_inshole_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_InPlaneError(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
 xlabel('Insertion Hole'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -641,11 +641,11 @@ ax4_inshole_pred_cam = subplot(1,4,4);
 ax4_inshole_pred_cam.Position = ax4_inshole_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_OutPlaneError(prediction_mask), pred_result_tbl.Ins_Hole(prediction_mask));
 xlabel('Insertion Hole'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("Stereo Reconstruction Predicted FBG Shape Analysis per Insertion Hole",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_inshole_pred_cam.YLim = [0, max([ax1_inshole_pred_cam.YLim, ax2_inshole_pred_cam.YLim,...
                                  ax3_inshole_pred_cam.YLim, ax4_inshole_pred_cam.YLim,...
                                  max_yl])];
@@ -661,20 +661,20 @@ set(fig_Lref_pred_camerrors, 'units', 'normalized', 'position',[ 1, 0.0370, 1.00
 ax1_Lref_pred_cam = subplot(1,4,1);
 ax1_Lref_pred_cam.Position = ax1_Lref_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_RMSE(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
-xlabel('L_{ref.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'fontsize', 20);
+xlabel('L_{ref.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_Lref_pred_cam = subplot(1,4,2);
 ax2_Lref_pred_cam.Position = ax2_Lref_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_TipError(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
-xlabel('L_{ref.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'fontsize', 20);
+xlabel('L_{ref.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_Lref_pred_cam = subplot(1,4,3);
 ax3_Lref_pred_cam.Position = ax3_Lref_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_InPlaneError(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
 xlabel('L_{ref.} (mm)'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -682,11 +682,11 @@ ax4_Lref_pred_cam = subplot(1,4,4);
 ax4_Lref_pred_cam.Position = ax4_Lref_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_OutPlaneError(prediction_mask), pred_result_tbl.L_ref(prediction_mask));
 xlabel('L_{ref.} (mm)'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("Stereo Reconstruction Predicted FBG Shape Analysis per Insertion Depth",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_Lref_pred_cam.YLim = [0, max([ax1_Lref_pred_cam.YLim, ax2_Lref_pred_cam.YLim,...
                                  ax3_Lref_pred_cam.YLim, ax4_Lref_pred_cam.YLim,...
                                  max_yl])];
@@ -702,20 +702,20 @@ set(fig_Lpred_pred_camerrors, 'units', 'normalized', 'position',[ 1, 0.0370, 1.0
 ax1_Lpred_pred_cam = subplot(1,4,1);
 ax1_Lpred_pred_cam.Position = ax1_Lpred_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_RMSE(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
-xlabel('L_{pred.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'fontsize', 20);
+xlabel('L_{pred.} (mm)'); ylabel('RMSE (mm)'); title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_Lpred_pred_cam = subplot(1,4,2);
 ax2_Lpred_pred_cam.Position = ax2_Lpred_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_TipError(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
-xlabel('L_{pred.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'fontsize', 20);
+xlabel('L_{pred.} (mm)'); ylabel('Tip Error (mm)'); title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_Lpred_pred_cam = subplot(1,4,3);
 ax3_Lpred_pred_cam.Position = ax3_Lpred_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_InPlaneError(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
 xlabel('L_{pred.} (mm)'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -723,11 +723,11 @@ ax4_Lpred_pred_cam = subplot(1,4,4);
 ax4_Lpred_pred_cam.Position = ax4_Lpred_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_OutPlaneError(prediction_mask), pred_result_tbl.L_pred(prediction_mask));
 xlabel('L_{pred.} (mm)'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("Stereo Reconstruction Predicted FBG Shape Analysis per Predicted Insertion Depth",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_Lpred_pred_cam.YLim = [0, max([ax1_Lpred_pred_cam.YLim, ax2_Lpred_pred_cam.YLim,...
                                  ax3_Lpred_pred_cam.YLim, ax4_Lpred_pred_cam.YLim,...
                                  max_yl])];
@@ -745,7 +745,7 @@ ax1_Ldiff_pred_cam.Position = ax1_Ldiff_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_RMSE(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('RMSE (mm)'); 
-title('RMSE', 'fontsize', 20);
+title('RMSE', 'Fontsize', 22);
 
 % -- Tip Errors
 ax2_Ldiff_pred_cam = subplot(1,4,2);
@@ -753,7 +753,7 @@ ax2_Ldiff_pred_cam.Position = ax2_Ldiff_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_TipError(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('Tip Error (mm)'); 
-title('Tip Error', 'fontsize', 20);
+title('Tip Error', 'Fontsize', 22);
 
 % -- In-Plane Errors
 ax3_Ldiff_pred_cam = subplot(1,4,3);
@@ -761,7 +761,7 @@ ax3_Ldiff_pred_cam.Position = ax3_Ldiff_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_InPlaneError(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('Avg. In-Plane Error (mm)'); 
-title('Average In-Plane Error', 'fontsize', 20);
+title('Average In-Plane Error', 'Fontsize', 22);
 
 
 % -- Out-of-Plane Errors
@@ -770,11 +770,11 @@ ax4_Ldiff_pred_cam.Position = ax4_Ldiff_pred_cam.Position + pos_adj;
 boxplot(pred_result_tbl.Cam_OutPlaneError(prediction_mask), ...
     pred_result_tbl.L_pred(prediction_mask) - pred_result_tbl.L_ref(prediction_mask));
 xlabel('Insertion Depth Increment (mm)'); ylabel('Avg. Out-of-Plane Error (mm)'); 
-title('Average Out-of-Plane Error', 'fontsize', 20);
+title('Average Out-of-Plane Error', 'Fontsize', 22);
 
 % -- axis limits and titling
 sgtitle("Stereo Reconstruction Predicted FBG Shape Analysis per Predicted Insertion Depth Increment",...
-    'Fontsize', 22, 'fontweight', 'bold');
+    'Fontsize', 26, 'fontweight', 'bold');
 ax1_Ldiff_pred_cam.YLim = [0, max([ax1_Ldiff_pred_cam.YLim, ax2_Ldiff_pred_cam.YLim,...
                                  ax3_Ldiff_pred_cam.YLim, ax4_Ldiff_pred_cam.YLim,...
                                  max_yl])];

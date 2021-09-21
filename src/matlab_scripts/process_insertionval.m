@@ -9,7 +9,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/ICRA2022_video/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -148,21 +148,23 @@ for i = 1:length(trial_dirs)
             figure(fwl_shifts);
             subplot(1,num_aas,aa_i);
             plot(depths, wl_shift_all(:,ch_idxs),'*-');
-            legend(CH_labels, 'Location', 'bestoutside');
             xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
             title(sprintf("AA%d", aa_i), 'FontSize', 20);
             
         end
+        CH_labels = strcat("CH", string(1:num_chs));
+        legend(CH_labels, 'Location', 'bestoutside');
+        
         figure(fcurv);
         subplot(1,2,1);
-        plot(depths, squeeze(curvatures(1,:,:)),'*-');
-        title('Curvature X (1/m');
+        plot(depths, squeeze(curvatures_all(1,:,:)),'*-');
+        title('Curvature X (1/m)');
         xlabel('Insertion Depth (mm)'); ylabel("Curvature (1/m)");
         
         subplot(1,2,2);
-        plot(depths, squeeze(curvatures(1,:,:)),'*-');
+        plot(depths, squeeze(curvatures_all(2,:,:)),'*-');
         legend(CH_labels, 'Location', 'bestoutside');
-        title('Curvature Y (1/m');
+        title('Curvature Y (1/m)');
         xlabel('Insertion Depth (mm)'); 
         
         % save the figures
@@ -217,8 +219,8 @@ for i = 1:length(trial_dirs)
     % add to kappa c records
     kc_vals = [kc_vals; kc];
     depths = [depths; ins_depth];
-    wl_shift_all = cat(3,wl_shift_all, wl_shift_Tcorr];
-    curvatures = cat(3, curvatures_all, curvatures);
+    wl_shift_all = cat(3,wl_shift_all, wl_shift_Tcorr);
+    curvatures_all = cat(3, curvatures_all, curvatures);
     
     
     % set new predictions
@@ -324,20 +326,50 @@ for i = 1:length(trial_dirs)
     
     if i == length(trial_dirs) % handle the last edge case
         % plot depths vs kc
-        figure(fkc.Number);
+        figure(fkc);
         plot(depths, kc_vals, '*-');
         xlabel("Insertion Depth (mm)"); ylabel("\kappa_c (1/mm)");
         title(sprintf("Insertion #%d", hole_num) + " | \kappa_c vs Insertion Depth");
         
-        % save the figure
+        % plot the wavelength and curvatures shifts
+        for aa_i = 1:num_aas
+            ch_idxs = aa_i:num_chs:num_chs*num_aas;
+            
+            figure(fwl_shifts);
+            subplot(1,num_aas,aa_i);
+            plot(depths, wl_shift_all(:,ch_idxs),'*-');
+            xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
+            title(sprintf("AA%d", aa_i), 'FontSize', 20);
+            
+        end
+        CH_labels = strcat("CH", string(1:num_chs));
+        legend(CH_labels, 'Location', 'bestoutside');
+        
+        figure(fcurv);
+        subplot(1,2,1);
+        plot(depths, squeeze(curvatures_all(1,:,:)),'*-');
+        title('Curvature X (1/m)');
+        xlabel('Insertion Depth (mm)'); ylabel("Curvature (1/m)");
+        
+        subplot(1,2,2);
+        plot(depths, squeeze(curvatures_all(2,:,:)),'*-');
+        legend(CH_labels, 'Location', 'bestoutside');
+        title('Curvature Y (1/m)');
+        xlabel('Insertion Depth (mm)'); 
+        
+        % save the figures
         if save_bool
-           savefigas(fkc, strcat(fileout_base, "_kc-all-insertions"), 'Verbose', true);
+           savefigas(fkc, strcat(fileout_base, "_kc-all-insertions.png"));
            
         end
         
         % empty the values
         kc_vals = [];
         depths = [];
+        kc_vals = [];
+        depths = [];
+        wl_shift_all = []; 
+        curvatures_all = [];
     end
     
     % output
@@ -347,7 +379,7 @@ for i = 1:length(trial_dirs)
     
 end
 
+
 %% Completion
 close all;
 disp("Program Terminated.");
-

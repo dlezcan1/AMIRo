@@ -6,7 +6,7 @@
 clear; clc
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/08-30-2021_Insertion-Expmt-1/";
+expmt_dir = "../../data/3CH-4AA-0004/ICRA2022_video/";
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
