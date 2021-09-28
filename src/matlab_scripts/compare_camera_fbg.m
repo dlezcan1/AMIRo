@@ -14,7 +14,7 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % stereo parameters
 stereoparam_dir = "../../amiro-cv/calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/";
-stereoparam_file = stereoparam_dir + "calibrationSession_params-error.mat";
+stereoparam_file = stereoparam_dir + "calibrationSession_params-errofr.mat";
 stereoParams = load(stereoparam_file).stereoParams;
 
 % FBG reliability weight options
