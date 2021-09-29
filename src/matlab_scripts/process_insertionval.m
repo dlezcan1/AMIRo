@@ -17,14 +17,14 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % files to find
 fbgdata_file = "FBGdata.xls";
-fbgdata_ref_wl_file = fullfile(expmt_dir, "Reference/Insertion1/0", fbgdata_file);
+fbgdata_ref_wl_file = fullfile(expmt_dir, "Reference\Insertion1\0", fbgdata_file);
 ref_wl_per_trial = ~isfile(fbgdata_ref_wl_file); % try not to use where possible
 
 % weighted FBG measurement options
 use_weights = true; % CAN CHANGE, BUT PROBABLY KEEP "true"
 
 % python FBGNeedle class usage
-python_fbgneedle = true; % CAN CHANGE, BUT PROBABLY KEEP "true"
+python_fbgneedle = false; % CAN CHANGE, BUT PROBABLY KEEP "true"
 
 % saving options
 save_bool = true;  % CAN CHANGE 
@@ -44,8 +44,8 @@ else
 end
 
 % calibration matrices matrices file: CAN CHANGE PER NEEDLE
-needle_dir = "../../data/3CH-4AA-0004/"; % the needle you are using
-needle_calib_file = fullfile(needle_dir, "needle_params_08-16-2021_Jig-Calibration_best.json");
+needle_dir = "C:\Users\Draco\Documents\Johns Hopkins\AMIRo Lab\AMIRo\data\3CH-3AA-0001\"; % the needle you are using
+needle_calib_file = fullfile(needle_dir, "needle_params-Jig_Calibration_11-15-20_weighted_weights.json");
 
 % Initial guesses for kc and w_init DON'T CHANGE
 kc_i = 0.002;
@@ -194,7 +194,7 @@ for i = 1:length(trial_dirs)
     fbg_file = fullfile(d, fbgdata_file);
     
     % load the fbg shift in
-    wls_mat = readmatrix(fbg_file, 'Sheet', 'Sheet1');
+    wls_mat = readmatrix(fbg_file, 'Sheet', 'FBG_wavelength');
     wls_mat = wls_mat(all(wls_mat > 0, 2), :); % filter out any rows w/ 0 as FBG signal
     wls_mean = mean(wls_mat, 1);
     if ref_wl_per_trial
