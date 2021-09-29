@@ -9,7 +9,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/ICRA2022_video/"; % CAN CHANGE
+expmt_dir = "C:\Users\Draco\Documents\Johns Hopkins\AMIRo Lab\AMIRo\data\3CH-3AA-0001\01-22-2021_Insertion-Expmt-1\"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
