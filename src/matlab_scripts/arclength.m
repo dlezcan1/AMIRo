@@ -6,6 +6,9 @@
 
 % simple arclength integration
 function [L, varargout] = arclength(pts)
+    arguments
+        pts (:,3);
+    end
     dpts = diff(pts, 1, 1); % pts[i+1] - pts[i]
     
     dl = vecnorm(dpts, 2, 2); % ||dpts||

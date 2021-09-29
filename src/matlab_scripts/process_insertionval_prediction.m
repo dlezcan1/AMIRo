@@ -29,7 +29,7 @@ data_file = "FBGdata_3d-params.txt";
 camera_pos_file = "left-right_3d-pts.csv";
 
 % saving options
-save_bool = true;
+save_bool = false;
 dataout_file = "FBGdata_prediction";
 if use_weights
     dataout_file = strcat(dataout_file, "_FBG-weights");
