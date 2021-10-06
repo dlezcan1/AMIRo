@@ -9,7 +9,7 @@
 expmt_dir = "../../amiro-cv/aruco/aruco_needle_calibration"; 
 
 % saving
-save_bool = true;
+save_bool = false;
 
 % error threshold to exclude (max distance)
 error_thresh = 0.18;
