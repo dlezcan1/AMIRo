@@ -34,6 +34,9 @@ function configure_env(status)
     
     % configure the environment
     if strcmp(status, 'on')
+        if pyenv().Status ~= matlab.pyclient.Status.Loaded
+            pyenv('Version', '3.8');   
+        end
         addpath(shapesensing_src);
         if count(py.sys.path, pydir) == 0
             insert(py.sys.path, int32(0), pydir);

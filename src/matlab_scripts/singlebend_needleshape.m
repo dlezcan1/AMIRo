@@ -1,12 +1,9 @@
-
 %% singlebend_needleshape
+% - written by: Dimitri Lezcano
+%
 % this is a function to produce the singlebend needle shape
 % given the measured curvatures of the needle
 %
-% - written by: Dimitri Lezcano
-
-function [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, ...
-                                L, kc_i, w_init_i, theta0, weights)
 % Input:
 %   - curvatures: list of x-y curvatures measured at each of the AA locations
 %           ( a #AA x 2 matrix ) (1/m)
@@ -16,7 +13,10 @@ function [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip
 %   - kc_i: the initial guess of kappa_c (double)
 %   - w_init_i: the initial guess of w_init (3 x 1 vector, default is [kc_init; 0; 0])
 %   - theta0: the offset insertion angle (double, default is 0)
-    
+
+function [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, ...
+                                L, kc_i, w_init_i, theta0, weights)
+
     %% Arguments
     arguments
         curvatures (2, :) {mustBeNumeric};
@@ -68,7 +68,7 @@ function [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip
     
     % optimization
     x0 = eta; % initial value
-    LB = [-0.01*ones(3,1);0]; % lower bound
+    LB = [-0.01*ones(3,1);0.0]; % lower bound
     UB = [0.01*ones(3,1);0.01]; % upper bound
     
     oldopts = optimset('fmincon');

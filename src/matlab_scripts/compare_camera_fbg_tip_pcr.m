@@ -1,6 +1,7 @@
-%% compare_camera_fbg.m
+%% compare_camera_fbg_tip_pcr.m
 % 
 % this is a script to compare shape sensing methods to FBG shape sensing
+% using the tip-aligned point-cloud registration
 %
 % - written by: Dimitri Lezcano
 clear; clc
@@ -45,8 +46,75 @@ end
 % arclength options
 ds = 0.5;
 
+%% Create the base table
+% setup the columns
+col_names = {'Ins_Hole', 'L', 'cam_shape', 'fbg_shape', 'L_cam', 'L_fbg',...
+             'Pose_nc', 'RMSE', 'MaxError', 'MeanInPlane', 'MaxInPlane', ...
+             'MeanOutPlane', 'MaxOutPlane'};
+Ncols_err = numel(col_names) - find(strcmp(col_names, "RMSE")) + 1;
+col_types = cat(2, {'uint8', 'double', 'double', 'double', 'double', 'double', 'double'},...
+                repmat({'double'}, 1, Ncols_err));
+col_units = cat(2, {'', 'mm', 'mm', 'mm', 'mm', 'mm' ,'mm'},...
+                repmat({'mm'}, 1, Ncols_err));
+            
+% create the empty table
+fbg_cam_compare_tbl = table('Size', [0, numel(col_names)],...
+                            'VariableTypes', col_types,...
+                            'VariableNames', col_names);
+fbg_cam_compare_tbl.Properties.VariableUnits = col_units;
+
 
 %% Process each trial
+progressbar('Processing Data...');
+for i = 1:length(trial_dirs)
+    progressbar(i/numel(trial_dirs));
+    % trial determination
+    L = str2double(trial_dirs(i).name);
+    re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
+    hole_num = str2double(re_ret{1}{1});
+    
+    % data files
+    fbg_file    = fullfile(trial_dirs(i).folder, trial_dirs(i).name, fbg_pos_file);
+    camera_file = fullfile(trial_dirs(i).folder, trial_dirs(i).name, camera_pos_file);
+    
+    % load the shapes
+    if ~isfile(fbg_file) || ~isfile(camera_file)
+        continue;
+    end
+        
+    fbg_pos = readmatrix(fbg_file)';
+    cam_pos = readmatrix(camera_file);
+    cam_pos = cam_pos(:,1:3); 
+    
+    % determine the arclengths
+    arclen_fbg = arclength(fbg_pos);
+    arclen_cam = arclength(cam_pos);
+    
+    % perform point-cloud registration
+    [R_nc, p_nc, ...
+     cam_pos_interp, s_cam,...
+     fbg_pos_interp, s_fbg,...
+     cam_pos_interp_tf, fbg_pos_interp_tf] = pcr_Cam2FBG(cam_pos, fbg_pos, ds, -1);
+    F_nc = makeSE3(R_nc, p_nc);
+    % error analysis
+    N_overlap = min(size(cam_pos_interp_tf,1), size(fbg_pos_interp,1));
+    errors = error_analysis(cam_pos_interp_tf(end-N_overlap+1:end,:),...
+                            fbg_pos_interp(end-N_overlap+1:end,:));
+    
+    % append a row the the table
+    fbg_cam_compare_tbl = [fbg_cam_compare_tbl;
+                           {hole_num, L, cam_pos_interp, fbg_pos_interp,...
+                            arclen_cam, arclen_fbg, F_nc, ...
+                            errors.RMSE, max(errors.L2), ...
+                            mean(errors.in_plane), max(errors.in_plane),...
+                            mean(errors.out_plane), max(errors.out_plane)}];
+    
+    
+end
+fbg_cam_compare_tbl = sortrows(fbg_cam_compare_tbl, [1,2]);
+
+%% Process each trial
+return;
 dir_prev = "";
 arclength_tbl = array2table(zeros(length(trial_dirs), 4), 'VariableNames', ...
     {'hole_num', 'actual', 'FBG', 'camera'});
@@ -76,27 +144,12 @@ for i = 1:length(trial_dirs)
     arclength_tbl{i,:} = [hole_num, L, arclen_fbg, arclen_camera];
     fprintf("Arclengths (actual, FBG, Camera) [mm]: %.2f, %.2f, %.2f\n", L, arclen_fbg, arclen_camera);
     
-    % interpolate both points for correspondence
-    s_fbg = 0:ds:arclen_fbg;
-    s_camera = flip(arclen_camera:-ds:0); % 0:ds:arclen_camera;
-    if length(s_fbg) == length(s_camera)
-        s_max = s_fbg;
-    elseif length(s_fbg) > length(s_camera)
-        s_max = s_fbg;
-    else
-        s_max = s_camera;
-    end
-    N = min(length(s_fbg(s_fbg > 0)), length(s_camera(s_camera > 0))); % minimum number of points to match
-    
-    fbg_pos_interp = interp_pts(fbg_pos, s_fbg);
-    camera_pos_interp = interp_pts(camera_pos, s_camera);
-    
-    % align the points: camera aligned -> fbg coordinate system
-    [R, p] = point_cloud_reg_tip(camera_pos_interp(end-N+1:end,:),... 
-                                 fbg_pos_interp(end-N+1:end,:));
-    
-    camera_pos_interp_tf = camera_pos_interp * R' + p';
-    fbg_pos_interp_tf = fbg_pos_interp * R - p'*R;
+    % perform point cloud registration from camera to needle coordinates
+    [R_nc, p_nc, ...
+     camera_pos_interp, s_cam,...
+     fbg_pos_interp, s_fbg,...
+     camera_pos_interp_tf, fbg_pos_interp_tf] = pcr_Cam2FBG(camera_pos, fbg_pos, ds, -1);
+    F_nc = makeSE3(R_nc, p_nc);
     
     % read in images and rectify
     left_img = imread(left_file);
@@ -130,6 +183,11 @@ for i = 1:length(trial_dirs)
     N_overlap = min(size(camera_pos_interp_tf,1), size(fbg_pos_interp,1));
     errors = error_analysis(camera_pos_interp_tf(end-N_overlap+1:end,:),...
                             fbg_pos_interp(end-N_overlap+1:end,:));
+    if numel(s_fbg) >= numel(s_cam)
+        s_max = s_fbg;
+    else
+        s_max = s_cam;
+    end
     
     % Plotting
     %- 3-D shape 
@@ -327,21 +385,87 @@ close all;
 
 
 %% Helper functions
+% interpolate the shape to constant arclength
+function [shape_interp, s_interp] = interpolate_shape(shape, ds, flip_s)
+    arguments
+        shape (:,3);
+        ds {mustBePositive} = 0.5;
+        flip_s logical = false; % flip the arclength generation from the needle shapes
+    end
+    
+    % determine arclengths
+    arclen = arclength(shape);
+    
+    % generate interpolation arclengths
+    if flip_s
+        s_interp = flip(arclen:-ds:0);
+    else
+        s_interp = 0:ds:arclen;
+    end
+    
+    % interpolate the needle shapes
+    shape_interp = interp_pts(shape, s_interp);
+    
+    
+end
+
+% register the camera shape to the FBG shape
+function [R_nc, p_nc, varargout] = pcr_Cam2FBG(p_cam, p_fbg, ds, min_s)
+    arguments
+        p_cam (:,3);
+        p_fbg (:,3);
+        ds {mustBePositive} = 0.5;
+        min_s double = -1;
+    end
+    
+    % interpolate the points
+    [p_cam_interp, s_cam_interp] = interpolate_shape(p_cam, ds, true);
+    [p_fbg_interp, s_fbg_interp] = interpolate_shape(p_fbg, ds, true);
+    
+    % ensure sorted arclengths
+    [s_cam_interp, cam_idxs] = sort(s_cam_interp);
+    p_cam_interp = p_cam_interp(cam_idxs, :);
+    [s_fbg_interp, fbg_idxs] = sort(s_fbg_interp);
+    p_fbg_interp = p_fbg_interp(fbg_idxs, :);
+    
+    % Determine the matching points
+    N_match = min(sum(s_fbg_interp > min_s), sum(s_cam_interp > min_s));
+    
+    [R_nc, p_nc] = point_cloud_reg_tip( p_cam_interp(end - N_match + 1:end,:),...
+                                        p_fbg_interp(end - N_match + 1:end,:));
+    F_nc = makeSE3(R_nc, p_nc);
+                                    
+    % variable output arguments
+    % - first interpolated
+    varargout{1} = p_cam_interp;
+    varargout{2} = s_cam_interp;
+    varargout{3} = p_fbg_interp;
+    varargout{4} = s_fbg_interp;
+    % - Camera needle shape in needle frame
+    varargout{5} = transformPointsSE3(p_cam_interp, F_nc, 2); 
+    % - FBG needle shape in camera frame
+    varargout{6} = transformPointsSE3(p_fbg_interp, finv(F_nc), 2); 
+    
+end
+
+
 % error analysis
-function errors = error_analysis(nurbs, jig)
+function errors = error_analysis(cam, fbg)
 % measures error metrics from each points
     
     % L2 distance
-    errors.L2 = vecnorm(nurbs - jig, 2, 2); 
+    errors.L2 = vecnorm(cam - fbg, 2, 2); 
     
     % component-wise error
-    errors.dx = abs(nurbs(:,1) - jig(:,1));
-    errors.dy = abs(nurbs(:,2) - jig(:,2));
-    errors.dz = abs(nurbs(:,3) - jig(:,3));
+    errors.dx = abs(cam(:,1) - fbg(:,1));
+    errors.dy = abs(cam(:,2) - fbg(:,2));
+    errors.dz = abs(cam(:,3) - fbg(:,3));
     
     % in/out-plane error (assume in-plane is yz and out-plane is xz)
-    errors.in_plane = vecnorm(nurbs(:, 2:3) - jig(:, 2:3), 2, 2);
-    errors.out_plane = vecnorm(nurbs(:,[1, 3]) - jig(:, [1,3]), 2, 2);
+    errors.in_plane = vecnorm(cam(:, 2:3) - fbg(:, 2:3), 2, 2);
+    errors.out_plane = vecnorm(cam(:,[1, 3]) - fbg(:, [1,3]), 2, 2);
+    
+    errors.RMSE = sqrt(mean(errors.L2.^2));
     
 end
 

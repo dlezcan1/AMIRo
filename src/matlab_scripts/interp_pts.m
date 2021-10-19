@@ -2,6 +2,10 @@
 %
 % this is a function to interpolate the points along a 3D curve
 %
+% Args:
+%   - pts: N x 3 points to interpolate
+%   - s_interp: 1 x M arclengths to interpolate
+%
 % - written by: Dimitri Lezcano
 
 % interpolate nurbs-pts for standardized ds

@@ -45,7 +45,7 @@ end
 
 % calibration matrices matrices file: CAN CHANGE PER NEEDLE
 needle_dir = "../../data/3CH-4AA-0004/"; % the needle you are using
-needle_calib_file = fullfile(needle_dir, "needle_params_2021-08-16_Jig-Calibration_best.json");
+needle_calib_file = fullfile(needle_dir, "needle_params_08-16-2021_Jig-Calibration_best.json");
 
 % Initial guesses for kc and w_init DON'T CHANGE
 kc_i = 0.002;
