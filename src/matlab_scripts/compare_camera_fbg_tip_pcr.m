@@ -23,9 +23,9 @@ use_weights = true;
 
 % saving options
 save_bool = false;
-fileout_base = "Jig-Camera-Comp";
+fileout_base = "SingleBend_SingleLayer_FBG-Camera-Comp";
 if use_weights == true
-    fileout_base = fileout_base + "_FBG-weights";
+    fileout_base = strcat(fileout_base, "_FBG-weights");
 end
 
 % directory separation
@@ -111,7 +111,201 @@ for i = 1:length(trial_dirs)
     
     
 end
-fbg_cam_compare_tbl = sortrows(fbg_cam_compare_tbl, [1,2]);
+fbg_cam_compare_tbl = sortrows(fbg_cam_compare_tbl, [1,2]); % Sort by insertion hole and depth
+
+%% Save the Data
+if save_bool
+    fileout_base_data = fullfile(expmt_dir, strcat(fileout_base, '_results'));
+    
+    save(strcat(fileout_base, '.mat'), 'fbg_cam_compare_tbl');
+    fprintf("Saved results to: %s\n",strcat(fileout_base, '.mat')); 
+    
+    mask = ~contains(varfun(@class, fbg_cam_compare_tbl, 'OutputFormat', 'cell'), 'cell');
+    writetable(fbg_cam_compare_tbl(:,mask), strcat(fileout_base, '.xlsx'));
+    fprintf("Saved results to: %s\n",strcat(fileout_base, '.xlsx'));
+end
+
+%% Set-Up Plotting
+% Figure sizing setup
+fig_counter = 1;
+figsize = [0.3, 0.4];
+figinc = figsize + [0.0, 0.075];
+num_rowscols = round(1./figsize);
+lb_offset = [.05, 1 - 0.08 - figsize(2)];
+
+% Figure instantiation and positioning
+fig_fbg_2d = figure(fig_counter); fig_counter = fig_counter + 1;
+col = mod(fig_counter - 2, num_rowscols(2));
+row = floor((fig_counter - 2)/num_rowscols(1));
+set(fig_fbg_2d, 'Units', 'Normalized', 'Position', ...
+    [lb_offset + [col, -row].*figinc, figsize]);
+
+fig_fbg_3d = figure(fig_counter); fig_counter = fig_counter + 1;
+col = mod(fig_counter - 2, num_rowscols(2));
+row = floor((fig_counter - 2)/num_rowscols(1));
+set(fig_fbg_3d, 'Units', 'Normalized', 'Position', ...
+    [lb_offset + [col, -row].*figinc, figsize]);
+
+fig_cam_3d = figure(fig_counter); fig_counter = fig_counter + 1;
+col = mod(fig_counter - 2, num_rowscols(2));
+row = floor((fig_counter - 2)/num_rowscols(1));
+set(fig_cam_3d, 'Units', 'Normalized', 'Position', ...
+    [lb_offset + [col, -row].*figinc, figsize]);
+
+fig_err    = figure(fig_counter); fig_counter = fig_counter + 1;
+col = mod(fig_counter - 2, num_rowscols(2));
+row = floor((fig_counter - 2)/num_rowscols(1));
+set(fig_err, 'Units', 'Normalized', 'Position', ...
+    [lb_offset + [col, -row].*figinc, figsize.*[1.5,1]]);
+
+fig_comp_2d = figure(fig_counter); fig_counter = fig_counter + 1;
+col = mod(fig_counter - 2, num_rowscols(2));
+row = floor((fig_counter -2)/num_rowscols(1));
+set(fig_comp_2d, 'Units', 'Normalized', 'Position', ...
+    [lb_offset + [col, -row].*[1.5, 1].*figinc, figsize.*[1.5,1]]);
+
+fig_img_proj = figure(fig_counter); fig_counter = fig_counter + 1;
+set(fig_img_proj, 'Units', 'Normalized', 'Position', ...
+    [-1 + 0.1, 0.1, 0.8, 0.8]); % on another screen
+
+%% Plotting
+for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
+    sub_tbl = fbg_cam_compare_tbl(fbg_cam_compare_tbl.Ins_Hole == ins_hole, :);
+    fprintf("Plotting Insertion %d\n", ins_hole);
+    
+    for j = 1:size(sub_tbl,1)
+       % trial-specific files
+       trial_dir = fullfile(expmt_dir, sprintf("Insertion%d/%d", ins_hole, L));
+       left_file = fullfile(trial_dir, 'left.png');
+       right_file = fullfile(trial_dir, 'right.png');
+        
+       % trial results
+       p_fbg = sub_tbl.fbg_shape{j}; 
+       p_cam = sub_tbl.cam_shape{j};
+       T_fc  = sub_tbl.Pose_nc{j};
+       p_cam_tf = transformPointsSE3(p_cam, T_fc, 2); % camera shape in FBG coordinates
+       p_fbg_tf = transformPointsSE3(p_fbg, finv(T_fc), 2); % FBG shape in camera coordinates
+       L = sub_tbl.L(j);
+       
+       % FBG shape 2D view
+       figure(fig_fbg_2d);
+       subplot(2,1,1);
+       if j == 1
+           hold off;
+       end
+       plot(p_fbg(:,3), p_fbg(:,1), 'linewidth', 2); hold on;
+       axis equal; grid on;
+       ylabel('x (mm)');
+       
+       subplot(2,1,2);
+       if j == 1
+           hold off;
+       end
+       plot(p_fbg(:,3), p_fbg(:,2), 'linewidth', 2); hold on;
+       axis equal; grid on;
+       xlabel('z (mm)'); ylabel('y (mm)');
+       
+       sgtitle(sprintf("Insertion %d: FBG Shape", ins_hole));
+       
+       % FBG shape 3D view
+       figure(fig_fbg_3d);
+       if j == 1
+           hold off;
+       end
+       plot3(p_fbg(:,1), p_fbg(:,2), p_fbg(:,3), 'linewidth', 2); hold on;
+       axis equal; grid on;
+       xlabel('x (mm)'); ylabel('y (mm)'); zlabel('z (mm)');
+       title(sprintf("Insertion %d: FBG Shape", ins_hole));
+       
+       % stereo 3D view
+       figure(fig_cam_3d);
+       if j == 1
+           hold off;
+       end
+       plot3(p_cam(:,1), p_cam(:,2), p_cam(:,3), 'linewidth', 2); hold on;
+       axis equal; grid on;
+       xlabel('x (mm)'); ylabel('y (mm)'); zlabel('z (mm)');
+       title(sprintf("Insertion %d: Camera Shape", ins_hole));
+       
+       % FBG-Stereo 2D comparisons
+       figure(fig_comp_2d);
+       subplot(2,1,1);
+       plot(p_fbg(:,3), p_fbg(:,1), 'r', 'linewidth', 2, 'DisplayName', 'FBG'); hold on;
+       plot(p_cam_tf(:,3), p_cam_tf(:,1), 'g', 'linewidth', 2, 'DisplayName', 'stereo'); hold off;       
+       axis equal; grid on;
+       legend('location', 'best');
+       ylabel('x (mm)');
+       
+       subplot(2,1,2);
+       plot(p_fbg(:,3), p_fbg(:,2), 'r', 'linewidth', 2, 'DisplayName', 'FBG'); hold on;
+       plot(p_cam_tf(:,3), p_cam_tf(:,2), 'g', 'linewidth', 2, 'DisplayName', 'stereo'); hold off;
+       axis equal; grid on;
+       ylabel('y (mm)'); xlabel('x (mm)');
+       
+       sgtitle(sprintf("Insertion %d | Depth %d mm: FBG Shape", ins_hole, L));
+       
+       % Image projections
+       figure(fig_img_proj);
+       left_img = imread(left_file); right_img = imread(right_file);
+       plotShapesInImage(left_img, right_img, p_cam, p_fbg_tf, stereoParams);
+       title(sprintf("Insertion %d | Depth %d mm: Needle Shape Image Projections", ins_hole, L))
+       
+       % trial-based saving
+       if save_bool
+           fileout_base_j = fullfile(trial_dir, fileout_base);
+           
+           savefigas(fig_comp_2d, strcat(fileout_base_j, '_fbg-cam-2d'), ...
+                        'Verbose', true);
+                    
+           savefigas(fig_img_proj, strcat(fileout_base_j, '_fbg-cam-img-proj'), ...
+                        'Verbose', true);
+           
+       end
+    end
+    
+    % Plot Errors
+    figure(fig_err);
+    subplot(1,3,1); 
+    plot(sub_tbl.L, sub_tbl.RMSE, 'DisplayName', 'RMSE'); hold on;
+    plot(sub_tbl.L, sub_tbl.MaxError, 'DisplayName', 'Max'); hold on;
+    yline(0.5, 'r--'); hold off;
+    erryl = [0, max([ylim, 1])];
+    ylim(erryl)
+    title("Distance Error"); ylabel('Error (mm)');
+    grid on;
+    
+    subplot(1,3,2);
+    plot(sub_tbl.L, sub_tbl.MeanInPlane, 'DisplayName', 'Mean'); hold on;
+    plot(sub_tbl.L, sub_tbl.MaxInPlane, 'DisplayName', 'Max'); hold on;
+    yline(0.5, 'r--'); hold off;
+    ylim(erryl);
+    title("In-Plane Error"); ylabel('Error (mm)');
+    grid on;
+    
+    subplot(1,3,3);
+    plot(sub_tbl.L, sub_tbl.MeanOutPlane, 'DisplayName', 'Mean'); hold on;
+    plot(sub_tbl.L, sub_tbl.MaxOutPlane, 'DisplayName', 'Max'); hold on;
+    yline(0.5, 'r--'); hold off;
+    ylim(erryl);
+    title("Out-of-Plane Error"); ylabel('Error (mm)');
+    grid on;
+    
+    sgtitle(sprintf("Insertion %d: Shape Errors", ins_hole));
+    
+   % saving
+   if save_bool
+       fileout_base_j = fullfile(expmt_dir, sprintf("Insertion%d",ins_hole),...
+                                 fileout_base);
+       savefigas(fig_fbg_2d, strcat(fileout_base_j, '_fbg-shape-2d'), 'verbose', true);
+       
+       savefigas(fig_fbg_3d, strcat(fileout_base_j, '_fbg-shape-3d'), 'verbose', true);
+       
+       savefigas(fig_cam_3d, strcat(fileout_base_j, '_cam-shape-3d'), 'verbose', true);
+   end
+    
+    disp(" ");
+end
+
 
 %% Process each trial
 return;
@@ -469,15 +663,31 @@ function errors = error_analysis(cam, fbg)
     
 end
 
-% saving wrappers
-function verbose_savefig(fig, file)
-    savefig(fig, file);
-    fprintf('Saved figure: %s\n', file);
-    
-end
 
-function verbose_saveas(fig, file)
-    saveas(fig, file);
-    fprintf('Saved image: %s\n', file);
+function plotShapesInImage(left_img, right_img, cam_pts, fbg_pts, stereoParams)
+    px_offset = [80 5];
+
+    % project the points into the image frames
+    cam_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
+                cam_pts, 'ApplyDistortion', true) + px_offset;
+    fbg_pts_l = worldToImage(stereoParams.CameraParameters1, eye(3), zeros(3,1), ...
+                fbg_pts, 'ApplyDistortion', true) + px_offset;
+            
+    cam_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
+                stereoParams.TranslationOfCamera2, cam_pts, 'ApplyDistortion', true) + px_offset;
+    fbg_pts_r = worldToImage(stereoParams.CameraParameters2, stereoParams.RotationOfCamera2,...
+                stereoParams.TranslationOfCamera2, fbg_pts, 'ApplyDistortion', true) + px_offset;
+            
+    lr_img = [left_img, right_img];
+    
+    imshow(lr_img); hold on;
+    plot(cam_pts_l(:,1), cam_pts_l(:,2), 'g-', 'LineWidth', 2); hold on;
+    plot(fbg_pts_l(:,1), fbg_pts_l(:,2), 'r-', 'linewidth', 2); hold on;
+    
+    plt_cam_pts_r = cam_pts_r + [size(left_img, 2), 0];
+    plt_fbg_pts_r = fbg_pts_r + [size(left_img, 2), 0];
+    plot(plt_cam_pts_r(:,1), plt_cam_pts_r(:,2), 'g-', 'linewidth', 2); hold on;
+    plot(plt_fbg_pts_r(:,1), plt_fbg_pts_r(:,2), 'r-', 'linewidth', 2); hold off;
+    legend({'stereo', 'FBG'}, 'location', 'south');
     
 end
