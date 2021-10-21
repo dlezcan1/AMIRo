@@ -1,6 +1,7 @@
-%% compare_camera_fbg.m
+%% compare_camera_fbg_aruco.m
 % 
 % this is a script to compare shape sensing methods to FBG shape sensing
+%  using the ARUCO markers as a frame
 %
 % - written by: Dimitri Lezcano
 clear; clc
@@ -14,8 +15,18 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % stereo parameters
 stereoparam_dir = "../../amiro-cv/calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/";
-stereoparam_file = stereoparam_dir + "calibrationSession_params-error.mat";
+stereoparam_file = fullfile(stereoparam_dir,"calibrationSession_params-error.mat");
 stereoParams = load(stereoparam_file).stereoParams;
+
+% ARUCO parameters (pose of ARUCO in needle frame)
+aruco_dir = "../../data/aruco/";
+aruco_pose_file = fullfile(aruco_dir, 'pose_needle_aruco_calibrated_manual.mat');
+aruco_needle_pose = load(aruco_pose_file).pose_FA_cal;
+F_update = translationToSE3([-20; -70; 0]);
+% F_update = rotationToSE3(roty(pi/10)) * F_update;
+% F_update = translationToSE3([-18; 0; 0]) * F_update;
+% F_update = rotationToSE3(rotx(-pi/30)) * F_update;
+aruco_needle_pose = F_update*aruco_needle_pose;
 
 % FBG reliability weight options
 use_weights = true;
@@ -53,50 +64,57 @@ arclength_tbl = array2table(zeros(length(trial_dirs), 4), 'VariableNames', ...
 for i = 1:length(trial_dirs)
     tic; 
     % trial operations
-    L = str2double(trial_dirs(i).name);
-    re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
+    L        = str2double(trial_dirs(i).name);
+    re_ret   = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
     hole_num = str2double(re_ret{1}{1});
     
+    if hole_num == 1
+        continue;
+    end
+    
     % trial directory
-    d = strcat(trial_dirs(i).folder,dir_sep, trial_dirs(i).name, dir_sep);
-    fbg_file = d + fbg_pos_file;
-    camera_file = d + camera_pos_file;
-    left_file = d + "left.png";
-    right_file = d + "right.png";
+    d           = fullfile(trial_dirs(i).folder, trial_dirs(i).name);
+    fbg_file    = fullfile(d, fbg_pos_file);
+    camera_file = fullfile(d, camera_pos_file);
+    left_file   = fullfile(d, "left.png");
+    right_file  = fullfile(d, "right.png");
+    aruco_file  = fullfile(d, "left-right_aruco-poses");
     
     % load in the matrices
-    fbg_pos = readmatrix(fbg_file)';
+    fbg_pos    = readmatrix(fbg_file)';
     camera_pos = readmatrix(camera_file);
     camera_pos = camera_pos(:,1:3);
     
+    % load the aruco pose measured
+    [aruco_pose_l, ~, id] = read_aruco_pose(aruco_file);
+    
     % get the arclengths of each curve
-    arclen_fbg = arclength(fbg_pos);
+    arclen_fbg    = arclength(fbg_pos);
     arclen_camera = arclength(camera_pos);
     
     arclength_tbl{i,:} = [hole_num, L, arclen_fbg, arclen_camera];
     fprintf("Arclengths (actual, FBG, Camera) [mm]: %.2f, %.2f, %.2f\n", L, arclen_fbg, arclen_camera);
     
-    % interpolate both points for correspondence
-    s_fbg = 0:ds:arclen_fbg;
-    s_camera = flip(arclen_camera:-ds:0); % 0:ds:arclen_camera;
-    if length(s_fbg) == length(s_camera)
+    % interpolate and align the camera positions
+    [camera_pos_interp_tf, fbg_pos_interp, pose_align, thetaz] = align_camera_needle_shapes(...
+        camera_pos, fbg_pos, aruco_pose_l, aruco_needle_pose, ...
+        'interpolate', true, 'sCutoff', [30, inf], 'ds', 0.5, 'RotateZ', false);
+    
+    % Invert the pose to go back to camera coordiantes
+    camera_pos_interp = [camera_pos_interp_tf, ones(size(camera_pos_interp_tf,1),1)] * finv(pose_align)';
+    camera_pos_interp = camera_pos_interp(:,1:3);
+%     camera_pos_interp = camera_pos;
+    fbg_pos_interp_tf = [fbg_pos_interp, ones(size(fbg_pos_interp,1),1)] * finv(pose_align)';
+    fbg_pos_interp_tf = fbg_pos_interp_tf(:,1:3);
+    
+    [~,~,s_fbg] = arclength(fbg_pos_interp);
+    [~,~,s_cam] = arclength(camera_pos_interp_tf);
+    
+    if length(s_fbg) >= length(s_cam)
         s_max = s_fbg;
-    elseif length(s_fbg) > length(s_camera)
-        s_max = s_fbg;
-    else
-        s_max = s_camera;
+    else%  length(s_fbg) < length(s_camera)
+        s_max = s_cam;
     end
-    N = min(length(s_fbg(s_fbg > 0)), length(s_camera(s_camera > 0))); % minimum number of points to match
-    
-    fbg_pos_interp = interp_pts(fbg_pos, s_fbg);
-    camera_pos_interp = interp_pts(camera_pos, s_camera);
-    
-    % align the points: camera aligned -> fbg coordinate system
-    [R, p] = point_cloud_reg_tip(camera_pos_interp(end-N+1:end,:),... 
-                                 fbg_pos_interp(end-N+1:end,:));
-    
-    camera_pos_interp_tf = camera_pos_interp * R' + p';
-    fbg_pos_interp_tf = fbg_pos_interp * R - p'*R;
     
     % read in images and rectify
     left_img = imread(left_file);
@@ -254,33 +272,39 @@ for i = 1:length(trial_dirs)
     if save_bool
         % write arclengths from each position
         T = table(L, arclen_fbg, arclen_camera, 'VariableNames', {'L', 'FBG', 'Camera'});
-        writetable(T, d + fileout_base + "_arclengths-mm.txt");
-        fprintf("Wrote arclengths to: '%s'\n", d + fileout_base + "_arclengths-mm.txt");
+        writetable(T, fullfile(d, fileout_base + "_arclengths-mm.txt"))
+        fprintf("Wrote arclengths to: '%s'\n", fullfile(d, fileout_base + "_arclengths-mm.txt"));
        
         % write the figures
         %- 3-D plot
-        verbose_savefig(fig_shape_3d, d + fileout_base + "_3d-positions.fig");
-        verbose_saveas(fig_shape_3d, d + fileout_base + "_3d-positions.png");
+%         verbose_savefig(fig_shape_3d, d + fileout_base + "_3d-positions.fig");
+%         verbose_saveas(fig_shape_3d, d + fileout_base + "_3d-positions.png");
+        savefigas(fig_shape_3d, fullfile(d, strcat(fileout_base,"_3d-positions")), 'Verbose', true);
         
         %- 2-D plot
-        verbose_savefig(fig_shape_2d, d + fileout_base + "_2d-positions.fig");
-        verbose_saveas(fig_shape_2d, d + fileout_base + "_2d-positions.png");
+%         verbose_savefig(fig_shape_2d, d + fileout_base + "_2d-positions.fig");
+%         verbose_saveas(fig_shape_2d, d + fileout_base + "_2d-positions.png");
+        savefigas(fig_shape_2d, fullfile(d, strcat(fileout_base,"_2d-positions-errors")), 'Verbose', true);
         
         %- error plot
-        verbose_savefig(fig_err, d + fileout_base + "_3d-positions-errors.fig");
-        verbose_saveas(fig_err, d + fileout_base + "_3d-positions-errors.png");
+%         verbose_savefig(fig_err, d + fileout_base + "_3d-positions-errors.fig");
+%         verbose_saveas(fig_err, d + fileout_base + "_3d-positions-errors.png");
+        savefigas(fig_err, fullfile(d, strcat(fileout_base,"_3d-positions-errors")), 'Verbose', true);
         
         %- cumulative 3D
-        verbose_savefig(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.fig"))
-        verbose_saveas(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.png"))
+%         verbose_savefig(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.fig"))
+%         verbose_saveas(fig_cum_3d, strcat(trial_dirs(i).folder, dir_sep, "Camera_3d-stereo-positions-cumulative.png"))
+        savefigas(fig_cum_3d, fullfile(trial_dirs(i).folder, "Camera_3d-stereo-positions-cumulative"));
         
         %- cumulative 2D
-        verbose_savefig(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.fig"));
-        verbose_saveas(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.png"))
+%         verbose_savefig(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.fig"));
+%         verbose_saveas(fig_cum_2d, strcat(trial_dirs(i).folder, dir_sep, "Camera_2d-stereo-positions-cumulative.png"))
+        savefigas(fig_cum_2d, fullfile(trial_dirs(i).folder, "Camera_2d-stereo-positions-cumulative"));
         
         %- projection plots
-        verbose_savefig(fig_project, d + fileout_base + "_img-projections.fig");
-        verbose_saveas(fig_project, d + fileout_base + "_img-projections.png");
+%         verbose_savefig(fig_project, d + fileout_base + "_img-projections.fig");
+%         verbose_saveas(fig_project, d + fileout_base + "_img-projections.png");
+        savefigas(fig_cum_3d, fullfile(trial_dirs(i).folder, "Camera_3d-stereo-positions-cumulative"));
         
     end
     
@@ -323,7 +347,7 @@ writetable(arclength_hole_tbl, tbl_file_out, 'Sheet', 3, 'WriteRowNames', true);
 disp(" ");
 
 %% End Program
-close all;
+% close all;
 
 
 %% Helper functions
@@ -345,15 +369,4 @@ function errors = error_analysis(nurbs, jig)
     
 end
 
-% saving wrappers
-function verbose_savefig(fig, file)
-    savefig(fig, file);
-    fprintf('Saved figure: %s\n', file);
     
-end
-
-function verbose_saveas(fig, file)
-    saveas(fig, file);
-    fprintf('Saved image: %s\n', file);
-    
-end

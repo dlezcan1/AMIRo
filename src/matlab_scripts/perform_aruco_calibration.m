@@ -73,8 +73,8 @@ for i = 1:numel(trial_dirs)
 %     pause(2);
     
     % compute pose_AF for this iteration
-    pose_AF_i =  pose_FC_i * pose_CA_i;
-    pose_FA_mat(:,:,i) = pose_AF_i;
+    pose_FA_i =  pose_FC_i * pose_CA_i;
+    pose_FA_mat(:,:,i) = pose_FA_i;
     pose_FC_mat(:,:,i) = pose_FC_i;
     pose_CA_mat(:,:,i) = pose_CA_i;
     

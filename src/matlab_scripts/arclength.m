@@ -2,6 +2,14 @@
 %
 % this is a function to compute the arclength along a 3D curve
 %
+% Args:
+%    - pts: N x 3 points
+%
+% Returns:
+%    - total arclength of shape
+%    - vector of ds increments
+%    - vector of arclength positions
+%
 % - written by Dimitri Lezcano
 
 % simple arclength integration
