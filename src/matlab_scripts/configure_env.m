@@ -17,7 +17,7 @@ function configure_env(status)
     shapesensing_src = "../../shape-sensing/src/";
     shapesensing_src = what(shapesensing_src).path;
     
-    pydir = fullfile('../');
+    pydir = fullfile('..');
     
     % check for toggle
     if strcmp(status, 'toggle')

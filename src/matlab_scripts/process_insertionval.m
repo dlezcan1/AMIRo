@@ -9,7 +9,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "C:\Users\Draco\Documents\Johns Hopkins\AMIRo Lab\AMIRo\data\3CH-3AA-0001\01-22-2021_Insertion-Expmt-1\"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/09-29-2021_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -17,7 +17,7 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % files to find
 fbgdata_file = "FBGdata.xls";
-fbgdata_ref_wl_file = fullfile(expmt_dir, "Reference\Insertion1\0", fbgdata_file);
+fbgdata_ref_wl_file = fullfile(expmt_dir, "Reference/Insertion1/125", fbgdata_file);
 ref_wl_per_trial = ~isfile(fbgdata_ref_wl_file); % try not to use where possible
 
 % weighted FBG measurement options
@@ -44,8 +44,8 @@ else
 end
 
 % calibration matrices matrices file: CAN CHANGE PER NEEDLE
-needle_dir = "C:\Users\Draco\Documents\Johns Hopkins\AMIRo Lab\AMIRo\data\3CH-3AA-0001\"; % the needle you are using
-needle_calib_file = fullfile(needle_dir, "needle_params-Jig_Calibration_11-15-20_weighted_weights.json");
+needle_dir = "../../data/3CH-4AA-0004/"; % the needle you are using
+needle_calib_file = fullfile(needle_dir, "needle_params_2021-08-16_Jig-Calibration_best.json");
 
 % Initial guesses for kc and w_init DON'T CHANGE
 kc_i = 0.002;
@@ -103,7 +103,7 @@ if ~ref_wl_per_trial % only one reference wavelength
 end
 
 %% Iterate through the files
-lshift = -1;
+lshift = 0;
 f3d = figure(1);
 set(f3d,'units','normalized','position', [lshift + 0, 0.5, 1/3, .42]);
 
@@ -120,19 +120,44 @@ fkc = figure(5);
 set(fkc, 'units', 'normalized', 'position', [lshift + 1/3, 0, 1/3, 0.42]);
 
 fwl_dist = figure(6);
-set(fwl_dist, 'units', 'normalized', 'position', [1, 0.05,1,0.875]);
+set(fwl_dist, 'units', 'normalized', 'position', [lshift + 2/3, 0.05,1,0.875]);
 
 fwl_shifts = figure(7);
 set(fwl_shifts, 'units', 'normalized', 'position', [1, 0.05,1,0.875]);
 
 fcurv = figure(8);
 set(fcurv, 'units', 'normalized', 'position', [1, 0.05,1,0.875]);
-    
+
+%%%%%%%%%%%%%%%%%%%%%ALEX%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 dir_prev = "";
 kc_vals = [];
 depths = [];
 wl_shift_all = []; 
 curvatures_all = [];
+
+
+%%%%%%%%%%%%%%%%%%%ALEX%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+kc_w_init_final_type = [repmat("double", 1, 38)];
+kc_w_init_final_name = ["Insertion Hole","Insertion Depth","kc",...
+    "w_init_1","w_init_2","w_init_3",...
+    "CH1|AA1","CH1|AA2","CH1|AA3","CH1|AA4",...
+    "CH2|AA1","CH2|AA2","CH2|AA3","CH2|AA4",...
+    "CH3|AA1","CH3|AA2","CH3|AA3","CH3|AA4",...
+    "Curv_x AA1","Curv_y AA1","Curv_x AA2","Curv_y AA2",...
+    "Curv_x AA3","Curv_y AA3","Curv_x AA4","Curv_y AA4",...
+    "FBG CH1|AA1","FBG CH1|AA2","FBG CH1|AA3","FBG CH1|AA4",...
+    "FBG CH2|AA1","FBG CH2|AA2","FBG CH2|AA3","FBG CH2|AA4",...
+    "FBG CH3|AA1","FBG CH3|AA2","FBG CH3|AA3","FBG CH3|AA4"];
+
+kc_w_init_final_tbl = table('size',[0,38],'VariableTypes',kc_w_init_final_type...
+    ,'VariableNames',kc_w_init_final_name);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 for i = 1:length(trial_dirs)
     if (~strcmp(dir_prev, trial_dirs(i).folder) && ~strcmp(dir_prev, "")) 
         % plot depths vs kc
@@ -143,13 +168,17 @@ for i = 1:length(trial_dirs)
         
         % plot the wavelength and curvatures shifts
         for aa_i = 1:num_aas
-            ch_idxs = aa_i:num_chs:num_chs*num_aas;
+            %ch_idxs = aa_i:(num_chs):(num_chs*num_aas);
+            ch_idxs = [1,4,7,10];
             
             figure(fwl_shifts);
             subplot(1,num_aas,aa_i);
-            plot(depths, wl_shift_all(:,ch_idxs),'*-');
-            xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
-            title(sprintf("AA%d", aa_i), 'FontSize', 20);
+            
+            %%%%%%%%%%%ALEX%%%%%%%%%%%%
+            %wl_shift_all_plot = reshape(wl_shift_all(:,ch_idxs),1,[]);
+            %plot(reshape(depths,1,[]), wl_shift_all_plot,'*-');
+            %xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
+            %title(sprintf("AA%d", aa_i), 'FontSize', 20);
             
         end
         CH_labels = strcat("CH", string(1:num_chs));
@@ -174,8 +203,8 @@ for i = 1:length(trial_dirs)
         end
         
         % empty the values
-        kc_vals = [];
-        depths = [];
+        %kc_vals = [];
+        %depths = [];
         kc_vals = [];
         depths = [];
         wl_shift_all = []; 
@@ -194,7 +223,7 @@ for i = 1:length(trial_dirs)
     fbg_file = fullfile(d, fbgdata_file);
     
     % load the fbg shift in
-    wls_mat = readmatrix(fbg_file, 'Sheet', 'FBG_wavelength');
+    wls_mat = readmatrix(fbg_file, 'Sheet', 'Sheet1');
     wls_mat = wls_mat(all(wls_mat > 0, 2), :); % filter out any rows w/ 0 as FBG signal
     wls_mean = mean(wls_mat, 1);
     if ref_wl_per_trial
@@ -215,13 +244,6 @@ for i = 1:length(trial_dirs)
     % get the shape
     [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, L, kc_i, w_init_i, theta0, weights);
     t = toc;
-    
-    % add to kappa c records
-    kc_vals = [kc_vals; kc];
-    depths = [depths; ins_depth];
-    wl_shift_all = cat(3,wl_shift_all, wl_shift_Tcorr);
-    curvatures_all = cat(3, curvatures_all, curvatures);
-    
     
     % set new predictions
     kc_i = kc; 
@@ -335,11 +357,11 @@ for i = 1:length(trial_dirs)
         for aa_i = 1:num_aas
             ch_idxs = aa_i:num_chs:num_chs*num_aas;
             
-            figure(fwl_shifts);
-            subplot(1,num_aas,aa_i);
-            plot(depths, wl_shift_all(:,ch_idxs),'*-');
-            xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
-            title(sprintf("AA%d", aa_i), 'FontSize', 20);
+            %figure(fwl_shifts);
+            %subplot(1,num_aas,aa_i);
+            %plot(depths, wl_shift_all(:,ch_idxs),'*-');
+            %xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
+            %title(sprintf("AA%d", aa_i), 'FontSize', 20);
             
         end
         CH_labels = strcat("CH", string(1:num_chs));
@@ -371,6 +393,33 @@ for i = 1:length(trial_dirs)
         wl_shift_all = []; 
         curvatures_all = [];
     end
+    %%%%%%%%%%%%%%%ALEX%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    fbg_data = cell(1,12);
+    for i = 1:12
+        fbg_data{i} = wls_mat(:,i);
+    end
+    
+    %appending result to kc/w_init table
+    kc_w_init_final_tbl = [kc_w_init_final_tbl; 
+        {hole_num,ins_depth,kc,w_init(1),w_init(2),w_init(3),...
+        wl_shift_Tcorr(1,1),wl_shift_Tcorr(1,2),wl_shift_Tcorr(1,3),wl_shift_Tcorr(1,4),...
+        wl_shift_Tcorr(2,1),wl_shift_Tcorr(2,2),wl_shift_Tcorr(2,3),wl_shift_Tcorr(2,4),...
+        wl_shift_Tcorr(3,1),wl_shift_Tcorr(3,2),wl_shift_Tcorr(3,3),wl_shift_Tcorr(3,4),...
+        curvatures(1,1),curvatures(2,1),curvatures(1,2),curvatures(2,2),...
+        curvatures(1,3),curvatures(2,3),curvatures(1,4),curvatures(2,4),...
+        fbg_data{1},fbg_data{2},fbg_data{3},fbg_data{4},...
+        fbg_data{5},fbg_data{6},fbg_data{7},fbg_data{8},...
+        fbg_data{9},fbg_data{10},fbg_data{11},fbg_data{12}}];
+    
+  
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % add to kappa c records
+    kc_vals = [kc_vals; kc];
+    depths = [depths; ins_depth];
+    wl_shift_all = cat(3,wl_shift_all, wl_shift_Tcorr);
+    curvatures_all = cat(3, curvatures_all, curvatures);
     
     % output
     fprintf("Finished trial: '%s' in %.2f secs.\n", d, t);
@@ -378,8 +427,78 @@ for i = 1:length(trial_dirs)
     
     
 end
+%% Plotting from table
+final_table = table2array(kc_w_init_final_tbl(:,1:26));
+final_table_sorted = sortrows(final_table,[1,2]);
 
+fig_table_wls = figure(9);
+fig_table_kc = figure(10);
+fig_table_winit = figure(11);
+fig_table_curv = figure(12);
 
+for i = 1:9
+    ii = i-1;Nprev = 0;
+    index = int2str(i);
+    table_fig_save = strcat("C:\Users\Draco\Documents\Johns Hopkins\AMIRo Lab\AMIRo\data\3CH-4AA-0004\09-29-2021_Insertion-Expmt-1\Insertion",index,"\");
+    insertion_test = (final_table_sorted(:,1)== i);
+    N = length(insertion_test(insertion_test == 1));
+    
+    % plot wls_shift_tcorr for channels/AA
+    figure(fig_table_wls)
+    hold off;
+    for k = 1:4
+        subplot(2,2,k)
+        hold off;
+        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,6+k),'.-'); hold on;
+        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,10+k),'.-'); hold on;
+        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,14+k),'.-'); hold on;
+        title(sprintf("AA%d",k));
+        xlabel("Insertion Depth");ylabel("Wavelength Shift");
+        legend("CH1","CH2","CH3",'Fontsize',5);
+    end
+    sgtitle(sprintf("Insertion #%d | Wavelength shift", i));
+    savefigas(fig_table_wls, strcat(table_fig_save, "_table_wls_shift.png"));
+        
+    % plot kc
+    figure(fig_table_kc);
+    hold off;
+    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,3),'*-');
+    title(sprintf("Insertion #%d | kc", i));
+    xlabel("Insertion Depth");ylabel("kc");
+    savefigas(fig_table_kc, strcat(table_fig_save, "_table_kc.png"));
+    
+    % plot w_init1,2,3
+    figure(fig_table_winit);
+    hold off;
+    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,4),'.-'); hold on;
+    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,5),'.-'); hold on;
+    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,6),'.-'); hold on;
+    legend("w_init1","w_init2","w_init3",'Fontsize',5);
+    
+    title(sprintf("Insertion #%d | w_init", i));
+    xlabel("Insertion Depth");ylabel("w_init");
+    savefigas(fig_table_winit, strcat(table_fig_save, "_table_winit.png"));
+    
+    %plot curvatures(x and y) for channels/AA
+    figure(fig_table_curv);
+    hold off;
+    for k = 1:4
+        subplot(2,2,k)
+        hold off;
+        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,17+2*k),'.-'); hold on;
+        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,18+2*k),'.-'); hold on;
+        title(sprintf("AA%d",k));
+        legend("x","y",'Fontsize',5);
+        xlabel("Insertion Depth");ylabel("Curvature");
+    end
+    sgtitle(sprintf("Insertion #%d | Curvatures", i));
+    savefigas(fig_table_curv, strcat(table_fig_save, "_table_curv.png"));
+    
+    i = i+1;
+    Nprev = N;
+end 
+hold off;
+%close all;
 %% Completion
 close all;
 disp("Program Terminated.");
