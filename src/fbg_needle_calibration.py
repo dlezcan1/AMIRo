@@ -257,7 +257,7 @@ class FBGNeedleJigCalibrator:
 
             new_row = summary_df.mean( numeric_only=True )
             new_row[ 'time' ] = summary_df[ 'time' ].max()
-            new_row[ 'angle' ] = angle - 90  # rotate back into needle coordinate frame
+            new_row[ 'angle' ] = 90 - angle  # rotate back into needle coordinate frame
             new_row[ 'Curvature (1/m)' ] = curvature
             new_row[ 'type' ] = type_exp
 

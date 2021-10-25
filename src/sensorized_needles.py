@@ -14,7 +14,7 @@ from warnings import warn
 
 import numpy as np
 
-from . import fbg_signal_processing
+import fbg_signal_processing
 
 
 class Needle( object ):
