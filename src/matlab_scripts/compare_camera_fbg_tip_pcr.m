@@ -7,7 +7,7 @@
 clear; 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-09-29_Insertion-Expmt-1/";
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/";
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -22,7 +22,7 @@ stereoParams = load(stereoparam_file).stereoParams;
 use_weights = true;
 
 % saving options
-save_bool = false;
+save_bool = true;
 fileout_base = "SingleBend_SingleLayer_FBG-Camera-Comp_tip-pcr";
 if use_weights == true
     fileout_base = strcat(fileout_base, "_FBG-weights");
@@ -117,12 +117,12 @@ fbg_cam_compare_tbl = sortrows(fbg_cam_compare_tbl, [1,2]); % Sort by insertion 
 if save_bool
     fileout_base_data = fullfile(expmt_dir, strcat(fileout_base, '_results'));
     
-    save(strcat(fileout_base, '.mat'), 'fbg_cam_compare_tbl');
-    fprintf("Saved results to: %s\n",strcat(fileout_base, '.mat')); 
+    save(strcat(fileout_base_data, '.mat'), 'fbg_cam_compare_tbl');
+    fprintf("Saved results to: %s\n",strcat(fileout_base_data, '.mat')); 
     
     mask = ~contains(varfun(@class, fbg_cam_compare_tbl, 'OutputFormat', 'cell'), 'cell');
-    writetable(fbg_cam_compare_tbl(:,mask), strcat(fileout_base, '.xlsx'));
-    fprintf("Saved results to: %s\n",strcat(fileout_base, '.xlsx'));
+    writetable(fbg_cam_compare_tbl(:,mask), strcat(fileout_base_data, '.xlsx'));
+    fprintf("Saved results to: %s\n",strcat(fileout_base_data, '.xlsx'));
 end
 
 %% Set-Up Plotting
@@ -166,7 +166,7 @@ set(fig_comp_2d, 'Units', 'Normalized', 'Position', ...
 
 fig_img_proj = figure(fig_counter); fig_counter = fig_counter + 1;
 set(fig_img_proj, 'Units', 'Normalized', 'Position', ...
-    [-1 + 0.1, 0.1, 0.8, 0.8]); % on another screen
+    [1 + 0.1, 0.1, 0.8, 0.8]); % on another screen
 
 %% Plotting
 for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
@@ -309,6 +309,40 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
     disp(" ");
 end
 
+%% Summarize error plots
+fig_err_sum = figure(fig_counter); fig_counter = fig_counter + 1;
+pos_adj = [0, 0, 0, -0.075]; % adjust the height of the position
+set(fig_err_sum, 'units', 'normalized', 'position', [0, 1/4, 8/9, 2/3]);
+ax = subplot(1,3,1);
+ax.Position = ax.Position + pos_adj;
+boxplot(fbg_cam_compare_tbl.RMSE, fbg_cam_compare_tbl.L);
+yl = [0, max([[], 1])]; ylim(yl); 
+xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
+title('RMSE');
+
+ax = subplot(1,3,2);
+ax.Position = ax.Position + pos_adj;
+boxplot(fbg_cam_compare_tbl.MeanInPlane, fbg_cam_compare_tbl.L);
+ylim(yl); 
+xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
+title('Mean IPE');
+
+ax = subplot(1,3,3);
+ax.Position = ax.Position + pos_adj;
+boxplot(fbg_cam_compare_tbl.MeanOutPlane, fbg_cam_compare_tbl.L);
+ylim(yl); 
+xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
+title('Mean OPE');
+
+expmt_dir_split = split(strip(fullfile(expmt_dir), filesep), filesep);
+sgtitle(strrep(expmt_dir_split(end), '_', '-'));
+
+if save_bool
+    fileout_fig_err = fullfile(expmt_dir, strcat(fileout_base, '_summary-errors-windowed'));
+    
+    savefigas(fig_err_sum, fileout_fig_err, 'Verbose', true);
+    
+end
 
 %% End Program
 close all;

@@ -1,4 +1,3 @@
-
 %% process_insertionval.m
 %
 % this is a script to run through the data points and generate the FBG shape
@@ -9,7 +8,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/09-29-2021_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -84,7 +83,7 @@ else
     weights = struct2array(fbgneedle.weights); 
     aa_tip_locs = fbgneedle.length - aa_base_locs_tot;
     cal_mats_cell = struct2cell(fbgneedle.CalibrationMatrices);
-    cal_mat_tensor = cat(3, cal_mats_cell{:});
+    cal_mat_tensor = cat(3, cal_mats_cell{:});%.*[1;-1];
     
     chaa = split(sprintf("CH%d | AA%d,", cart_product((1:num_chs)', (1:num_aas)')'), ',')';
     chaa = chaa(1:end-1);
@@ -217,7 +216,7 @@ for i = 1:length(trial_dirs)
     re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
     hole_num = str2double(re_ret{1}{1});
     ins_depth = str2double(trial_dirs(i).name);
-    
+        
     % trial directory
     d = fullfile(trial_dirs(i).folder, trial_dirs(i).name);
     fbg_file = fullfile(d, fbgdata_file);
@@ -439,7 +438,7 @@ fig_table_curv = figure(12);
 for i = 1:9
     ii = i-1;Nprev = 0;
     index = int2str(i);
-    table_fig_save = strcat("C:\Users\Draco\Documents\Johns Hopkins\AMIRo Lab\AMIRo\data\3CH-4AA-0004\09-29-2021_Insertion-Expmt-1\Insertion",index,"\");
+    table_fig_save = fullfile(expmt_dir, sprintf("Insertion%d/", i));
     insertion_test = (final_table_sorted(:,1)== i);
     N = length(insertion_test(insertion_test == 1));
     
@@ -457,14 +456,14 @@ for i = 1:9
         legend("CH1","CH2","CH3",'Fontsize',5);
     end
     sgtitle(sprintf("Insertion #%d | Wavelength shift", i));
-    savefigas(fig_table_wls, strcat(table_fig_save, "_table_wls_shift.png"));
+    savefigas(fig_table_wls, fullfile(table_fig_save, "_table_wls_shift"));
         
     % plot kc
     figure(fig_table_kc);
     hold off;
     plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,3),'*-');
-    title(sprintf("Insertion #%d | kc", i));
-    xlabel("Insertion Depth");ylabel("kc");
+    title(sprintf("Insertion #%d | \kappa_c vs Insertion Depth", i));
+    xlabel("Insertion Depth");ylabel("\kappa_c (1/mm)");
     savefigas(fig_table_kc, strcat(table_fig_save, "_table_kc.png"));
     
     % plot w_init1,2,3
@@ -475,8 +474,8 @@ for i = 1:9
     plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,6),'.-'); hold on;
     legend("w_init1","w_init2","w_init3",'Fontsize',5);
     
-    title(sprintf("Insertion #%d | w_init", i));
-    xlabel("Insertion Depth");ylabel("w_init");
+    title(strcat(sprintf("Insertion #%d | ", i), '\omega_{init} vs Insertion Depth'));
+    xlabel("Insertion Depth");ylabel("\omega_{init} (1/mm)");
     savefigas(fig_table_winit, strcat(table_fig_save, "_table_winit.png"));
     
     %plot curvatures(x and y) for channels/AA
@@ -489,9 +488,9 @@ for i = 1:9
         plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,18+2*k),'.-'); hold on;
         title(sprintf("AA%d",k));
         legend("x","y",'Fontsize',5);
-        xlabel("Insertion Depth");ylabel("Curvature");
+        xlabel("Insertion Depth");ylabel("Curvature (1/mm)");
     end
-    sgtitle(sprintf("Insertion #%d | Curvatures", i));
+    sgtitle(sprintf("Insertion #%d | Curvatures vs Insertion Depth", i));
     savefigas(fig_table_curv, strcat(table_fig_save, "_table_curv.png"));
     
     i = i+1;
