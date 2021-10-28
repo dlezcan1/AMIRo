@@ -1,7 +1,7 @@
-%% process_insertionval.m
+%% process_insertionval_1layer.m
 %
 % this is a script to run through the data points and generate the FBG shape
-% from measurements
+% from measurements using single-layer shape-sensing
 % 
 % - written by: Dimitri Lezcano
 configure_env on;
@@ -26,8 +26,8 @@ use_weights = true; % CAN CHANGE, BUT PROBABLY KEEP "true"
 python_fbgneedle = false; % CAN CHANGE, BUT PROBABLY KEEP "true"
 
 % saving options
-save_bool = true;  % CAN CHANGE 
-fbgout_basefile = "FBGdata";
+save_bool = false;  % CAN CHANGE 
+fbgout_basefile = "FBGdata_1layer";
 if use_weights == true
     fbgout_basefile = fbgout_basefile + "_FBG-weights";
 end    
@@ -45,6 +45,12 @@ end
 % calibration matrices matrices file: CAN CHANGE PER NEEDLE
 needle_dir = "../../data/3CH-4AA-0004/"; % the needle you are using
 needle_calib_file = fullfile(needle_dir, "needle_params_2021-08-16_Jig-Calibration_best.json");
+
+% needle mechanical properties
+needle_gauge = 18;
+needle_mechparam_file = fullfile('../../shape-sensing', ...
+    sprintf('shapesensing_needle_properties_%dG.mat', needle_gauge));
+needle_mechparams = load(needle_mechparam_file);
 
 % Initial guesses for kc and w_init DON'T CHANGE
 kc_i = 0.002;
@@ -115,101 +121,27 @@ set(f3d_insert, 'units', 'normalized', 'position', [lshift + 0, 0, 1/3, 0.42]);
 f2d_insert = figure(4);
 set(f2d_insert, 'units', 'normalized', 'position', [lshift + 2/3, 0, 1/3, 0.42]); 
 
-fkc = figure(5);
-set(fkc, 'units', 'normalized', 'position', [lshift + 1/3, 0, 1/3, 0.42]);
+fwl_dist = figure(5);
+set(fwl_dist, 'units', 'normalized', 'position', [1 + 1/16, 0.05,0.85,0.875]);
 
-fwl_dist = figure(6);
-set(fwl_dist, 'units', 'normalized', 'position', [lshift + 2/3, 0.05,1,0.875]);
-
-fwl_shifts = figure(7);
-set(fwl_shifts, 'units', 'normalized', 'position', [1, 0.05,1,0.875]);
-
-fcurv = figure(8);
-set(fcurv, 'units', 'normalized', 'position', [1, 0.05,1,0.875]);
-
-%%%%%%%%%%%%%%%%%%%%%ALEX%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-dir_prev = "";
-kc_vals = [];
-depths = [];
-wl_shift_all = []; 
-curvatures_all = [];
-
-
+%% Set-up the results table
+chaa_cols = reshape(strrep(chaa, ' ', ''), 1, []);
+curv_cols = reshape(splitlines(strip(sprintf("Curv_%s AA%s\n", cart_product(['x','y']', ...
+                        string([1:num_aas])')'), 'right')), 1, []);
 %%%%%%%%%%%%%%%%%%%ALEX%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-kc_w_init_final_type = [repmat("double", 1, 38)];
 kc_w_init_final_name = ["Insertion Hole","Insertion Depth","kc",...
     "w_init_1","w_init_2","w_init_3",...
-    "CH1|AA1","CH1|AA2","CH1|AA3","CH1|AA4",...
-    "CH2|AA1","CH2|AA2","CH2|AA3","CH2|AA4",...
-    "CH3|AA1","CH3|AA2","CH3|AA3","CH3|AA4",...
-    "Curv_x AA1","Curv_y AA1","Curv_x AA2","Curv_y AA2",...
-    "Curv_x AA3","Curv_y AA3","Curv_x AA4","Curv_y AA4",...
-    "FBG CH1|AA1","FBG CH1|AA2","FBG CH1|AA3","FBG CH1|AA4",...
-    "FBG CH2|AA1","FBG CH2|AA2","FBG CH2|AA3","FBG CH2|AA4",...
-    "FBG CH3|AA1","FBG CH3|AA2","FBG CH3|AA3","FBG CH3|AA4"];
+    chaa_cols, curv_cols, strcat("FBG ", chaa_cols)];
 
-kc_w_init_final_tbl = table('size',[0,38],'VariableTypes',kc_w_init_final_type...
+kc_w_init_final_type = ['uint8', repmat("double", 1, numel(kc_w_init_final_name)-1)];
+kc_w_init_final_tbl = table('size',[0,numel(kc_w_init_final_name)],'VariableTypes',kc_w_init_final_type...
     ,'VariableNames',kc_w_init_final_name);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% Iterate through the trials
+dir_prev = "";
 for i = 1:length(trial_dirs)
-    if (~strcmp(dir_prev, trial_dirs(i).folder) && ~strcmp(dir_prev, "")) 
-        % plot depths vs kc
-        figure(fkc);
-        plot(depths, kc_vals, '*-');
-        xlabel("Insertion Depth (mm)"); ylabel("\kappa_c (1/mm)");
-        title(sprintf("Insertion #%d", hole_num) + " | \kappa_c vs Insertion Depth");
-        
-        % plot the wavelength and curvatures shifts
-        for aa_i = 1:num_aas
-            %ch_idxs = aa_i:(num_chs):(num_chs*num_aas);
-            ch_idxs = [1,4,7,10];
-            
-            figure(fwl_shifts);
-            subplot(1,num_aas,aa_i);
-            
-            %%%%%%%%%%%ALEX%%%%%%%%%%%%
-            %wl_shift_all_plot = reshape(wl_shift_all(:,ch_idxs),1,[]);
-            %plot(reshape(depths,1,[]), wl_shift_all_plot,'*-');
-            %xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
-            %title(sprintf("AA%d", aa_i), 'FontSize', 20);
-            
-        end
-        CH_labels = strcat("CH", string(1:num_chs));
-        legend(CH_labels, 'Location', 'bestoutside');
-        
-        figure(fcurv);
-        subplot(1,2,1);
-        plot(depths, squeeze(curvatures_all(1,:,:)),'*-');
-        title('Curvature X (1/m)');
-        xlabel('Insertion Depth (mm)'); ylabel("Curvature (1/m)");
-        
-        subplot(1,2,2);
-        plot(depths, squeeze(curvatures_all(2,:,:)),'*-');
-        legend(CH_labels, 'Location', 'bestoutside');
-        title('Curvature Y (1/m)');
-        xlabel('Insertion Depth (mm)'); 
-        
-        % save the figures
-        if save_bool
-           savefigas(fkc, strcat(fileout_base, "_kc-all-insertions.png"));
-           
-        end
-        
-        % empty the values
-        %kc_vals = [];
-        %depths = [];
-        kc_vals = [];
-        depths = [];
-        wl_shift_all = []; 
-        curvatures_all = [];
-    end
-    
     tic; 
     % trial operations
     L = str2double(trial_dirs(i).name);
@@ -240,8 +172,9 @@ for i = 1:length(trial_dirs)
     % use calibration senssors
     curvatures = calibrate_fbgsensors(wl_shift_Tcorr, cal_mat_tensor);
         
-    % get the shape
-    [pos, wv, Rmat, kc, w_init] = singlebend_needleshape(curvatures, aa_tip_locs, L, kc_i, w_init_i, theta0, weights);
+    % get the shape (single-layer)
+    [pos, wv, Rmat, kc, w_init] = singlebend_singlelayer_needleshape(curvatures, aa_tip_locs,...
+        needle_mechparams, L, kc_i, w_init_i, theta0, weights);
     t = toc;
     
     % set new predictions
@@ -256,42 +189,41 @@ for i = 1:length(trial_dirs)
     
     % plotting
     %- 3D
-    figure(1);
-    plot3(pos(3,:), pos(1,:), pos(2,:), 'linewidth', 2);
+    figure(f3d);
+    plot3(pos(3,:), pos(1,:), pos(2,:), 'linewidth', 2); hold on;
     axis equal; grid on;
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold'); 
     zlabel('y [mm]', 'FontWeight', 'bold');
     title(d);
     
     %- 2D
-    figure(2);
+    figure(f2d);
     subplot(2,1,1);
-    plot(pos(3,:), pos(2,:), 'LineWidth', 2);
+    plot(pos(3,:), pos(2,:), 'LineWidth', 2); 
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     
     subplot(2,1,2);
-    plot(pos(3,:), pos(1,:), 'LineWidth', 2);
+    plot(pos(3,:), pos(1,:), 'LineWidth', 2); 
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     
     % total insertion plots
     % - 3D total
-    figure(3);
-    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+    figure(f3d_insert);
+    if ~strcmp(dir_prev, trial_dirs(ins_hole).folder) % new trial
         hold off;
     end
     plot3(pos(3,:), pos(2,:), pos(1,:), 'linewidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold'); 
     zlabel('y [mm]', 'FontWeight', 'bold');
-    legend();  
     axis equal; grid on;
     title(sprintf("Insertion #%d | FBG Shape Determination", hole_num));
     
-    % - 3D total
-    figure(4);
+    % - 2D total
+    figure(f2d_insert);
     subplot(2,1,1);
-    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+    if ~strcmp(dir_prev, trial_dirs(ins_hole).folder) % new trial
         hold off;
     end
     plot(pos(3,:), pos(2,:), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
@@ -299,13 +231,13 @@ for i = 1:length(trial_dirs)
     axis equal; grid on;
     
     subplot(2,1,2);
-    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
+    if ~strcmp(dir_prev, trial_dirs(ins_hole).folder) % new trial
         hold off;
     end
     plot(pos(3,:), pos(1,:), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
     xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
-    legend()
+    
     sgtitle(sprintf("Insertion #%d | FBG Shape Determination", hole_num));
     
     % signals
@@ -317,7 +249,6 @@ for i = 1:length(trial_dirs)
         xlabel('Wavelength (nm)');
         title(CH_i_AA_j);
     end
-        
     
     % save the data
     if save_bool
@@ -326,13 +257,13 @@ for i = 1:length(trial_dirs)
        fprintf("Wrote 3D Positions: '%s'\n", fullfile(d, fbgout_posfile));
        
        % write shape sensing parameters
-       T = table(kc, w_init', theta0, L, 'VariableNames', ...
-           {'kc', 'w_init', 'theta0', 'L'});
+       T = table(kc1, kc2, w_init', theta0, L, s_crit, 'VariableNames', ...
+           {'kc1', 'kc2', 'w_init', 'theta0', 'L', 's_crit'});
        writetable(T, fullfile(d, fbgout_paramfile));
        fprintf("Wrote 3D Position Params: '%s'\n", fullfile(d, fbgout_paramfile));
        
        % save figures
-       fileout_base = fullfile(trial_dirs(i).folder, fbgout_basefile);
+       fileout_base = fullfile(trial_dirs(ins_hole).folder, fbgout_basefile);
        
        savefigas(f3d_insert, strcat(fileout_base, "_3d-all-insertions"), 'Verbose', true);
        
@@ -343,60 +274,11 @@ for i = 1:length(trial_dirs)
     end
     
     % update previous directory
-    dir_prev = trial_dirs(i).folder;
-    
-    if i == length(trial_dirs) % handle the last edge case
-        % plot depths vs kc
-        figure(fkc);
-        plot(depths, kc_vals, '*-');
-        xlabel("Insertion Depth (mm)"); ylabel("\kappa_c (1/mm)");
-        title(sprintf("Insertion #%d", hole_num) + " | \kappa_c vs Insertion Depth");
-        
-        % plot the wavelength and curvatures shifts
-        for aa_i = 1:num_aas
-            ch_idxs = aa_i:num_chs:num_chs*num_aas;
-            
-            %figure(fwl_shifts);
-            %subplot(1,num_aas,aa_i);
-            %plot(depths, wl_shift_all(:,ch_idxs),'*-');
-            %xlabel("Insertion Depth (mm)"); ylabel("Wavelength Shift T-Comp. (nm)");
-            %title(sprintf("AA%d", aa_i), 'FontSize', 20);
-            
-        end
-        CH_labels = strcat("CH", string(1:num_chs));
-        legend(CH_labels, 'Location', 'bestoutside');
-        
-        figure(fcurv);
-        subplot(1,2,1);
-        plot(depths, squeeze(curvatures_all(1,:,:)),'*-');
-        title('Curvature X (1/m)');
-        xlabel('Insertion Depth (mm)'); ylabel("Curvature (1/m)");
-        
-        subplot(1,2,2);
-        plot(depths, squeeze(curvatures_all(2,:,:)),'*-');
-        legend(CH_labels, 'Location', 'bestoutside');
-        title('Curvature Y (1/m)');
-        xlabel('Insertion Depth (mm)'); 
-        
-        % save the figures
-        if save_bool
-           savefigas(fkc, strcat(fileout_base, "_kc-all-insertions.png"));
-           
-        end
-        
-        % empty the values
-        kc_vals = [];
-        depths = [];
-        kc_vals = [];
-        depths = [];
-        wl_shift_all = []; 
-        curvatures_all = [];
-    end
-    %%%%%%%%%%%%%%%ALEX%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    dir_prev = trial_dirs(ins_hole).folder;
     
     fbg_data = cell(1,12);
-    for i = 1:12
-        fbg_data{i} = wls_mat(:,i);
+    for j = 1:12
+        fbg_data{j} = wls_mat(:,j);
     end
     
     %appending result to kc/w_init table
@@ -410,94 +292,121 @@ for i = 1:length(trial_dirs)
         fbg_data{1},fbg_data{2},fbg_data{3},fbg_data{4},...
         fbg_data{5},fbg_data{6},fbg_data{7},fbg_data{8},...
         fbg_data{9},fbg_data{10},fbg_data{11},fbg_data{12}}];
-    
-  
-    
+      
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % add to kappa c records
-    kc_vals = [kc_vals; kc];
-    depths = [depths; ins_depth];
-    wl_shift_all = cat(3,wl_shift_all, wl_shift_Tcorr);
-    curvatures_all = cat(3, curvatures_all, curvatures);
-    
+        
     % output
     fprintf("Finished trial: '%s' in %.2f secs.\n", d, t);
     disp(" ");
     
     
 end
-%% Plotting from table
-final_table = table2array(kc_w_init_final_tbl(:,1:26));
-final_table_sorted = sortrows(final_table,[1,2]);
 
+final_table_sorted = sortrows(kc_w_init_final_tbl, [1,2]);
+
+%% Save the table
+if save_bool
+    fbgout_results_file = fullfile(expmt_dir, strcat(fbgout_basefile, '_results'));
+    
+    save(strcat(fbgout_results_file, '.mat'), 'final_table_sorted' );
+    fprintf("Saved results table to: %s\n", strcat(fbgout_results_file, '.mat'));
+    
+    include_cols = ~contains(final_table_sorted.Properties.VariableNames,"FBG CH");
+    writetable(final_table_sorted(:,include_cols), strcat(fbgout_results_file, '.xlsx'));
+    fprintf("Saved results table to: %s\n", strcat(fbgout_results_file, '.xlsx'));
+    
+end
+
+%% Plotting from table
 fig_table_wls = figure(9);
 fig_table_kc = figure(10);
 fig_table_winit = figure(11);
 fig_table_curv = figure(12);
 
-for i = 1:9
+for i = unique(final_table_sorted.('Insertion Hole'))'
     ii = i-1;Nprev = 0;
     index = int2str(i);
-    table_fig_save = fullfile(expmt_dir, sprintf("Insertion%d/", i));
-    insertion_test = (final_table_sorted(:,1)== i);
-    N = length(insertion_test(insertion_test == 1));
+    table_fig_save = fullfile(expmt_dir, sprintf("Insertion%d/", i), fbgout_basefile);
+    insertion_mask = final_table_sorted.('Insertion Hole') == i;
+    kc2_mask = final_table_sorted.kc2 >= 0;
     
     % plot wls_shift_tcorr for channels/AA
     figure(fig_table_wls)
     hold off;
-    for k = 1:4
-        subplot(2,2,k)
+    for aa_k = 1:4
+        CHAA_cols = strcat("CH", string(1:3), "|AA", string(aa_k));
+        
+        subplot(2,2,aa_k)
         hold off;
-        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,6+k),'.-'); hold on;
-        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,10+k),'.-'); hold on;
-        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,14+k),'.-'); hold on;
-        title(sprintf("AA%d",k));
-        xlabel("Insertion Depth");ylabel("Wavelength Shift");
+        plot(final_table_sorted{insertion_mask, 'Insertion Depth'}, ...
+             final_table_sorted{insertion_mask, CHAA_cols(1)}, '.-'); hold on;
+        plot(final_table_sorted{insertion_mask, 'Insertion Depth'}, ...
+             final_table_sorted{insertion_mask, CHAA_cols(2)}, '.-'); hold on;
+        plot(final_table_sorted{insertion_mask, 'Insertion Depth'}, ...
+             final_table_sorted{insertion_mask, CHAA_cols(3)},' .-'); hold on;
+        
+        title(sprintf("AA%d",aa_k));
+        xlabel("Insertion Depth (mm)");ylabel("Wavelength Shift (nm)");
         legend("CH1","CH2","CH3",'Fontsize',5);
     end
     sgtitle(sprintf("Insertion #%d | Wavelength shift", i));
-    savefigas(fig_table_wls, fullfile(table_fig_save, "_table_wls_shift"));
+    if save_bool
+        savefigas(fig_table_wls, strcat(table_fig_save, "_table_wls_shift"));
+    end
         
     % plot kc
     figure(fig_table_kc);
-    hold off;
-    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,3),'*-');
+    plot(final_table_sorted{insertion_mask, 'Insertion Depth'}, ...
+         final_table_sorted{insertion_mask, 'kc1'}, '*-', 'DisplayName', '\kappa_{c,1}');
+    legend('location', 'ne')
     title(sprintf("Insertion #%d | \kappa_c vs Insertion Depth", i));
+    
     xlabel("Insertion Depth");ylabel("\kappa_c (1/mm)");
-    savefigas(fig_table_kc, strcat(table_fig_save, "_table_kc.png"));
+    if save_bool
+        savefigas(fig_table_kc, strcat(table_fig_save, "_table_kc.png"));
+    end
     
     % plot w_init1,2,3
     figure(fig_table_winit);
     hold off;
-    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,4),'.-'); hold on;
-    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,5),'.-'); hold on;
-    plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,6),'.-'); hold on;
-    legend("w_init1","w_init2","w_init3",'Fontsize',5);
-    
+    w_init_cols = strcat('w_init_', string(1:3));
+    plot(final_table_sorted{insertion_mask, 'Insertion Depth'},...
+         final_table_sorted{insertion_mask, w_init_cols(1)}, '.-'); hold on;
+    plot(final_table_sorted{insertion_mask, 'Insertion Depth'},...
+         final_table_sorted{insertion_mask, w_init_cols(2)}, '.-'); hold on;
+    plot(final_table_sorted{insertion_mask, 'Insertion Depth'},...
+         final_table_sorted{insertion_mask, w_init_cols(3)}, '.-'); hold on;
+    legend(strrep(w_init_cols, 'w_init_', '\omega_{init,') + "}",'Fontsize',5);
     title(strcat(sprintf("Insertion #%d | ", i), '\omega_{init} vs Insertion Depth'));
     xlabel("Insertion Depth");ylabel("\omega_{init} (1/mm)");
-    savefigas(fig_table_winit, strcat(table_fig_save, "_table_winit.png"));
+    if save_bool
+        savefigas(fig_table_winit, strcat(table_fig_save, "_table_winit.png"));
+    end
     
     %plot curvatures(x and y) for channels/AA
     figure(fig_table_curv);
     hold off;
-    for k = 1:4
-        subplot(2,2,k)
+    for aa_k = 1:4
+        subplot(2,2,aa_k)
+        curv_cols = strcat("Curv_", ["x", "y"], " AA", string(aa_k));
         hold off;
-        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,17+2*k),'.-'); hold on;
-        plot(final_table_sorted(1+ii*Nprev:N+ii*Nprev,2),final_table_sorted(1+ii*Nprev:N+ii*Nprev,18+2*k),'.-'); hold on;
-        title(sprintf("AA%d",k));
+        plot(final_table_sorted{insertion_mask, 'Insertion Depth'},...
+             final_table_sorted{insertion_mask, curv_cols(1)}, '.-'); hold on;
+        plot(final_table_sorted{insertion_mask, 'Insertion Depth'},...
+             final_table_sorted{insertion_mask, curv_cols(2)}, '.-'); hold on;
+        
+        title(sprintf("AA%d",aa_k));
         legend("x","y",'Fontsize',5);
         xlabel("Insertion Depth");ylabel("Curvature (1/mm)");
     end
     sgtitle(sprintf("Insertion #%d | Curvatures vs Insertion Depth", i));
-    savefigas(fig_table_curv, strcat(table_fig_save, "_table_curv.png"));
+    if save_bool
+        savefigas(fig_table_curv, strcat(table_fig_save, "_table_curv.png"));
+    end
     
-    i = i+1;
-    Nprev = N;
 end 
 hold off;
-%close all;
+
 %% Completion
 close all;
 disp("Program Terminated.");

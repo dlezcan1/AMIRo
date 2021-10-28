@@ -7,7 +7,7 @@
 clear; 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/";
+expmt_dir = "../../data/3CH-4AA-0004/2021-09-29_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -15,36 +15,60 @@ trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
 
 % stereo parameters
 stereoparam_dir = "../../amiro-cv/calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/";
-stereoparam_file = stereoparam_dir + "calibrationSession_params-error.mat";
+stereoparam_file = fullfile(stereoparam_dir, "calibrationSession_params-error.mat");
 stereoParams = load(stereoparam_file).stereoParams;
 
 % FBG reliability weight options
-use_weights = true;
+use_weights = true; % CAN CHANGE but USUALLY KEEP
+
+% number of layers (CAN CHANGE)
+num_layers = 2;    % implemented 1 or 2
+singlebend = true; % doublebend not implemented
 
 % saving options
-save_bool = true;
-fileout_base = "SingleBend_SingleLayer_FBG-Camera-Comp_tip-pcr";
-if use_weights == true
-    fileout_base = strcat(fileout_base, "_FBG-weights");
+save_bool = true; % CAN CHANGE
+fileout_base = "%s_%s_FBG-Camera-Comp_tip-pcr";
+if singlebend
+    fileout_base = sprintf(fileout_base, 'SingleBend', '%s');
+else
+    fileout_base = sprintf(fileout_base, 'DoubleBend', '%s');
+end
+    
+if num_layers == 1 
+    fileout_base = sprintf(fileout_base, 'SingleLayer');
+elseif num_layers == 2
+    fileout_base = sprintf(fileout_base, 'DoubleLayer');
+else
+    error("Not Implemented");
 end
 
-% directory separation
-if ispc
-    dir_sep = '\';
-else
-    dir_sep = '/';
+if use_weights
+    fileout_base = strcat(fileout_base, "_FBG-weights");
 end
 
 % 3D point file names
 camera_pos_file = "left-right_3d-pts.csv";
-if use_weights == true
-    fbg_pos_file = "FBGdata_FBG-weights_3d-position.xls";
+fbg_pos_file = "FBGdata_%s3d-position.xls";
+if use_weights
+    fbg_pos_file = sprintf(fbg_pos_file, '%sFBG-weights_');
+end
+
+if num_layers == 1 && singlebend
+    fbg_pos_file = sprintf(fbg_pos_file, '');
+elseif num_layers == 2 && singlebend
+    fbg_pos_file = sprintf(fbg_pos_file, '2layer_');
 else
-    fbg_pos_file = "FBGdata_3d-position.xls";
+    error('Not Implement');
 end
 
 % arclength options
 ds = 0.5;
+
+%% Read the experiment.json file
+experiment_description = jsondecode(fileread(fullfile(expmt_dir, 'experiment.json')));
+if num_layers == 2
+    z_crit = experiment_description.tissue1Length;
+end
 
 %% Create the base table
 % setup the columns
@@ -194,6 +218,9 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
            hold off;
        end
        plot(p_fbg(:,3), p_fbg(:,1), 'linewidth', 2); hold on;
+       if j == 1 && num_layers == 2
+           xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold on;
+       end
        axis equal; grid on;
        ylabel('x (mm)');
        
@@ -202,6 +229,9 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
            hold off;
        end
        plot(p_fbg(:,3), p_fbg(:,2), 'linewidth', 2); hold on;
+       if j == 1 && num_layers == 2
+           xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold on;
+       end
        axis equal; grid on;
        xlabel('z (mm)'); ylabel('y (mm)');
        
@@ -212,9 +242,12 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        if j == 1
            hold off;
        end
-       plot3(p_fbg(:,1), p_fbg(:,2), p_fbg(:,3), 'linewidth', 2); hold on;
+       plot3(p_fbg(:,3), p_fbg(:,1), p_fbg(:,2), 'linewidth', 2); hold on;
+       if j == 1 && num_layers == 2
+           plot_tissueboundary3d(z_crit, 0, 0, 5, 5);
+       end
        axis equal; grid on;
-       xlabel('x (mm)'); ylabel('y (mm)'); zlabel('z (mm)');
+       xlabel('z (mm)'); ylabel('x (mm)'); zlabel('y (mm)');
        title(sprintf("Insertion %d: FBG Shape", ins_hole));
        
        % stereo 3D view
@@ -230,15 +263,23 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        % FBG-Stereo 2D comparisons
        figure(fig_comp_2d);
        subplot(2,1,1);
+       hold off;
        plot(p_fbg(:,3), p_fbg(:,1), 'r', 'linewidth', 2, 'DisplayName', 'FBG'); hold on;
        plot(p_cam_tf(:,3), p_cam_tf(:,1), 'g', 'linewidth', 2, 'DisplayName', 'stereo'); hold off;       
+       if num_layers == 2
+           xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold off;
+       end
        axis equal; grid on;
-       legend('location', 'best');
+       legend('location', 'nw');
        ylabel('x (mm)');
        
        subplot(2,1,2);
+       hold off;
        plot(p_fbg(:,3), p_fbg(:,2), 'r', 'linewidth', 2, 'DisplayName', 'FBG'); hold on;
        plot(p_cam_tf(:,3), p_cam_tf(:,2), 'g', 'linewidth', 2, 'DisplayName', 'stereo'); hold off;
+       if num_layers == 2
+           xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold off;
+       end
        axis equal; grid on;
        ylabel('y (mm)'); xlabel('z (mm)');
        
