@@ -9,8 +9,12 @@ function [kc, w_init, L, theta0, tbl, varargout] = readin_fbgparam_file(filename
     
     tbl = mergevars(tbl, strcat("w_init_", string(1:3)), 'NewVariableName', 'w_init');
     
-    if any(strcmp(tbl.Properties.VariableNames, 'kc')) % 1 layer
-        kc = tbl.kc(1);
+    if any(strcmp(tbl.Properties.VariableNames, 's_dbl_bend'))
+        kc = tbl.kc;
+        varargout{1} = tbl.s_dbl_bend(1);
+    
+    elseif any(strcmp(tbl.Properties.VariableNames, 'kc')) % 1 layer
+        kc = tbl.kc;
         
     elseif any(strcmp(tbl.Properties.VariableNames, 'kc1')) && ... % 2 layer
            any(strcmp(tbl.Properties.VariableNames, 'kc2'))

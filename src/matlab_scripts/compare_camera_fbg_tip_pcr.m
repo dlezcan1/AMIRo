@@ -7,7 +7,7 @@
 clear; 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-09-29_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -22,8 +22,8 @@ stereoParams = load(stereoparam_file).stereoParams;
 use_weights = true; % CAN CHANGE but USUALLY KEEP
 
 % number of layers (CAN CHANGE)
-num_layers = 2;    % implemented 1 or 2
-singlebend = true; % doublebend not implemented
+num_layers = 1;    % implemented 1 or 2
+singlebend = true; % doublebend otherwise
 
 % saving options
 save_bool = true; % CAN CHANGE
@@ -57,6 +57,8 @@ if num_layers == 1 && singlebend
     fbg_pos_file = sprintf(fbg_pos_file, '');
 elseif num_layers == 2 && singlebend
     fbg_pos_file = sprintf(fbg_pos_file, '2layer_');
+elseif num_layers == 1 && ~singlebend
+    fbg_pos_file = sprintf(fbg_pos_file, 'doublebend_');
 else
     error('Not Implement');
 end
@@ -66,7 +68,9 @@ ds = 0.5;
 
 %% Read the experiment.json file
 experiment_description = jsondecode(fileread(fullfile(expmt_dir, 'experiment.json')));
-if num_layers == 2
+if ~singlebend
+    s_dbl_bend = experiment_description.DoubleBendDepth;
+elseif num_layers == 2
     z_crit = experiment_description.tissue1Length;
 end
 
@@ -220,6 +224,8 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        plot(p_fbg(:,3), p_fbg(:,1), 'linewidth', 2); hold on;
        if j == 1 && num_layers == 2
            xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold on;
+       elseif j == 1 && ~singlebend
+           xline(s_dbl_bend, 'r--', 'Double Bend', 'DisplayName', 'Double Bend'); hold on;
        end
        axis equal; grid on;
        ylabel('x (mm)');
@@ -231,6 +237,8 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        plot(p_fbg(:,3), p_fbg(:,2), 'linewidth', 2); hold on;
        if j == 1 && num_layers == 2
            xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold on;
+       elseif j == 1 && ~singlebend
+           xline(s_dbl_bend, 'r--', 'Double Bend', 'DisplayName', 'Double Bend'); hold on;
        end
        axis equal; grid on;
        xlabel('z (mm)'); ylabel('y (mm)');
@@ -245,6 +253,8 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        plot3(p_fbg(:,3), p_fbg(:,1), p_fbg(:,2), 'linewidth', 2); hold on;
        if j == 1 && num_layers == 2
            plot_tissueboundary3d(z_crit, 0, 0, 5, 5);
+       elseif j == 1 && ~singlebend
+           plot_tissueboundary3d(s_dbl_bend, 0, 0, 5, 5);
        end
        axis equal; grid on;
        xlabel('z (mm)'); ylabel('x (mm)'); zlabel('y (mm)');
@@ -268,6 +278,8 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        plot(p_cam_tf(:,3), p_cam_tf(:,1), 'g', 'linewidth', 2, 'DisplayName', 'stereo'); hold off;       
        if num_layers == 2
            xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold off;
+       elseif ~singlebend
+           xline(s_dbl_bend, 'r--', 'Double Bend', 'DisplayName', 'Double Bend'); hold on;
        end
        axis equal; grid on;
        legend('location', 'nw');
@@ -279,6 +291,8 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
        plot(p_cam_tf(:,3), p_cam_tf(:,2), 'g', 'linewidth', 2, 'DisplayName', 'stereo'); hold off;
        if num_layers == 2
            xline(z_crit, 'r--', 'Tissue Boundary', 'DisplayName', 'Tissue Boundary'); hold off;
+       elseif ~singlebend
+           xline(s_dbl_bend, 'r--', 'Double Bend', 'DisplayName', 'Double Bend'); hold on;
        end
        axis equal; grid on;
        ylabel('y (mm)'); xlabel('z (mm)');

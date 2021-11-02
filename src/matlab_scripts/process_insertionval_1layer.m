@@ -8,11 +8,13 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
 trial_dirs = trial_dirs([trial_dirs.isdir]); % make sure all are directories
+expmt_paths = split(strip(fullfile(expmt_dir), filesep), filesep);
+expmt_subdir = expmt_paths(end);
 
 % files to find
 fbgdata_file = "FBGdata.xls";
@@ -190,10 +192,10 @@ for i = 1:length(trial_dirs)
     % plotting
     %- 3D
     figure(f3d);
-    plot3(pos(3,:), pos(1,:), pos(2,:), 'linewidth', 2); hold on;
+    plot3(pos(3,:), pos(2,:), pos(1,:), 'linewidth', 2); hold on;
     axis equal; grid on;
-    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold'); 
-    zlabel('y [mm]', 'FontWeight', 'bold');
+    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold'); 
+    zlabel('x [mm]', 'FontWeight', 'bold');
     title(d);
     
     %- 2D
@@ -211,27 +213,27 @@ for i = 1:length(trial_dirs)
     % total insertion plots
     % - 3D total
     figure(f3d_insert);
-    if ~strcmp(dir_prev, trial_dirs(ins_hole).folder) % new trial
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
         hold off;
     end
     plot3(pos(3,:), pos(2,:), pos(1,:), 'linewidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
-    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold'); 
-    zlabel('y [mm]', 'FontWeight', 'bold');
+    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold'); 
+    zlabel('x [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     title(sprintf("Insertion #%d | FBG Shape Determination", hole_num));
     
     % - 2D total
     figure(f2d_insert);
     subplot(2,1,1);
-    if ~strcmp(dir_prev, trial_dirs(ins_hole).folder) % new trial
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
         hold off;
     end
     plot(pos(3,:), pos(2,:), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
-    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('x [mm]', 'FontWeight', 'bold');
+    xlabel('z [mm]', 'FontWeight', 'bold'); ylabel('y [mm]', 'FontWeight', 'bold');
     axis equal; grid on;
     
     subplot(2,1,2);
-    if ~strcmp(dir_prev, trial_dirs(ins_hole).folder) % new trial
+    if ~strcmp(dir_prev, trial_dirs(i).folder) % new trial
         hold off;
     end
     plot(pos(3,:), pos(1,:), 'LineWidth', 2, 'DisplayName', sprintf("%.1f mm", L)); hold on;
@@ -274,7 +276,7 @@ for i = 1:length(trial_dirs)
     end
     
     % update previous directory
-    dir_prev = trial_dirs(ins_hole).folder;
+    dir_prev = trial_dirs(i).folder;
     
     fbg_data = cell(1,12);
     for j = 1:12
@@ -319,16 +321,19 @@ end
 
 %% Plotting from table
 fig_table_wls = figure(9);
+set(fig_table_wls, 'units', 'normalized', 'position', [0.1, 0.1,0.8,0.8]);
 fig_table_kc = figure(10);
-fig_table_winit = figure(11);
-fig_table_curv = figure(12);
+fig_table_kc_win = figure(11);
+fig_table_winit = figure(12);
+fig_table_curv = figure(13);
+set(fig_table_curv, 'units', 'normalized', 'position', [1 + 0.15, 0.1,0.8,0.8]);
 
 for i = unique(final_table_sorted.('Insertion Hole'))'
     ii = i-1;Nprev = 0;
     index = int2str(i);
     table_fig_save = fullfile(expmt_dir, sprintf("Insertion%d/", i), fbgout_basefile);
     insertion_mask = final_table_sorted.('Insertion Hole') == i;
-    kc2_mask = final_table_sorted.kc2 >= 0;
+    depth_mask = final_table_sorted.('Insertion Depth') > 30;
     
     % plot wls_shift_tcorr for channels/AA
     figure(fig_table_wls)
@@ -358,12 +363,26 @@ for i = unique(final_table_sorted.('Insertion Hole'))'
     figure(fig_table_kc);
     plot(final_table_sorted{insertion_mask, 'Insertion Depth'}, ...
          final_table_sorted{insertion_mask, 'kc1'}, '*-', 'DisplayName', '\kappa_{c,1}');
-    legend('location', 'ne')
-    title(sprintf("Insertion #%d | \kappa_c vs Insertion Depth", i));
     
+    legend('location', 'northwestoutside')
+    title(strcat(sprintf("Insertion #%d | ", i), "\kappa_c vs Insertion Depth"));
     xlabel("Insertion Depth");ylabel("\kappa_c (1/mm)");
     if save_bool
         savefigas(fig_table_kc, strcat(table_fig_save, "_table_kc.png"));
+    end
+    
+    % plot kc windowed
+    figure(fig_table_kc_win);
+    hold off;
+    plot(final_table_sorted{insertion_mask & depth_mask, 'Insertion Depth'}, ...
+         final_table_sorted{insertion_mask & depth_mask, 'kc'}, '*-', ...
+         'DisplayName', '\kappa_{c}');
+    
+    legend('location', 'northwestoutside')
+    title(strcat(sprintf("Insertion #%d | ", i), "\kappa_c vs Insertion Depth Windowed"));
+    xlabel("Insertion Depth");ylabel("\kappa_c (1/mm)");
+    if save_bool
+        savefigas(fig_table_kc_win, strcat(table_fig_save, "_table_kc_win.png"));
     end
     
     % plot w_init1,2,3
@@ -406,6 +425,99 @@ for i = unique(final_table_sorted.('Insertion Hole'))'
     
 end 
 hold off;
+
+%% Summary errorbar plots
+% set-up figures
+fig_kc_all = figure(14);
+set(fig_kc_all, 'units', 'normalized', 'position', [0.25, 0.25, 0.5, 0.5]);
+fig_w_init_all = figure(15);
+set(fig_w_init_all, 'units', 'normalized', 'position', [0.25 + 1*0.05, 0.25, 0.5, 0.5]);
+fig_kc_all_win = figure(16);
+set(fig_kc_all_win, 'units', 'normalized', 'position', [0.25 + 2*0.05, 0.25, 0.5, 0.5]);
+fig_w_init_all_win = figure(17);
+set(fig_w_init_all_win, 'units', 'normalized', 'position', [0.25 + 3*0.05, 0.25, 0.5, 0.5]);
+
+% summarize kappa_c
+final_table_sorted_summ = groupsummary(final_table_sorted, {'Insertion Depth'}, {'mean', 'std'},...
+    {'kc', 'w_init_1', 'w_init_2', 'w_init_3'});
+
+% masks
+depth_mask = final_table_sorted_summ.('Insertion Depth') > 30;
+
+% plot all kappa_c
+figure(fig_kc_all);
+hold off;
+errorbar(final_table_sorted_summ{:, 'Insertion Depth'}, ...
+         final_table_sorted_summ.mean_kc(:), ...
+         final_table_sorted_summ.std_kc(:),...
+         'DisplayName', '\kappa_c'); hold on;
+xlabel('Insertion Depth (mm)'); ylabel('\kappa_c (1/mm)');
+title(sprintf('%s | Single Layer: \\kappa_c vs. Insertion Depth', strrep(expmt_subdir, '_', ' ')));
+
+% plot all kappa_c windowed
+figure(fig_kc_all_win);
+hold off;
+errorbar(final_table_sorted_summ{depth_mask, 'Insertion Depth'}, ...
+         final_table_sorted_summ{depth_mask, 'mean_kc'}, ...
+         final_table_sorted_summ{depth_mask, 'std_kc'},...
+         'DisplayName', '\kappa_c'); hold on;
+xlabel('Insertion Depth (mm)'); ylabel('\kappa_c (1/mm)');
+title(sprintf('%s | Single Layer: Windowed \\kappa_c vs. Insertion Depth', strrep(expmt_subdir, '_', ' ')));
+
+% plot all w_init
+figure(fig_w_init_all);
+hold off;
+errorbar(final_table_sorted_summ{~dblbend_mask,'Insertion Depth'},...
+         final_table_sorted_summ.mean_w_init_1, ...
+         final_table_sorted_summ.mean_w_init_1, ...
+         'DisplayName', '\omega_{init,1} C-Shape'); hold on;
+errorbar(final_table_sorted_summ{~dblbend_mask,'Insertion Depth'},...
+         final_table_sorted_summ.mean_w_init_2, ...
+         final_table_sorted_summ.mean_w_init_2, ...
+         'DisplayName', '\omega_{init,2} C-Shape'); hold on;
+errorbar(final_table_sorted_summ{~dblbend_mask,'Insertion Depth'},...
+         final_table_sorted_summ.mean_w_init_3, ...
+         final_table_sorted_summ.mean_w_init_3, ...
+         'DisplayName', '\omega_{init,3} C-Shape'); hold on;
+legend('Location', 'northeastoutside');
+xlabel('Insertion Depth (mm)'); ylabel('\omega_{init} (1/mm)');
+title(sprintf('%s | Single Layer: \\omega_{init} vs. Insertion Depth', strrep(expmt_subdir, '_', ' ')));
+
+% plot all w_init windowed
+figure(fig_w_init_all_win);
+hold off;
+errorbar(final_table_sorted_summ{depth_mask,'Insertion Depth'},...
+         final_table_sorted_summ.mean_w_init_1(depth_mask), ...
+         final_table_sorted_summ.mean_w_init_1(depth_mask), ...
+         'DisplayName', '\omega_{init,1}'); hold on;
+errorbar(final_table_sorted_summ{depth_mask,'Insertion Depth'},...
+         final_table_sorted_summ.mean_w_init_2(depth_mask), ...
+         final_table_sorted_summ.mean_w_init_2(depth_mask), ...
+         'DisplayName', '\omega_{init,2}'); hold on;
+errorbar(final_table_sorted_summ{depth_mask,'Insertion Depth'},...
+         final_table_sorted_summ.mean_w_init_3(depth_mask), ...
+         final_table_sorted_summ.mean_w_init_3(depth_mask), ...
+         'DisplayName', '\omega_{init,3}'); hold on;
+legend('Location', 'northeastoutside');
+xlabel('Insertion Depth (mm)'); ylabel('\omega_{init} (1/mm)');
+title(sprintf('%s | Single Layer: Windowed \\omega_{init} vs. Insertion Depth', strrep(expmt_subdir, '_', ' ')));
+
+if save_bool
+    fig_cum_fileout_base = fullfile(expmt_dir, strcat(fbgout_basefile, '_cumulative'));
+    
+    savefigas(fig_kc_all, strcat(fig_cum_fileout_base, '_kc'), ...
+              'Verbose', true);
+          
+    savefigas(fig_kc_all_win, strcat(fig_cum_fileout_base, '_kc-windowed'), ...
+              'Verbose', true);
+          
+    savefigas(fig_w_init_all, strcat(fig_cum_fileout_base, '_winit'), ...
+              'Verbose', true);
+          
+    savefigas(fig_w_init_all_win, strcat(fig_cum_fileout_base, '_winit-windowed'), ...
+              'Verbose', true);
+end
+
 
 %% Completion
 close all;

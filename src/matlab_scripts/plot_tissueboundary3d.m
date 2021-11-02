@@ -13,13 +13,14 @@
 %
 %
 
-function plot_tissueboundary3d(z_crit, xc, yc, width, height)
+function plot_tissueboundary3d(z_crit, xc, yc, width, height, options)
     arguments
         z_crit double;
         xc double;
         yc double;
         width double = 5;
         height double = 5;
+        options.color string = 'r';
     end
     
    S1 = [z_crit, z_crit;
@@ -28,6 +29,6 @@ function plot_tissueboundary3d(z_crit, xc, yc, width, height)
    S2 = S1;
    S2(2,:) = S1(2,end:-1:1);
    S = [S1(:,1) S2(:,1) S1(:,2) S2(:,2)];
-   patch(S(1,:), S(2,:), S(3,:), 'r', 'DisplayName', 'Tissue Boundary');
+   patch(S(1,:), S(2,:), S(3,:), options.color, 'DisplayName', 'Tissue Boundary');
          
 end
