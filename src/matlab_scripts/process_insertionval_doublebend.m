@@ -8,7 +8,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-13_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories

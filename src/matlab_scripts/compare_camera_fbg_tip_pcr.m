@@ -7,7 +7,7 @@
 clear; 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-09-29_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
