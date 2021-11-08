@@ -8,7 +8,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-13_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -28,7 +28,7 @@ use_weights = true; % CAN CHANGE, BUT PROBABLY KEEP "true"
 python_fbgneedle = false; % CAN CHANGE, BUT PROBABLY KEEP "true"
 
 % saving options
-save_bool = false;  % CAN CHANGE 
+save_bool = true;  % CAN CHANGE 
 fbgout_basefile = "FBGdata_1layer";
 if use_weights == true
     fbgout_basefile = fbgout_basefile + "_FBG-weights";
@@ -259,13 +259,13 @@ for i = 1:length(trial_dirs)
        fprintf("Wrote 3D Positions: '%s'\n", fullfile(d, fbgout_posfile));
        
        % write shape sensing parameters
-       T = table(kc1, kc2, w_init', theta0, L, s_crit, 'VariableNames', ...
-           {'kc1', 'kc2', 'w_init', 'theta0', 'L', 's_crit'});
+       T = table(kc, w_init', theta0, L, 'VariableNames', ...
+           {'kc','w_init', 'theta0', 'L'});
        writetable(T, fullfile(d, fbgout_paramfile));
        fprintf("Wrote 3D Position Params: '%s'\n", fullfile(d, fbgout_paramfile));
        
        % save figures
-       fileout_base = fullfile(trial_dirs(ins_hole).folder, fbgout_basefile);
+       fileout_base = fullfile(trial_dirs(i).folder, fbgout_basefile);
        
        savefigas(f3d_insert, strcat(fileout_base, "_3d-all-insertions"), 'Verbose', true);
        
@@ -362,7 +362,7 @@ for i = unique(final_table_sorted.('Insertion Hole'))'
     % plot kc
     figure(fig_table_kc);
     plot(final_table_sorted{insertion_mask, 'Insertion Depth'}, ...
-         final_table_sorted{insertion_mask, 'kc1'}, '*-', 'DisplayName', '\kappa_{c,1}');
+         final_table_sorted{insertion_mask, 'kc'}, '*-', 'DisplayName', '\kappa_{c,1}');
     
     legend('location', 'northwestoutside')
     title(strcat(sprintf("Insertion #%d | ", i), "\kappa_c vs Insertion Depth"));
@@ -467,15 +467,15 @@ title(sprintf('%s | Single Layer: Windowed \\kappa_c vs. Insertion Depth', strre
 % plot all w_init
 figure(fig_w_init_all);
 hold off;
-errorbar(final_table_sorted_summ{~dblbend_mask,'Insertion Depth'},...
+errorbar(final_table_sorted_summ{:,'Insertion Depth'},...
          final_table_sorted_summ.mean_w_init_1, ...
          final_table_sorted_summ.mean_w_init_1, ...
          'DisplayName', '\omega_{init,1} C-Shape'); hold on;
-errorbar(final_table_sorted_summ{~dblbend_mask,'Insertion Depth'},...
+errorbar(final_table_sorted_summ{:,'Insertion Depth'},...
          final_table_sorted_summ.mean_w_init_2, ...
          final_table_sorted_summ.mean_w_init_2, ...
          'DisplayName', '\omega_{init,2} C-Shape'); hold on;
-errorbar(final_table_sorted_summ{~dblbend_mask,'Insertion Depth'},...
+errorbar(final_table_sorted_summ{:,'Insertion Depth'},...
          final_table_sorted_summ.mean_w_init_3, ...
          final_table_sorted_summ.mean_w_init_3, ...
          'DisplayName', '\omega_{init,3} C-Shape'); hold on;
