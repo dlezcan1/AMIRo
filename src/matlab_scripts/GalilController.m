@@ -94,6 +94,71 @@ classdef GalilController
             pos = pos_counts ./ [obj.X_count_per_mm, obj.Y_count_per_mm, obj.Z_count_per_mm, obj.LS_count_per_mm];
             
         end
+        
+        % move absolute position in mm
+        function moveAbsolute(obj, x, y, z, ls)
+           arguments
+              obj;
+              x {mustBeNumeric} = 0;
+              y {mustBeNumeric} = 0;
+              z {mustBeNumeric} = 0;
+              ls {mustBeNumeric} = 0;
+           end
+           % Movement order: N/A, X, Y, Z, LS
+           base_move_cmd = "PA ,%d,%d,%d,%d"; % relative movements
+           
+           % perform the calculations for counts
+           x_counts = round(obj.X_count_per_mm * x);
+           y_counts = round(obj.Y_count_per_mm * y);
+           z_counts = round(obj.Z_count_per_mm * z);
+           ls_counts = round(obj.LS_count_per_mm * ls);
+
+           % generate the move command
+           move_cmd = sprintf(base_move_cmd, x_counts, y_counts, ...
+                                             z_counts, ls_counts);
+           move_cmd = strrep(move_cmd, ',0', ','); % remove 0's
+           
+           % the Begin and move complete command
+           begin_cmd = "BG ";
+           mvcmp_cmd = "MC ";
+           
+           if ls_counts ~= 0
+               begin_cmd = strcat(begin_cmd, obj.axes_labels(4));
+               mvcmp_cmd = strcat(mvcmp_cmd, obj.axes_labels(4));
+           end
+           if y_counts ~= 0
+               begin_cmd = strcat(begin_cmd, obj.axes_labels(2));
+               mvcmp_cmd = strcat(mvcmp_cmd, obj.axes_labels(2));
+           end
+           if z_counts ~= 0
+               begin_cmd = strcat(begin_cmd, obj.axes_labels(3));
+               mvcmp_cmd = strcat(mvcmp_cmd, obj.axes_labels(3));
+           end
+           if x_counts ~= 0
+               begin_cmd = strcat(begin_cmd, obj.axes_labels(1));
+               mvcmp_cmd = strcat(mvcmp_cmd, obj.axes_labels(1));
+           end
+           
+           % move the robot and wait for completion
+           obj.controller.command(move_cmd);
+           obj.galil_prompt(move_cmd);
+           obj.controller.command(begin_cmd);
+           obj.galil_prompt(begin_cmd);
+           if obj.waitCompletion
+               obj.controller.command(mvcmp_cmd);
+               obj.galil_prompt(mvcmp_cmd);
+           end
+           
+           % wait until movement is finished
+           while false && obj.waitCompletion
+               try
+                   obj.controller.command("MG 1");
+                   break;
+               catch
+                   continue;
+               end
+           end
+        end
                        
         % move relative position in mm
         function moveRelative(obj, x, y, z, ls)
@@ -104,7 +169,7 @@ classdef GalilController
               z {mustBeNumeric} = 0;
               ls {mustBeNumeric} = 0;
            end
-           % Movement order: N/A, LS, Y, Z, X
+           % Movement order: N/A, X, Y, Z, LS
            base_move_cmd = "PR ,%d,%d,%d,%d"; % relative movements
            
            % perform the calculations for counts

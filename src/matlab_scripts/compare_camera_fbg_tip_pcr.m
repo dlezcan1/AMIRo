@@ -7,7 +7,7 @@
 clear; 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-09-29_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -23,7 +23,7 @@ use_weights = true; % CAN CHANGE but USUALLY KEEP
 
 % number of layers (CAN CHANGE)
 num_layers = 1;    % implemented 1 or 2
-singlebend = true; % doublebend otherwise
+singlebend = true; % doublebend if false
 
 % saving options
 save_bool = true; % CAN CHANGE
@@ -72,6 +72,7 @@ if ~singlebend
     s_dbl_bend = experiment_description.DoubleBendDepth;
 elseif num_layers == 2
     z_crit = experiment_description.tissue1Length;
+    s_dbl_bend = -1;
 end
 
 %% Create the base table
@@ -98,6 +99,9 @@ for i = 1:length(trial_dirs)
     progressbar(i/numel(trial_dirs));
     % trial determination
     L = str2double(trial_dirs(i).name);
+    if ~singlebend && L == s_dbl_bend + 1
+        L = s_dbl_bend;
+    end
     re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
     hole_num = str2double(re_ret{1}{1});
     
@@ -354,6 +358,9 @@ for ins_hole = unique(fbg_cam_compare_tbl.Ins_Hole)'
    if save_bool
        fileout_base_j = fullfile(expmt_dir, sprintf("Insertion%d",ins_hole),...
                                  fileout_base);
+                             
+       savefigas(fig_err, strcat(fileout_base_j, '_fbg-cam-errors'), 'verbose', true);
+       
        savefigas(fig_fbg_2d, strcat(fileout_base_j, '_fbg-shape-2d'), 'verbose', true);
        
        savefigas(fig_fbg_3d, strcat(fileout_base_j, '_fbg-shape-3d'), 'verbose', true);
@@ -372,6 +379,7 @@ ax = subplot(1,3,1);
 ax.Position = ax.Position + pos_adj;
 boxplot(fbg_cam_compare_tbl.RMSE, fbg_cam_compare_tbl.L);
 yl = [0, max([[], 1])]; ylim(yl); 
+yline(0.5, 'r--');
 xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
 title('RMSE');
 
@@ -379,6 +387,7 @@ ax = subplot(1,3,2);
 ax.Position = ax.Position + pos_adj;
 boxplot(fbg_cam_compare_tbl.MeanInPlane, fbg_cam_compare_tbl.L);
 ylim(yl); 
+yline(0.5, 'r--');
 xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
 title('Mean IPE');
 
@@ -386,6 +395,7 @@ ax = subplot(1,3,3);
 ax.Position = ax.Position + pos_adj;
 boxplot(fbg_cam_compare_tbl.MeanOutPlane, fbg_cam_compare_tbl.L);
 ylim(yl); 
+yline(0.5, 'r--');
 xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
 title('Mean OPE');
 

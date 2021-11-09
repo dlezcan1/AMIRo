@@ -3,81 +3,82 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
     % Properties that correspond to app components
     properties (Access = public)
         UIFigure                        matlab.ui.Figure
-        RobotconnectionPanel            matlab.ui.container.Panel
-        RobotIPEditFieldLabel           matlab.ui.control.Label
-        RobotIPEditField                matlab.ui.control.EditField
-        RobotConnectButton              matlab.ui.control.Button
-        RobotConnectionLamp             matlab.ui.control.Lamp
-        RobotDisconnectButton           matlab.ui.control.Button
-        MotorsOnOffButton               matlab.ui.control.StateButton
-        NeedleInsertion4AxisRobotStereoCameraInsertionExperimentLabel  matlab.ui.control.Label
-        DataCollectionFBGandStereoCameraPanel  matlab.ui.container.Panel
-        GridLayout2                     matlab.ui.container.GridLayout
-        CaptureEntireDataButton         matlab.ui.control.Button
-        CaptureStereoImageButton        matlab.ui.control.Button
-        CollectFBGDataButton            matlab.ui.control.Button
-        NumberFBGSamplesEditField       matlab.ui.control.NumericEditField
-        FBGSamplesEditFieldLabel        matlab.ui.control.Label
-        SaveDirectoryEditField          matlab.ui.control.EditField
-        SaveDirectoryEditFieldLabel     matlab.ui.control.Label
-        InsertionHoleSpinner            matlab.ui.control.Spinner
-        InsertionHoleSpinnerLabel       matlab.ui.control.Label
-        InsertionDepthEditField         matlab.ui.control.NumericEditField
-        InsertionDepthmmEditFieldLabel  matlab.ui.control.Label
-        SensorIDRunEditField            matlab.ui.control.EditField
-        SensorIDRunEditFieldLabel       matlab.ui.control.Label
-        StatusTextAreaLabel             matlab.ui.control.Label
-        DataStatusTextArea              matlab.ui.control.TextArea
-        ClearStatusButton               matlab.ui.control.Button
-        InterrogatorConnectionPanel     matlab.ui.container.Panel
-        InterrogatorConnectButton       matlab.ui.control.Button
-        InterrogatorDisconnectButton    matlab.ui.control.Button
-        InterrogatorConnectLamp         matlab.ui.control.Lamp
-        InterrgatorIPLabel              matlab.ui.control.Label
-        InterrogatorIPEditField         matlab.ui.control.EditField
         TabGroup                        matlab.ui.container.TabGroup
         RobotControlTab                 matlab.ui.container.Tab
         GridLayout                      matlab.ui.container.GridLayout
-        XAxisinsertionEditFieldLabel    matlab.ui.control.Label
-        XAxisEditField                  matlab.ui.control.NumericEditField
-        YAxistowardsyouLabel            matlab.ui.control.Label
-        YAxisEditField                  matlab.ui.control.NumericEditField
-        ZAxisdownEditFieldLabel         matlab.ui.control.Label
-        ZAxisEditField                  matlab.ui.control.NumericEditField
-        LinearStageinsertionEditFieldLabel  matlab.ui.control.Label
-        LinearStageEditField            matlab.ui.control.NumericEditField
-        MoveXButton                     matlab.ui.control.Button
-        MoveYButton                     matlab.ui.control.Button
-        MoveAllButton                   matlab.ui.control.Button
-        MoveZButton                     matlab.ui.control.Button
-        MoveLSButton                    matlab.ui.control.Button
-        RobotAxisLabel                  matlab.ui.control.Label
-        CurrentPositionLabel            matlab.ui.control.Label
-        MovementTypeButtonGroup         matlab.ui.container.ButtonGroup
-        RelativeButton                  matlab.ui.control.RadioButton
-        AbsoluteButton                  matlab.ui.control.RadioButton
-        XAxisMoveEditField              matlab.ui.control.NumericEditField
-        YAxisMoveEditField              matlab.ui.control.NumericEditField
-        ZAxisMoveEditField              matlab.ui.control.NumericEditField
-        LinearStageMoveEditField        matlab.ui.control.NumericEditField
-        MovementLabel                   matlab.ui.control.Label
-        ZeroAxesButton                  matlab.ui.control.Button
-        XAxisDirection                  matlab.ui.container.ButtonGroup
-        XInsertButton                   matlab.ui.control.RadioButton
-        XRetractButton                  matlab.ui.control.RadioButton
-        YAxisDirection                  matlab.ui.container.ButtonGroup
-        YTowardsButton                  matlab.ui.control.RadioButton
-        YAwayButton                     matlab.ui.control.RadioButton
-        ZAxisDirection                  matlab.ui.container.ButtonGroup
-        ZUpButton                       matlab.ui.control.RadioButton
-        ZDowntButton                    matlab.ui.control.RadioButton
-        LSAxisDirection                 matlab.ui.container.ButtonGroup
-        LSInsertButton                  matlab.ui.control.RadioButton
-        LSRetractButton                 matlab.ui.control.RadioButton
-        MovementDirectionLabel          matlab.ui.control.Label
         ABORTButton                     matlab.ui.control.Button
+        MovementDirectionLabel          matlab.ui.control.Label
+        LSAxisDirection                 matlab.ui.container.ButtonGroup
+        LSRetractButton                 matlab.ui.control.RadioButton
+        LSInsertButton                  matlab.ui.control.RadioButton
+        ZAxisDirection                  matlab.ui.container.ButtonGroup
+        ZDowntButton                    matlab.ui.control.RadioButton
+        ZUpButton                       matlab.ui.control.RadioButton
+        YAxisDirection                  matlab.ui.container.ButtonGroup
+        YAwayButton                     matlab.ui.control.RadioButton
+        YTowardsButton                  matlab.ui.control.RadioButton
+        XAxisDirection                  matlab.ui.container.ButtonGroup
+        XRetractButton                  matlab.ui.control.RadioButton
+        XInsertButton                   matlab.ui.control.RadioButton
+        ZeroAxesButton                  matlab.ui.control.Button
+        MovementLabel                   matlab.ui.control.Label
+        LinearStageMoveEditField        matlab.ui.control.NumericEditField
+        ZAxisMoveEditField              matlab.ui.control.NumericEditField
+        YAxisMoveEditField              matlab.ui.control.NumericEditField
+        XAxisMoveEditField              matlab.ui.control.NumericEditField
+        MovementTypeButtonGroup         matlab.ui.container.ButtonGroup
+        SaveRobotConfigButton           matlab.ui.control.Button
+        AbsoluteButton                  matlab.ui.control.RadioButton
+        RelativeButton                  matlab.ui.control.RadioButton
+        CurrentPositionLabel            matlab.ui.control.Label
+        RobotAxisLabel                  matlab.ui.control.Label
+        MoveLSButton                    matlab.ui.control.Button
+        MoveZButton                     matlab.ui.control.Button
+        MoveAllButton                   matlab.ui.control.Button
+        MoveYButton                     matlab.ui.control.Button
+        MoveXButton                     matlab.ui.control.Button
+        LinearStageEditField            matlab.ui.control.NumericEditField
+        LinearStageinsertionEditFieldLabel  matlab.ui.control.Label
+        ZAxisEditField                  matlab.ui.control.NumericEditField
+        ZAxisdownEditFieldLabel         matlab.ui.control.Label
+        YAxisEditField                  matlab.ui.control.NumericEditField
+        YAxistowardsyouLabel            matlab.ui.control.Label
+        XAxisEditField                  matlab.ui.control.NumericEditField
+        XAxisinsertionEditFieldLabel    matlab.ui.control.Label
         StereoImagesTab                 matlab.ui.container.Tab
         StereoImageAxes                 matlab.ui.control.UIAxes
+        InterrogatorConnectionPanel     matlab.ui.container.Panel
+        InterrogatorIPEditField         matlab.ui.control.EditField
+        InterrgatorIPLabel              matlab.ui.control.Label
+        InterrogatorConnectLamp         matlab.ui.control.Lamp
+        InterrogatorDisconnectButton    matlab.ui.control.Button
+        InterrogatorConnectButton       matlab.ui.control.Button
+        DataCollectionFBGandStereoCameraPanel  matlab.ui.container.Panel
+        GridLayout2                     matlab.ui.container.GridLayout
+        ClearStatusButton               matlab.ui.control.Button
+        DataStatusTextArea              matlab.ui.control.TextArea
+        StatusTextAreaLabel             matlab.ui.control.Label
+        SensorIDRunEditFieldLabel       matlab.ui.control.Label
+        SensorIDRunEditField            matlab.ui.control.EditField
+        InsertionDepthmmEditFieldLabel  matlab.ui.control.Label
+        InsertionDepthEditField         matlab.ui.control.NumericEditField
+        InsertionHoleSpinnerLabel       matlab.ui.control.Label
+        InsertionHoleSpinner            matlab.ui.control.Spinner
+        SaveDirectoryEditFieldLabel     matlab.ui.control.Label
+        SaveDirectoryEditField          matlab.ui.control.EditField
+        FBGSamplesEditFieldLabel        matlab.ui.control.Label
+        NumberFBGSamplesEditField       matlab.ui.control.NumericEditField
+        CollectFBGDataButton            matlab.ui.control.Button
+        CaptureStereoImageButton        matlab.ui.control.Button
+        CaptureEntireDataButton         matlab.ui.control.Button
+        NeedleInsertion4AxisRobotStereoCameraInsertionExperimentLabel  matlab.ui.control.Label
+        RobotconnectionPanel            matlab.ui.container.Panel
+        MotorsOnOffButton               matlab.ui.control.StateButton
+        RobotDisconnectButton           matlab.ui.control.Button
+        RobotConnectionLamp             matlab.ui.control.Lamp
+        RobotConnectButton              matlab.ui.control.Button
+        RobotIPEditField                matlab.ui.control.EditField
+        RobotIPEditFieldLabel           matlab.ui.control.Label
     end
 
     
@@ -224,7 +225,7 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                 
                 % grab a row of FBG data sets
                 try
-                    [peaks, msg] = app.Interrogator_t.read_peaks();
+                    [peaks, ~] = app.Interrogator_t.read_peaks();
                 catch
                     continue
                 end
@@ -291,6 +292,7 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
         function CaptureEntireDataButtonPushed(app, event)
             CollectFBGDataButtonPushed(app,event);
             CaptureStereoImageButtonPushed(app,event);
+            SaveRobotConfigButtonPushed(app, event);
         end
 
         % Selection changed function: MovementTypeButtonGroup
@@ -391,6 +393,17 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                             ls_movement = -ls_movement;
                         end
                         
+                        try
+                            % move the robot
+                            app.MoveAllButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveRelative(x_movement, y_movement, z_movement, ls_movement);
+                            app.MoveAllButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveAllButton.BackgroundColor = [1, 0, 0];
+                        end
+                        
                     case app.AbsoluteButton
                         % grab current positions
                         x_current = app.XAxisEditField.Value;
@@ -404,30 +417,23 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                         z_desired = app.ZAxisMoveEditField.Value;
                         ls_desired = app.LinearStageMoveEditField.Value;
                         
-                        % determine relative movements
-                        x_movement = x_desired - x_current;
-                        y_movement = y_desired - y_current;
-                        z_movement = z_desired - z_current;
-                        ls_movement = ls_desired - ls_current;
+                        % determine absolute movements
+                        x_movement = x_desired;% - x_current;
+                        y_movement = y_desired;% - y_current;
+                        z_movement = z_desired;% - z_current;
+                        ls_movement = ls_desired;% - ls_current;
+                        
+                        try
+                            % move the robot
+                            app.MoveAllButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveAbsolute(x_movement, y_movement, z_movement, ls_movement);
+                            app.MoveAllButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveAllButton.BackgroundColor = [1, 0, 0];
+                        end  
                 end
-                
-                try
-                    % move the robot
-                    app.MoveAllButton.BackgroundColor = [1.0, 1.0, 0.0];
-                    app.galil_controller.moveRelative(x_movement, y_movement, z_movement, ls_movement);
-                    app.MoveAllButton.BackgroundColor = [0.96, 0.96, 0.96];
-                    
-                catch err
-                    disp(err.message)
-                    app.MoveAllButton.BackgroundColor = [1, 0, 0];
-                end
-                
-%                  % Update the fields
-%                 app.XAxisEditField.Value = app.XAxisEditField.Value + x_movement;
-%                 app.YAxisEditField.Value = app.YAxisEditField.Value + y_movement;
-%                 app.ZAxisEditField.Value = app.ZAxisEditField.Value + z_movement;
-%                 app.LinearStageEditField.Value = app.LinearStageEditField.Value + ls_movement;
-                
             end
         end
 
@@ -443,25 +449,30 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                         if app.XAxisDirection.SelectedObject == app.XRetractButton % flip the sign
                             x_movement = -x_movement;
                         end
+                        try
+                            app.MoveXButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveRelative(x_movement, 0, 0, 0);
+                            app.MoveXButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveXButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                                                 
                     case app.AbsoluteButton
                         x_current = app.XAxisEditField.Value;
                         x_desired = app.XAxisMoveEditField.Value;
-                        x_movement = x_desired - x_current;
-                        
+                        x_movement = x_desired;% - x_current;
+                        try
+                            app.MoveXButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveAbsolute(x_movement, 0, 0, 0);
+                            app.MoveXButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveXButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                 end
-                try
-                    app.MoveXButton.BackgroundColor = [1.0, 1.0, 0.0];
-                    app.galil_controller.moveRelative(x_movement, 0, 0, 0);
-                    app.MoveXButton.BackgroundColor = [0.96, 0.96, 0.96];
-                    
-                catch err
-                    disp(err.message)
-                    app.MoveXButton.BackgroundColor = [1.0, 0.0, 0.0];
-                end
-                
-%                 % update current position
-%                 app.XAxisEditField.Value = app.XAxisEditField.Value + x_movement;
             end
         end
 
@@ -476,25 +487,29 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                         if app.YAxisDirection.SelectedObject == app.YTowardsButton
                             y_movement = -y_movement;
                         end
-                        
+                        try
+                            app.MoveYButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveRelative(0, y_movement, 0, 0);
+                            app.MoveYButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveYButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                     case app.AbsoluteButton
                         y_current = app.YAxisEditField.Value;
                         y_desired = app.YAxisMoveEditField.Value;
-                        y_movement = y_desired - y_current;
-                        
+                        y_movement = y_desired;% - y_current;
+                        try
+                            app.MoveYButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveAbsolute(0, y_movement, 0, 0);
+                            app.MoveYButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveYButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                 end
-                try
-                    app.MoveYButton.BackgroundColor = [1.0, 1.0, 0.0];
-                    app.galil_controller.moveRelative(0, y_movement, 0, 0);
-                    app.MoveYButton.BackgroundColor = [0.96, 0.96, 0.96];
-                    
-                catch err
-                    disp(err.message)
-                    app.MoveYButton.BackgroundColor = [1.0, 0.0, 0.0];
-                end
-                
-%                 % update current position
-%                 app.YAxisEditField.Value = app.YAxisEditField.Value + y_movement;
             end
         end
 
@@ -510,24 +525,30 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                         if app.ZAxisDirection.SelectedObject == app.ZUpButton
                             z_movement = -z_movement;
                         end
+                        try
+                            app.MoveZButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveRelative(0, 0, z_movement, 0);
+                            app.MoveZButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveZButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                                                
                     case app.AbsoluteButton
                         z_current = app.ZAxisEditField.Value;
                         z_desired = app.ZAxisMoveEditField.Value;
-                        z_movement = z_desired - z_current;
-                        
+                        z_movement = z_desired;% - z_current;
+                        try
+                            app.MoveZButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveAbsolute(0, 0, z_movement, 0);
+                            app.MoveZButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveZButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                 end
-                try
-                    
-                    app.galil_controller.moveRelative(0, 0, z_movement, 0);
-                    app.MoveZButton.BackgroundColor = [0.96, 0.96, 0.96];
-                    
-                catch err
-                    disp(err.message)
-                    app.MoveZButton.BackgroundColor = [1.0, 0.0, 0.0];
-                end
-%                 % update current position
-%                 app.ZAxisEditField.Value = app.ZAxisEditField.Value + z_movement;
             end
         end
 
@@ -543,28 +564,31 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                         if app.LSAxisDirection.SelectedObject == app.LSInsertButton
                             ls_movement = -ls_movement;
                         end                       
-                        
+                        try
+                            app.MoveLSButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveRelative(0, 0, 0, ls_movement);
+                            app.MoveLSButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveLSButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                         
                     case app.AbsoluteButton
                         ls_current = app.LinearStageEditField.Value;
                         ls_desired = app.LinearStageMoveEditField.Value;
-                        ls_movement = ls_desired - ls_current;
-                        
+                        ls_movement = ls_desired;% - ls_current;
+                        try
+                            app.MoveLSButton.BackgroundColor = [1.0, 1.0, 0.0];
+                            app.galil_controller.moveAbsolute(0, 0, 0, ls_movement);
+                            app.MoveLSButton.BackgroundColor = [0.96, 0.96, 0.96];
+                            
+                        catch err
+                            disp(err.message)
+                            app.MoveLSButton.BackgroundColor = [1.0, 0.0, 0.0];
+                        end
                 end
-                try
-                    
-                    app.galil_controller.moveRelative(0, 0, 0, ls_movement);
-                    app.MoveLSButton.BackgroundColor = [0.96, 0.96, 0.96];
-                    
-                    
-                catch err
-                    disp(err.message)
-                    app.MoveLSButton.BackgroundColor = [1.0, 0.0, 0.0];
-                end
-                
-%                 % update current position
-%                 app.LinearStageEditField.Value = app.LinearStageEditField.Value + ls_movement;
-            end
+             end
         end
 
         % Button pushed function: ClearStatusButton
@@ -578,6 +602,26 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
                 app.galil_controller.abort();
             end
         end
+
+        % Button pushed function: SaveRobotConfigButton
+        function SaveRobotConfigButtonPushed(app, event)
+            if ~isempty(app.galil_controller) 
+                pos = app.galil_controller.currentPosition();
+                t = table(pos(1), pos(2), pos(3), pos(4), 'VariableNames', ...
+                          {'X', 'Y', 'Z', 'LS'});
+                data_dir = fullfile(app.SaveDirectoryEditField.Value, ...
+                                sprintf("Insertion%d",app.InsertionHoleSpinner.Value),...
+                                num2str(app.InsertionDepthEditField.Value));
+                mkdir(data_dir);
+                fileout = fullfile(data_dir, 'robot_config.xls');
+                writetable(t, fileout);
+                msg = sprintf("Saved robot configuration: %s\n", fileout);
+                fprintf(msg);
+                app.UpdateDisplay(msg);
+            else
+                disp("Not connected to robot to get current configuration.");
+            end
+        end
     end
 
     % Component initialization
@@ -588,7 +632,7 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
 
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Position = [100 100 1089 898];
+            app.UIFigure.Position = [100 100 1230 898];
             app.UIFigure.Name = 'MATLAB App';
 
             % Create RobotconnectionPanel
@@ -644,7 +688,7 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
             app.DataCollectionFBGandStereoCameraPanel = uipanel(app.UIFigure);
             app.DataCollectionFBGandStereoCameraPanel.Title = 'Data Collection (FBG and Stereo Camera)';
             app.DataCollectionFBGandStereoCameraPanel.FontWeight = 'bold';
-            app.DataCollectionFBGandStereoCameraPanel.Position = [258 647 820 201];
+            app.DataCollectionFBGandStereoCameraPanel.Position = [258 647 963 201];
 
             % Create GridLayout2
             app.GridLayout2 = uigridlayout(app.DataCollectionFBGandStereoCameraPanel);
@@ -796,7 +840,7 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
 
             % Create TabGroup
             app.TabGroup = uitabgroup(app.UIFigure);
-            app.TabGroup.Position = [13 15 1067 583];
+            app.TabGroup.Position = [83 24 1067 583];
 
             % Create RobotControlTab
             app.RobotControlTab = uitab(app.TabGroup);
@@ -936,6 +980,12 @@ classdef NeedleInsertion_Galil_4Axes_app < matlab.apps.AppBase
             app.AbsoluteButton = uiradiobutton(app.MovementTypeButtonGroup);
             app.AbsoluteButton.Text = 'Absolute';
             app.AbsoluteButton.Position = [373 25 69 22];
+
+            % Create SaveRobotConfigButton
+            app.SaveRobotConfigButton = uibutton(app.MovementTypeButtonGroup, 'push');
+            app.SaveRobotConfigButton.ButtonPushedFcn = createCallbackFcn(app, @SaveRobotConfigButtonPushed, true);
+            app.SaveRobotConfigButton.Position = [42 25 120 22];
+            app.SaveRobotConfigButton.Text = 'Save Robot Config.';
 
             % Create XAxisMoveEditField
             app.XAxisMoveEditField = uieditfield(app.GridLayout, 'numeric');
