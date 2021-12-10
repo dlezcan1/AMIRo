@@ -8,7 +8,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-13_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -144,10 +144,13 @@ for i = 1:length(trial_dirs)
     L = str2double(trial_dirs(i).name);
     re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
     hole_num = str2double(re_ret{1}{1});
-    ins_depth = str2double(trial_dirs(i).name);
+    ins_depth = L;
     
     % handle double-bending processing
     if ins_depth > s_dbl_bend
+        if ins_depth == s_dbl_bend + 1 % correct offset
+            ins_depth = s_dbl_bend;
+        end
         doublebend = true;
         thetaz = pi;
     else
@@ -155,10 +158,6 @@ for i = 1:length(trial_dirs)
         doublebend = false;
     end
     
-    if ins_depth == s_dbl_bend + 1 % insertion depth for same length is shown
-        ins_depth = ins_depth - 1;
-    end
-        
         
     % trial directory
     d = fullfile(trial_dirs(i).folder, trial_dirs(i).name);
@@ -184,12 +183,12 @@ for i = 1:length(trial_dirs)
     curvatures = calibrate_fbgsensors(wl_shift_Tcorr, cal_mat_tensor);
         
     % get the needle shape 
-    if doublebend % double-bending needle shape
+    if doublebend && ins_depth > s_dbl_bend % double-bending needle shape
         [pos, wv, Rmat, kc, w_init] = doublebend_singlelayer_needleshape(curvatures, aa_tip_locs,...
-            needle_mechparams, s_dbl_bend, L, kc_i, w_init_i, theta0, thetaz, weights);
+            needle_mechparams, s_dbl_bend, ins_depth, kc_i, w_init_i, theta0, thetaz, weights);
     else % single-bending needle shape
         [pos, wv, Rmat, kc, w_init] = singlebend_singlelayer_needleshape(curvatures, aa_tip_locs,...
-            needle_mechparams, L, kc_i, w_init_i, theta0, weights);
+            needle_mechparams, ins_depth, kc_i, w_init_i, theta0, weights);
     end
     t = toc;
     

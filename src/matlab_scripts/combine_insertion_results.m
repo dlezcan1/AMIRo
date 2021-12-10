@@ -12,7 +12,10 @@ needle_dir = fullfile('../../data/', '3CH-4AA-0004'); % CHANGE ONLY ARG 2
 expmt_dirs = dir(fullfile(needle_dir, '*_Insertion-Expmt-*')); % CHANGE ONLY ARG 2
 
 % Insertion directory pattern
-exclude_dirs = {'08-25-2021_Insertion-Expmt-1', '08-25-2021_Insertion-Expmt-2'}; % CAN CHANGE
+exclude_dirs = {'2021-08-25_Insertion-Expmt-1', '2021-08-25_Insertion-Expmt-2',...
+                '2021-10-01_Insertion-Expmt-1', '2021-}0-13_Insertion-Expmt-1',...
+                '',...
+                }; % CAN CHANGE
 mask_exclude = any(strcmp(repmat(exclude_dirs', 1, numel(expmt_dirs)), ...
                           repmat({expmt_dirs.name}, numel(exclude_dirs), 1)), 1);
 expmt_dirs = expmt_dirs(~mask_exclude); 
@@ -34,7 +37,7 @@ end
 result_file = strcat(dataout_file, '_results.mat');
 result_excel_file = strrep(result_file, '.mat', '.xlsx');
 
-% Prepare data table entries
+%% Prepare data table entries
 % - actual result table
 act_col_names = {'TissueStiffness', 'Experiment', 'Ins_Hole', 'L_ref', ...
          'cam_shape', 'fbg_shape', 'RMSE', 'MaxError', 'InPlane', 'OutPlane'};
@@ -91,9 +94,20 @@ for i = 1:numel(expmt_dirs)
     expmt_desc = jsondecode(fileread(fullfile(expmt_dirs(i).folder, ...
                                               expmt_dirs(i).name,...
                                               experiment_file)));
+                                          
+    % determine type of insertion
+    if isfield(expmt_desc, 'DoubleBendDepth') % double-bend
+        singlebend = false;
+        layers = 1;
+        stiffness1 = expmt_desc.OODurometer;
+    
+    elseif isfield(expmt_desc, 'tissue1Length')
+        singlebend=true;
+        layers=2;
+        stiffness1 = expmt_desc.OODur
     
     % get the Tissue Stiffness
-    stiffness = expmt_desc.OODurometer;
+    stiffness1 = expmt_desc.OODurometer;
     
     % add the columns to current experimental results table
     Nact_rows = size(expmt_results.act_result_tbl,1);
@@ -102,12 +116,12 @@ for i = 1:numel(expmt_dirs)
     expmt_results.act_result_tbl.Experiment = ...
                 repmat(expmt_dirs(i).name,  Nact_rows, 1);
     expmt_results.act_result_tbl.TissueStiffness = ...
-                stiffness*ones(Nact_rows, 1);
+                stiffness1*ones(Nact_rows, 1);
 
     expmt_results.pred_result_tbl.Experiment = ...
                 repmat(expmt_dirs(i).name, Npred_rows, 1);
     expmt_results.pred_result_tbl.TissueStiffness = ...
-                stiffness*ones(Npred_rows, 1);
+                stiffness1*ones(Npred_rows, 1);
             
     
             

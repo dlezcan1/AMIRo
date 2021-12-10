@@ -8,7 +8,7 @@ configure_env on;
 clear;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/2021-09-29_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-11-10_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(expmt_dir + "Insertion*/");
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -47,8 +47,8 @@ needle_mechparam_file = fullfile('../../shape-sensing', ...
 needle_mechparams = load(needle_mechparam_file);
 
 % Initial guesses for kc and w_init DON'T CHANGE
-kc1_i = 0.002; % soft
-kc2_i = 0.003; % hard
+kc1_i = 0.003; % hard
+kc2_i = 0.002; % soft
 w_init_i = [kc1_i; 0; 0]; % ideal insertion
 theta0 = 0;
 

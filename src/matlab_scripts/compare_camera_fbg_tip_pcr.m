@@ -7,7 +7,7 @@
 clear; 
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -23,7 +23,7 @@ use_weights = true; % CAN CHANGE but USUALLY KEEP
 
 % number of layers (CAN CHANGE)
 num_layers = 1;    % implemented 1 or 2
-singlebend = true; % doublebend if false
+singlebend = false; % doublebend if false
 
 % saving options
 save_bool = true; % CAN CHANGE
@@ -77,13 +77,13 @@ end
 
 %% Create the base table
 % setup the columns
-col_names = {'Ins_Hole', 'L', 'cam_shape', 'fbg_shape', 'L_cam', 'L_fbg',...
+col_names = {'Ins_Hole', 'L', 'singlebend','cam_shape', 'fbg_shape', 'L_cam', 'L_fbg',...
              'Pose_nc', 'RMSE', 'MaxError', 'MeanInPlane', 'MaxInPlane', ...
              'MeanOutPlane', 'MaxOutPlane'};
 Ncols_err = numel(col_names) - find(strcmp(col_names, "RMSE")) + 1;
-col_types = cat(2, {'uint8', 'double', 'double', 'double', 'double', 'double', 'double'},...
+col_types = cat(2, {'uint8', 'double', 'logical','double', 'double', 'double', 'double', 'double'},...
                 repmat({'double'}, 1, Ncols_err));
-col_units = cat(2, {'', 'mm', 'mm', 'mm', 'mm', 'mm' ,'mm'},...
+col_units = cat(2, {'', 'mm', '','mm', 'mm', 'mm', 'mm' ,'mm'},...
                 repmat({'mm'}, 1, Ncols_err));
             
 % create the empty table
@@ -99,8 +99,16 @@ for i = 1:length(trial_dirs)
     progressbar(i/numel(trial_dirs));
     % trial determination
     L = str2double(trial_dirs(i).name);
-    if ~singlebend && L == s_dbl_bend + 1
-        L = s_dbl_bend;
+    
+    if singlebend
+        doublebend = false;
+    elseif L > s_dbl_bend
+        if L == s_dbl_bend+1
+            L = s_dbl_bend;
+        end
+        doublebend = true;
+    else
+        doublebend = false;
     end
     re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
     hole_num = str2double(re_ret{1}{1});
@@ -135,7 +143,7 @@ for i = 1:length(trial_dirs)
     
     % append a row the the table
     fbg_cam_compare_tbl = [fbg_cam_compare_tbl;
-                           {hole_num, L, cam_pos_interp, fbg_pos_interp,...
+                           {hole_num, L, ~doublebend, cam_pos_interp, fbg_pos_interp,...
                             arclen_cam, arclen_fbg, F_nc, ...
                             errors.RMSE, max(errors.L2), ...
                             mean(errors.in_plane), max(errors.in_plane),...
@@ -378,7 +386,7 @@ set(fig_err_sum, 'units', 'normalized', 'position', [0, 1/4, 8/9, 2/3]);
 ax = subplot(1,3,1);
 ax.Position = ax.Position + pos_adj;
 boxplot(fbg_cam_compare_tbl.RMSE, fbg_cam_compare_tbl.L);
-yl = [0, max([[], 1])]; ylim(yl); 
+yl = [0, max([ylim, 1])]; ylim(yl); 
 yline(0.5, 'r--');
 xlabel('Insertion Depth (mm)'); ylabel('Error (mm)');
 title('RMSE');
