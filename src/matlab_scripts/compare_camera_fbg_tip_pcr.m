@@ -4,10 +4,10 @@
 % using the tip-aligned point-cloud registration
 %
 % - written by: Dimitri Lezcano
-clear; 
+clear; close all;
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "/Volumes/amiro_needle_data/3CH-4AA-0004/2021-11-19_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -60,7 +60,7 @@ elseif num_layers == 2 && singlebend
 elseif num_layers == 1 && ~singlebend
     fbg_pos_file = sprintf(fbg_pos_file, 'doublebend_');
 else
-    error('Not Implement');
+    error('Not Implemented');
 end
 
 % arclength options
@@ -99,16 +99,20 @@ for i = 1:length(trial_dirs)
     progressbar(i/numel(trial_dirs));
     % trial determination
     L = str2double(trial_dirs(i).name);
-    
+
     if singlebend
         doublebend = false;
-    elseif L > s_dbl_bend
-        if L == s_dbl_bend+1
-            L = s_dbl_bend;
-        end
+
+    elseif L == s_dbl_bend+1
+        L = s_dbl_bend;
         doublebend = true;
+    
+    elseif L > s_dbl_bend
+        doublebend = true;
+
     else
         doublebend = false;
+    
     end
     re_ret = regexp(trial_dirs(i).folder, "Insertion([0-9]+)", 'tokens');
     hole_num = str2double(re_ret{1}{1});
@@ -124,7 +128,7 @@ for i = 1:length(trial_dirs)
         
     fbg_pos = readmatrix(fbg_file)';
     cam_pos = readmatrix(camera_file);
-    cam_pos = cam_pos(:,1:3); 
+    cam_pos = cam_pos(:,1:3);
     
     % determine the arclengths
     arclen_fbg = arclength(fbg_pos);

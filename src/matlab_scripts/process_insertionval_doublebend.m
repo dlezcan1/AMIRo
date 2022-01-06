@@ -5,10 +5,10 @@
 % 
 % - written by: Dimitri Lezcano
 configure_env on;
-clear;
+clear; close all;
 %% Set-up
 % directories to iterate through
-expmt_dir = "../../data/3CH-4AA-0004/2021-10-08_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "/Volumes/amiro_needle_data/3CH-4AA-0004/2021-11-19_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories
@@ -147,15 +147,20 @@ for i = 1:length(trial_dirs)
     ins_depth = L;
     
     % handle double-bending processing
-    if ins_depth > s_dbl_bend
-        if ins_depth == s_dbl_bend + 1 % correct offset
-            ins_depth = s_dbl_bend;
-        end
+    if ins_depth == s_dbl_bend + 1 % correct offset
+        ins_depth = s_dbl_bend;
         doublebend = true;
         thetaz = pi;
+
+    elseif ins_depth > s_dbl_bend
+        doublebend = true;
+        thetaz = pi;
+        
+
     else
         thetaz = 0;
         doublebend = false;
+        
     end
     
         
