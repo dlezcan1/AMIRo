@@ -7,7 +7,7 @@
 clear; close all;
 %% Set-Up
 % directories to iterate throughn ( the inidividual trials )
-expmt_dir = "/Volumes/amiro_needle_data/3CH-4AA-0004/2021-11-19_Insertion-Expmt-1/"; % CAN CHANGE
+expmt_dir = "../../data/3CH-4AA-0004/2021-10-06_Insertion-Expmt-1/"; % CAN CHANGE
 trial_dirs = dir(fullfile(expmt_dir, "Insertion*/"));
 mask = strcmp({trial_dirs.name},".") | strcmp({trial_dirs.name}, "..") | strcmp({trial_dirs.name}, "0");
 trial_dirs = trial_dirs(~mask); % remove "." and ".." directories and "0" directory
@@ -23,7 +23,7 @@ use_weights = true; % CAN CHANGE but USUALLY KEEP
 
 % number of layers (CAN CHANGE)
 num_layers = 1;    % implemented 1 or 2
-singlebend = false; % doublebend if false
+singlebend = true; % doublebend if false
 
 % saving options
 save_bool = true; % CAN CHANGE

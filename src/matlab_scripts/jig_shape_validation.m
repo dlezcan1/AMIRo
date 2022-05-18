@@ -21,10 +21,10 @@ end
 
 % file set-up
 directory = "../../data/3CH-4AA-0004/";
-fbgneedle_param = fullfile(directory, '08-16-2021_Jig-Calibration',...
-    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant-2_weighted_weights.json"); 
+fbgneedle_param = fullfile(directory, ...
+    "needle_params_2021-08-16_Jig-Calibration_best.json"); 
 
-datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
+datadir = fullfile(directory, "2021-08-16_Jig-Calibration/"); % calibration-validation data
 data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
 proc_data_sheet = 'Calibration Validation Dataset';
 
@@ -100,7 +100,7 @@ for AA_i = AA_list
     signals = data_mats.(AA_i){:,CH_AA_i};
     pred_curv = signals * cal_mat;
     data_mats.(AA_i).PredCurvX = pred_curv(:,1);
-    data_mats.(AA_i).PredCurvY = pred_curv(:,2);
+    data_mats.(AA_i).PredCurvY = -pred_curv(:,2); % TODO update the fix with cal. matrices
     data_mats.(AA_i).PredCurv = vecnorm([data_mats.(AA_i).PredCurvX, data_mats.(AA_i).PredCurvY], 2, 2);
     disp("Calculated predicted curvature vector from " + AA_i + ".");
 end
@@ -138,7 +138,7 @@ end
 
 %% Plotting
 close all;
-rmse_all = [];
+rmse_all = []; theta_all = []; curv_all = [];
 for exp_num = 1:num_expmts
     % grab the data
     expmt_i = shape_results{exp_num};
@@ -146,6 +146,8 @@ for exp_num = 1:num_expmts
     r_meas = expmt_i.r_meas;
     err_r = error_s_positions(r_act, r_meas);
     rmse_all = [rmse_all, sqrt(mean(err_r.^2))];
+    theta_all = [theta_all, expmt_i.ref_angle];
+    curv_all = [curv_all, expmt_i.curvature];
     err_inplane = error_s_positions_inplane(r_act, r_meas, expmt_i.curv_act);
     
     % start plotting
@@ -188,6 +190,28 @@ for exp_num = 1:num_expmts
         disp("Saved figure: " + fig_save_file + sprintf("_k_%.3f_ang_%.1fdeg.png", expmt_i.curvature, expmt_i.ref_angle));
     end
 end
+
+%% Summarize Shape-Sensing Errors
+rmse_tbl = table(curv_all', theta_all', rmse_all', 'VariableNames',...
+            {'Curvature', 'Theta', 'RMSE'});
+
+rmse_summ_tbl = groupsummary(rmse_tbl, 'Curvature', {'mean', 'std'}, 'RMSE');
+
+% plot the results
+fig_summ = figure;
+set(fig_summ, 'units', 'normalized', 'position', [0.1, 0.1, 0.5, 0.6]);
+mask_nonzero_curv = rmse_summ_tbl.Curvature > 0;
+errorbar(rmse_summ_tbl.Curvature(mask_nonzero_curv), ...
+         rmse_summ_tbl.mean_RMSE(mask_nonzero_curv),...
+         rmse_summ_tbl.std_RMSE(mask_nonzero_curv),...
+         'k.', 'MarkerSize', 24, 'LineWidth', 1.5)
+xlabel('Curvature (1/mm)'); ylabel("RMSE (mm)");
+title("Calibration Shape-Reconstruction Error");
+xlim([0, 4 + min(rmse_summ_tbl.Curvature(mask_nonzero_curv))]);
+
+%- add x and y-lines
+xline(1, 'r--', 'Clinically-Relavant', 'LabelHorizontalAlignment', 'left', 'LineWidth', 2, 'FontSize', 18);
+
 
 %% Termination
 disp("Program Terminated.");

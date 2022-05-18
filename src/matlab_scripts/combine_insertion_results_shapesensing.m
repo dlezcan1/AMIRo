@@ -7,7 +7,7 @@
 
 clear; 
 %% Set-up
-needle_dir = fullfile('/Volumes/amiro_needle_data/', '3CH-4AA-0004'); % CHANGE ONLY ARG 2
+needle_dir = fullfile('../../data', '3CH-4AA-0004'); % CHANGE ONLY ARG 2
 expmt_dirs = dir(fullfile(needle_dir, '*_Insertion-Expmt-*')); % CHANGE ONLY ARG 2
 
 % Insertion directory pattern
