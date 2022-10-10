@@ -53,12 +53,12 @@ function summarize_prediction_results(...
     ;
 
     % mask for no duplicates
+    fwdpred_mask = pred_results_tbl.L_ref < pred_results_tbl.L_pred;
     nodup_mask   = ...
         pred_results_tbl.layer_num == 1 ...
         & pred_results_tbl.L_ref ~= pred_results_tbl.L_pred ...
-    ;
-    fwdpred_mask = pred_results_tbl.L_ref < pred_results_tbl.L_pred;
-    
+        & fwdpred_mask ...
+    ;    
     %% label prediction results per experiment
     % prepare prediction results table
     pred_results_tbl.Experiment_Type = repmat(...
@@ -79,6 +79,8 @@ function summarize_prediction_results(...
       ), ...
       "Key", "Experiment" ...
     );
+
+    pred_results_tbl.dL = pred_results_tbl.L_pred - pred_results_tbl.L_ref;
 
     %% Prepare statistics
     error_varnames = reshape(["FBG_Pred_", "FBG_Cam_", "Pred_Cam_"] + [
@@ -171,7 +173,8 @@ function summarize_prediction_results(...
         pred_results_tbl.FBG_Pred_RMSE(pred_sb_sl_mask & nodup_mask),...
         pred_results_tbl.L_ref(pred_sb_sl_mask & nodup_mask)...
     );
-    xlabel("Insertion Depth (mm)"); ylabel("Error (mm)");
+    ylabel("Error (mm)");
+    xlabel("Insertion Depth (mm)");
     title("RMSE", "fontsize", 20);
 
     % - IPE
@@ -195,7 +198,53 @@ function summarize_prediction_results(...
     title("Out-of-Plane Error", "fontsize", 20);
     
     % - titling and limits
-    sgtitle("Errors between FBG Reconstructed and Predicted Shapes per Insertion Depth",...
+    sgtitle("Errors between Single-Bend Single-Layer FBG Reconstructed and Predicted Shapes per Insertion Depth",...
+        'FontSize', 22, 'FontWeight', 'bold');
+    ax_sb_sl_summ_L_RMSE.YLim = [0, max([ax_sb_sl_summ_L_RMSE.YLim,...
+                                         ax_sb_sl_summ_L_IPE.YLim,...
+                                         ax_sb_sl_summ_L_OPE.YLim,...
+                                         max_yl ] ) ];
+    ax_sb_sl_summ_L_IPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+    ax_sb_sl_summ_L_OPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+
+    % Per Tissue Stiffness
+    fig_sb_sl_summ_L = figure(fig_num);
+    fig_num = fig_num + 1;
+    set(fig_sb_sl_summ_L, 'units', 'normalized', 'position',[ 0, 0.0370, 1.0000, 0.8917 ]);
+    
+    % - RMSE
+    ax_sb_sl_summ_L_RMSE = subplot(1,3,1);
+    ax_sb_sl_summ_L_RMSE.Position = ax_sb_sl_summ_L_RMSE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.FBG_Pred_RMSE(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.TissueType1(pred_sb_sl_mask & nodup_mask)...
+    );
+    ylabel("Error (mm)");
+    xlabel("Tissue Stiffness");
+    title("RMSE", "fontsize", 20);
+
+    % - IPE
+    ax_sb_sl_summ_L_IPE = subplot(1,3,2);
+    ax_sb_sl_summ_L_IPE.Position = ax_sb_sl_summ_L_IPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.FBG_Pred_InPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.TissueType1(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Tissue Stiffness");
+    title("In-Plane Error", "fontsize", 20);
+    
+    % - OPE
+    ax_sb_sl_summ_L_OPE = subplot(1,3,3);
+    ax_sb_sl_summ_L_OPE.Position = ax_sb_sl_summ_L_OPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.FBG_Pred_OutPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.TissueType1(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Tissue Stiffness");
+    title("Out-of-Plane Error", "fontsize", 20);
+    
+    % - titling and limits
+    sgtitle("Errors between Single-Bend Single-Layer FBG Reconstructed and Predicted Shapes per Tissue Stiffness",...
         'FontSize', 22, 'FontWeight', 'bold');
     ax_sb_sl_summ_L_RMSE.YLim = [0, max([ax_sb_sl_summ_L_RMSE.YLim,...
                                          ax_sb_sl_summ_L_IPE.YLim,...
@@ -204,5 +253,190 @@ function summarize_prediction_results(...
     ax_sb_sl_summ_L_IPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
     ax_sb_sl_summ_L_OPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
     
+    % Per Insertion Depth Increment
+    fig_sb_sl_summ_L = figure(fig_num);
+    fig_num = fig_num + 1;
+    set(fig_sb_sl_summ_L, 'units', 'normalized', 'position',[ 0, 0.0370, 1.0000, 0.8917 ]);
+    
+    % - RMSE
+    ax_sb_sl_summ_L_RMSE = subplot(1,3,1);
+    ax_sb_sl_summ_L_RMSE.Position = ax_sb_sl_summ_L_RMSE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.FBG_Pred_RMSE(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.dL(pred_sb_sl_mask & nodup_mask)...
+    );
+    ylabel("Error (mm)");
+    xlabel("Insertion Depth Increment (mm)");
+    title("RMSE", "fontsize", 20);
+
+    % - IPE
+    ax_sb_sl_summ_L_IPE = subplot(1,3,2);
+    ax_sb_sl_summ_L_IPE.Position = ax_sb_sl_summ_L_IPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.FBG_Pred_InPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.dL(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Insertion Depth Increment (mm)");
+    title("In-Plane Error", "fontsize", 20);
+    
+    % - OPE
+    ax_sb_sl_summ_L_OPE = subplot(1,3,3);
+    ax_sb_sl_summ_L_OPE.Position = ax_sb_sl_summ_L_OPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.FBG_Pred_OutPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.dL(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Insertion Depth Increment (mm)");
+    title("Out-of-Plane Error", "fontsize", 20);
+    
+    % - titling and limits
+    sgtitle("Errors between Single-Bend Single-Layer FBG Reconstructed and Predicted Shapes per Insertion Depth Increment",...
+        'FontSize', 22, 'FontWeight', 'bold');
+    ax_sb_sl_summ_L_RMSE.YLim = [0, max([ax_sb_sl_summ_L_RMSE.YLim,...
+                                         ax_sb_sl_summ_L_IPE.YLim,...
+                                         ax_sb_sl_summ_L_OPE.YLim,...
+                                         max_yl ] ) ];
+    ax_sb_sl_summ_L_IPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+    ax_sb_sl_summ_L_OPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+
+    %% Single-Bend Single-layer plots: Cam-Pred
+    % Per Insertion Depth
+    fig_sb_sl_summ_L = figure(fig_num);
+    fig_num = fig_num + 1;
+    set(fig_sb_sl_summ_L, 'units', 'normalized', 'position',[ 0, 0.0370, 1.0000, 0.8917 ]);
+    
+    % - RMSE
+    ax_sb_sl_summ_L_RMSE = subplot(1,3,1);
+    ax_sb_sl_summ_L_RMSE.Position = ax_sb_sl_summ_L_RMSE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_RMSE(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.L_ref(pred_sb_sl_mask & nodup_mask)...
+    );
+    ylabel("Error (mm)");
+    xlabel("Insertion Depth (mm)");
+    title("RMSE", "fontsize", 20);
+
+    % - IPE
+    ax_sb_sl_summ_L_IPE = subplot(1,3,2);
+    ax_sb_sl_summ_L_IPE.Position = ax_sb_sl_summ_L_IPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_InPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.L_ref(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Insertion Depth (mm)");
+    title("In-Plane Error", "fontsize", 20);
+    
+    % - OPE
+    ax_sb_sl_summ_L_OPE = subplot(1,3,3);
+    ax_sb_sl_summ_L_OPE.Position = ax_sb_sl_summ_L_OPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_OutPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.L_ref(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Insertion Depth (mm)");
+    title("Out-of-Plane Error", "fontsize", 20);
+    
+    % - titling and limits
+    sgtitle("Errors between Single-Bend Single-Layer Stereo Reconstructed and Predicted Shapes per Insertion Depth",...
+        'FontSize', 22, 'FontWeight', 'bold');
+    ax_sb_sl_summ_L_RMSE.YLim = [0, max([ax_sb_sl_summ_L_RMSE.YLim,...
+                                         ax_sb_sl_summ_L_IPE.YLim,...
+                                         ax_sb_sl_summ_L_OPE.YLim,...
+                                         max_yl ] ) ];
+    ax_sb_sl_summ_L_IPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+    ax_sb_sl_summ_L_OPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+
+    % Per Tissue Stiffness
+    fig_sb_sl_summ_L = figure(fig_num);
+    fig_num = fig_num + 1;
+    set(fig_sb_sl_summ_L, 'units', 'normalized', 'position',[ 0, 0.0370, 1.0000, 0.8917 ]);
+    
+    % - RMSE
+    ax_sb_sl_summ_L_RMSE = subplot(1,3,1);
+    ax_sb_sl_summ_L_RMSE.Position = ax_sb_sl_summ_L_RMSE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_RMSE(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.TissueType1(pred_sb_sl_mask & nodup_mask)...
+    );
+    ylabel("Error (mm)");
+    xlabel("Tissue Stiffness");
+    title("RMSE", "fontsize", 20);
+
+    % - IPE
+    ax_sb_sl_summ_L_IPE = subplot(1,3,2);
+    ax_sb_sl_summ_L_IPE.Position = ax_sb_sl_summ_L_IPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_InPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.TissueType1(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Tissue Stiffness");
+    title("In-Plane Error", "fontsize", 20);
+    
+    % - OPE
+    ax_sb_sl_summ_L_OPE = subplot(1,3,3);
+    ax_sb_sl_summ_L_OPE.Position = ax_sb_sl_summ_L_OPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_OutPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.TissueType1(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Tissue Stiffness");
+    title("Out-of-Plane Error", "fontsize", 20);
+    
+    % - titling and limits
+    sgtitle("Errors between Single-Bend Single-Layer Stereo Reconstructed and Predicted Shapes per Tissue Stiffness",...
+        'FontSize', 22, 'FontWeight', 'bold');
+    ax_sb_sl_summ_L_RMSE.YLim = [0, max([ax_sb_sl_summ_L_RMSE.YLim,...
+                                         ax_sb_sl_summ_L_IPE.YLim,...
+                                         ax_sb_sl_summ_L_OPE.YLim,...
+                                         max_yl ] ) ];
+    ax_sb_sl_summ_L_IPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+    ax_sb_sl_summ_L_OPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+    
+    % Per Insertion Depth Increment
+    fig_sb_sl_summ_L = figure(fig_num);
+    fig_num = fig_num + 1;
+    set(fig_sb_sl_summ_L, 'units', 'normalized', 'position',[ 0, 0.0370, 1.0000, 0.8917 ]);
+    
+    % - RMSE
+    ax_sb_sl_summ_L_RMSE = subplot(1,3,1);
+    ax_sb_sl_summ_L_RMSE.Position = ax_sb_sl_summ_L_RMSE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_RMSE(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.dL(pred_sb_sl_mask & nodup_mask)...
+    );
+    ylabel("Error (mm)");
+    xlabel("Insertion Depth Increment (mm)");
+    title("RMSE", "fontsize", 20);
+
+    % - IPE
+    ax_sb_sl_summ_L_IPE = subplot(1,3,2);
+    ax_sb_sl_summ_L_IPE.Position = ax_sb_sl_summ_L_IPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_InPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.dL(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Insertion Depth Increment (mm)");
+    title("In-Plane Error", "fontsize", 20);
+    
+    % - OPE
+    ax_sb_sl_summ_L_OPE = subplot(1,3,3);
+    ax_sb_sl_summ_L_OPE.Position = ax_sb_sl_summ_L_OPE.Position + ax_pos_adj;
+    boxplot(...
+        pred_results_tbl.Pred_Cam_OutPlaneError(pred_sb_sl_mask & nodup_mask),...
+        pred_results_tbl.dL(pred_sb_sl_mask & nodup_mask)...
+    );
+    xlabel("Insertion Depth Increment (mm)");
+    title("Out-of-Plane Error", "fontsize", 20);
+    
+    % - titling and limits
+    sgtitle("Errors between Single-Bend Single-Layer Stereo Reconstructed and Predicted Shapes per Insertion Depth Increment",...
+        'FontSize', 22, 'FontWeight', 'bold');
+    ax_sb_sl_summ_L_RMSE.YLim = [0, max([ax_sb_sl_summ_L_RMSE.YLim,...
+                                         ax_sb_sl_summ_L_IPE.YLim,...
+                                         ax_sb_sl_summ_L_OPE.YLim,...
+                                         max_yl ] ) ];
+    ax_sb_sl_summ_L_IPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+    ax_sb_sl_summ_L_OPE.YLim = ax_sb_sl_summ_L_RMSE.YLim;
+
 end
     
