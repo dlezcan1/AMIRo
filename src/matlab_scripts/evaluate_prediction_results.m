@@ -267,11 +267,11 @@ for i = 1:length(prediction_files)
        L_pred   = doublebend_singlelayer_data.L_pred(expmt_idx);
        
        % unpack predictions
-       kc_pred = singlebend_doublelayer_pred.kc_pred(expmt_idx);
+       kc_pred = doublebend_singlelayer_pred.kc_pred(expmt_idx);
        w_init_pred = [ 
-           singlebend_doublelayer_pred.w_init_pred_1(expmt_idx);
-           singlebend_doublelayer_pred.w_init_pred_2(expmt_idx);
-           singlebend_doublelayer_pred.w_init_pred_3(expmt_idx);
+           doublebend_singlelayer_pred.w_init_pred_1(expmt_idx);
+           doublebend_singlelayer_pred.w_init_pred_2(expmt_idx);
+           doublebend_singlelayer_pred.w_init_pred_3(expmt_idx);
        ];
        
        % get double-bend
@@ -303,7 +303,7 @@ for i = 1:length(prediction_files)
         
        % tabulate errors
        indx = find( ...
-           singlebend_singlelayer_data.Index(expmt_idx) == prediction_results.data.Index, ...
+           doublebend_singlelayer_data.Index(expmt_idx) == prediction_results.data.Index, ...
            1 ...
        );
        
@@ -346,6 +346,45 @@ for i = 1:length(prediction_files)
     
 end
 
+%% Summarize the results
+disp("Summarizing prediction results");
+
+% generate the list of files to summarize
+actual_results_f = fullfile(...
+    "../../data/3CH-4AA-0004/Insertion_Experiment_Results", ...
+    "FBG-Camera-Comp_tip-pcr_FBG-weights_combined-results-complete.mat" ...
+);
+prediction_results_files = dir(fullfile(data_dir, "*_errors.xlsx"));
+experiment_assignments_file = fullfile( ...
+    "../../prediction_ml/data", ...
+    "prediction-data_3CH-4AA-0004-custom_expmt-assignments.xlsx" ...
+);
+output_results_dir = "../../prediction_ml/results";
+
+% run through the summarizations
+for i = 1:numel(prediction_results_files)
+   fprintf("Processing model: %s\n", prediction_results_files(i).name);
+   prediction_results_f = fullfile(...
+       prediction_results_files(i).folder, ...
+       prediction_results_files(i).name ...
+   );
+   save_dir = fullfile( ...
+       output_results_dir, ...
+       prediction_files(i).name + "-plots" ...
+   );
+    
+   mkdir(save_dir);
+   summarize_prediction_results( ...
+       prediction_results_f, ...
+       actual_results_f, ...
+       experiment_assignments_file, ...
+       save_dir ...
+   );
+   disp(" ");
+end
+
+%% Finished
+disp("Program terminated.");
 
 %% Helper Functions
 function errors = compute_prediction_errors( ...
@@ -425,126 +464,5 @@ function [errors, varargout] = compute_camera_errors(shape_cam, shape_fbg, ds, p
     N = min(numel(s_cam), numel(s_fbg));
     errors = compute_shape_errors(shape_cam_interp_tf(end-N+1:end,:)', ...
                             shape_fbg_interp(end-N+1:end,:)');
-    
-end
-
-function [pos, wv, Rmat] = singlebend_singlelayer_shape(...
-    kc, w_init, L, needle_mech_params, theta0, ds ...
-)
-    arguments
-        kc double
-        w_init (3, 1)
-        L double
-        needle_mech_params struct
-        theta0 double = 0;
-        ds double = 0.5;
-    end
-    
-    B = needle_mech_params.B;
-    Binv = needle_mech_params.Binv;
-    
-    % needle shape
-    s = 0:ds:L;
-    k0 = kc * (1 - s/L).^2;
-    k0_prime = -2 * kc/L * (1 - s/L);
-    
-    w0       = [k0;       zeros(2, length(k0))];
-    w0_prime = [k0_prime; zeros(2, length(k0_prime))];
-    
-    [wv, pos, Rmat] = fn_intgEP_w0_Dimitri(...
-        w_init, w0, w0_prime, theta0, 0, ds, length(s), B, Binv...
-    );
-    
-    
-end
-
-function [pos, wv, Rmat] = singlebend_doublelayer_shape(...
-    kc1, kc2, w_init, L, z_crit, needle_mech_params, theta0, ds ...
-)
-    arguments
-        kc1 double
-        kc2 double
-        w_init (3,1)
-        L double
-        z_crit double
-        needle_mech_params struct
-        theta0 double = 0;
-        ds double = 0.5;
-    end
-    B = needle_mech_params.B;
-    Binv = needle_mech_params.Binv;
-    
-    s = 0:ds:L;
-    
-    [wv, pos, Rmat, s_crit] = fn_intgEP_zcrit_2layers_Dimitri(...
-        w_init, kc1, kc2, z_crit, ...
-        theta0, 0, ds, length(s), B, Binv ...
-    );
-    
-
-end
-
-function [pos, wv, Rmat] = doublebend_singlelayer_shape(...
-    kc, w_init, L, s_dbl_bend, needle_mech_params, theta0, ds ...
-)
-    arguments
-        kc double
-        w_init (3,1)
-        L double
-        s_dbl_bend double
-        needle_mech_params struct
-        theta0 double = 0
-        ds double = 0.5
-    end
-    B = needle_mech_params.B;
-    Binv = needle_mech_params.Binv;
-    
-    if L <= s_dbl_bend
-        [pos, wv, Rmat] = singlebend_singlelayer_shape(...
-            kc, w_init, L, needle_mech_params, ...
-            theta0, ds ...
-        );
-        
-        if L == s_dbl_bend
-            theta_z = pi;
-        else
-            theta_z = 0;
-        end
-    else
-        s = 0:ds:L;
-        [~, s_idx_turn] = min(abs(s - s_dbl_bend));
-        s1 = s(1:s_idx_turn);
-        s2 = s(s_idx_turn:end);
-
-        kc1 = kc*((s1(end) - s1(1))/L)^(2/3);
-        kc2 = kc*((s2(end) - s2(1))/L)^(2/3);
-
-        % intrinsic curvature kappa_0 (quadratic)
-        k0_1    = kc1*(1 - s1/L).^2;
-        k0_2    = -kc2*(1 - s2/L).^2;
-        k0_turn = (k0_1(end) + k0_2(1))/2; %0;
-        k0      = [k0_1(1:end-1),k0_turn,k0_2(2:end)];
-
-        k0_prime1     = -2*kc1/L*(1 - s1/L);
-        k0_prime2     = 2*kc2/L*(1 - s2/L);
-        k0_prime_peak = (k0_2(2) - k0_1(end-1))/2/ds; 
-        k0_prime      = [k0_prime1(1:end-1),k0_prime_peak,k0_prime2(2:end)];
-        
-        % intrinsic curvature \omega_0
-        w0       = [k0;       zeros(2, length(s))];
-        w0_prime = [k0_prime; zeros(2, length(s))];
-        
-        [wv, pos, Rmat] = fn_intgEP_w0_Dimitri( ...
-            w_init, w0, w0_prime, theta0, 0, ds, length(s), B, Binv ...
-        );
-    
-        theta_z = pi;
-        
-    end
-    
-    % rotate by pi
-    Rz = Rot_z(theta_z);
-    pos = Rz * pos;
-    Rmat = pagemtimes(Rz, Rmat);
     
 end
