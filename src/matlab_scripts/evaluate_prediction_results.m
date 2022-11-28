@@ -41,6 +41,21 @@ for i = 1:length(prediction_files)
     
     fprintf("Analyzing results for predictions in: %s\n", prediction_file);
     
+    %% Grab kc variable names
+    kc1_vn = "kc"; kc2_vn = "kc"; 
+    singlebend_vn = "singlebend"; num_layers_vn = "num_layers";
+    if prediction_results.trained_on_joint_data
+        kc1_vn = "kc1";
+        kc2_vn = "kc2";
+        singlebend_vn = strcat(singlebend_vn, "_pred");
+        num_layers_vn = strcat(num_layers_vn, "_pred");
+    end
+    
+    kc1_ref_vn  = strcat(kc1_vn, "_ref"); 
+    kc2_ref_vn  = strcat(kc2_vn, "_ref");
+    kc1_pred_vn = strcat(kc1_vn, "_pred"); 
+    kc2_pred_vn = strcat(kc2_vn, "_pred");
+    
     %% Initialize results table
     results_tbl_varnames = reshape(["FBG_Pred_", "FBG_Cam_", "Pred_Cam_"] + [
             "RMSE"; "MaxError"; "InPlaneError"; "OutPlaneError"
@@ -54,8 +69,8 @@ for i = 1:length(prediction_files)
     
     %% Process single-bend single-layer
     singlebend_singlelayer_mask = ...
-        prediction_results.data.singlebend ...
-        & (prediction_results.data.num_layers == 1) ...
+        prediction_results.data{:, singlebend_vn}...
+        & (prediction_results.data{:, num_layers_vn} == 1) ...
     ;
     singlebend_singlelayer_data = prediction_results.data(...
         singlebend_singlelayer_mask, : ...
@@ -73,7 +88,7 @@ for i = 1:length(prediction_files)
        L_pred   = singlebend_singlelayer_data.L_pred(expmt_idx);
        
        % unpack predictions
-       kc_pred = singlebend_singlelayer_pred.kc_pred(expmt_idx);
+       kc_pred = singlebend_singlelayer_pred{expmt_idx, kc1_pred_vn};
        w_init_pred = [ 
            singlebend_singlelayer_pred.w_init_pred_1(expmt_idx);
            singlebend_singlelayer_pred.w_init_pred_2(expmt_idx);
@@ -124,8 +139,8 @@ for i = 1:length(prediction_files)
     
     %% Process single-bend double-layer
     singlebend_doublelayer_mask = ...
-        prediction_results.data.singlebend ...
-        & (prediction_results.data.num_layers == 2) ...
+        prediction_results.data{:, singlebend_vn} ...
+        & (prediction_results.data{:, num_layers_vn} == 2) ...
     ;
     singlebend_doublelayer_data = prediction_results.data(...
         singlebend_doublelayer_mask, : ...
@@ -172,12 +187,18 @@ for i = 1:length(prediction_files)
            & singlebend_doublelayer_data.L_ref == L_ref ...
            & singlebend_doublelayer_data.L_pred == L_pred ...
        ;
-       kc1_pred = singlebend_doublelayer_pred{ ...
-           pred_mask & singlebend_doublelayer_data.layer_num == 1, 'kc_pred' ...
-       };
-       kc2_pred = singlebend_doublelayer_pred{ ...
-           pred_mask & singlebend_doublelayer_data.layer_num == 2, 'kc_pred' ...
-       };
+       if prediction_results.trained_on_joint_data
+           kc1_pred = singlebend_singlelayer_pred{ expmt_idx, kc1_pred_vn };
+           kc2_pred = singlebend_singlelayer_pred{ expmt_idx, kc2_pred_vn };
+           
+       else
+           kc1_pred = singlebend_doublelayer_pred{ ...
+               pred_mask & singlebend_doublelayer_data.layer_num == 1, 'kc_pred' ...
+           };
+           kc2_pred = singlebend_doublelayer_pred{ ...
+               pred_mask & singlebend_doublelayer_data.layer_num == 2, 'kc_pred' ...
+           };
+       end
        w_init_pred = [ 
            singlebend_doublelayer_pred.w_init_pred_1(expmt_idx);
            singlebend_doublelayer_pred.w_init_pred_2(expmt_idx);
@@ -193,62 +214,84 @@ for i = 1:length(prediction_files)
        errors = compute_prediction_errors( pos_fbg_pred, pos_cam, pos_fbg_act, pose_fbg_cam );
        
        % tabulate errors
-       % - index 1
-       indx1_sub = singlebend_doublelayer_data{ ...
-           pred_mask & singlebend_doublelayer_data.layer_num == 1, 'Index' ...
-       };
-       indx1 = find( ...
-           indx1_sub == prediction_results.data.Index, ...
-           1 ...
-       );
-       
-       prediction_results.results.FBG_Pred_RMSE(indx1)          = errors.pred2fbg.RMSE;
-       prediction_results.results.FBG_Pred_MaxError(indx1)      = errors.pred2fbg.Max;
-       prediction_results.results.FBG_Pred_InPlaneError(indx1)  = errors.pred2fbg.In_Plane;
-       prediction_results.results.FBG_Pred_OutPlaneError(indx1) = errors.pred2fbg.Out_Plane;
-       
-       prediction_results.results.FBG_Cam_RMSE(indx1)           = errors.fbg2cam.RMSE; 
-       prediction_results.results.FBG_Cam_MaxError(indx1)       = errors.fbg2cam.Max;
-       prediction_results.results.FBG_Cam_InPlaneError(indx1)   = errors.fbg2cam.In_Plane;
-       prediction_results.results.FBG_Cam_OutPlaneError(indx1)  = errors.fbg2cam.Out_Plane;
-       
-       prediction_results.results.Pred_Cam_RMSE(indx1)          = errors.pred2cam.RMSE; 
-       prediction_results.results.Pred_Cam_MaxError(indx1)      = errors.pred2cam.Max;
-       prediction_results.results.Pred_Cam_InPlaneError(indx1)  = errors.pred2cam.In_Plane;
-       prediction_results.results.Pred_Cam_OutPlaneError(indx1) = errors.pred2cam.Out_Plane;
-       
-       % - index 2
-       indx2_sub = singlebend_doublelayer_data{ ...
-           pred_mask & singlebend_doublelayer_data.layer_num == 2, 'Index' ...
-       };
-       indx2 = find( ...
-           indx2_sub == prediction_results.data.Index, ...
-           1 ...
-       );
-   
-       prediction_results.results.FBG_Pred_RMSE(indx2)          = errors.pred2fbg.RMSE;
-       prediction_results.results.FBG_Pred_MaxError(indx2)      = errors.pred2fbg.Max;
-       prediction_results.results.FBG_Pred_InPlaneError(indx2)  = errors.pred2fbg.In_Plane;
-       prediction_results.results.FBG_Pred_OutPlaneError(indx2) = errors.pred2fbg.Out_Plane;
-       
-       prediction_results.results.FBG_Cam_RMSE(indx2)           = errors.fbg2cam.RMSE; 
-       prediction_results.results.FBG_Cam_MaxError(indx2)       = errors.fbg2cam.Max;
-       prediction_results.results.FBG_Cam_InPlaneError(indx2)   = errors.fbg2cam.In_Plane;
-       prediction_results.results.FBG_Cam_OutPlaneError(indx2)  = errors.fbg2cam.Out_Plane;
-       
-       prediction_results.results.Pred_Cam_RMSE(indx2)          = errors.pred2cam.RMSE; 
-       prediction_results.results.Pred_Cam_MaxError(indx2)      = errors.pred2cam.Max;
-       prediction_results.results.Pred_Cam_InPlaneError(indx2)  = errors.pred2cam.In_Plane;
-       prediction_results.results.Pred_Cam_OutPlaneError(indx2) = errors.pred2cam.Out_Plane;
-       
+       if prediction_results.trained_on_joint_data
+           indx = find( ...
+               singlebend_doublelayer_data.Index(expmt_idx) == prediction_results.data.Index, ...
+               1 ...
+           );
+           
+           prediction_results.results.FBG_Pred_RMSE(indx)          = errors.pred2fbg.RMSE;
+           prediction_results.results.FBG_Pred_MaxError(indx)      = errors.pred2fbg.Max;
+           prediction_results.results.FBG_Pred_InPlaneError(indx)  = errors.pred2fbg.In_Plane;
+           prediction_results.results.FBG_Pred_OutPlaneError(indx) = errors.pred2fbg.Out_Plane;
+
+           prediction_results.results.FBG_Cam_RMSE(indx)           = errors.fbg2cam.RMSE; 
+           prediction_results.results.FBG_Cam_MaxError(indx)       = errors.fbg2cam.Max;
+           prediction_results.results.FBG_Cam_InPlaneError(indx)   = errors.fbg2cam.In_Plane;
+           prediction_results.results.FBG_Cam_OutPlaneError(indx)  = errors.fbg2cam.Out_Plane;
+
+           prediction_results.results.Pred_Cam_RMSE(indx)          = errors.pred2cam.RMSE; 
+           prediction_results.results.Pred_Cam_MaxError(indx)      = errors.pred2cam.Max;
+           prediction_results.results.Pred_Cam_InPlaneError(indx)  = errors.pred2cam.In_Plane;
+           prediction_results.results.Pred_Cam_OutPlaneError(indx) = errors.pred2cam.Out_Plane;
+           
+       else
+           % - index 1
+           indx1_sub = singlebend_doublelayer_data{ ...
+               pred_mask & singlebend_doublelayer_data.layer_num == 1, 'Index' ...
+           };
+           indx1 = find( ...
+               indx1_sub == prediction_results.data.Index, ...
+               1 ...
+           );
+
+           prediction_results.results.FBG_Pred_RMSE(indx1)          = errors.pred2fbg.RMSE;
+           prediction_results.results.FBG_Pred_MaxError(indx1)      = errors.pred2fbg.Max;
+           prediction_results.results.FBG_Pred_InPlaneError(indx1)  = errors.pred2fbg.In_Plane;
+           prediction_results.results.FBG_Pred_OutPlaneError(indx1) = errors.pred2fbg.Out_Plane;
+
+           prediction_results.results.FBG_Cam_RMSE(indx1)           = errors.fbg2cam.RMSE; 
+           prediction_results.results.FBG_Cam_MaxError(indx1)       = errors.fbg2cam.Max;
+           prediction_results.results.FBG_Cam_InPlaneError(indx1)   = errors.fbg2cam.In_Plane;
+           prediction_results.results.FBG_Cam_OutPlaneError(indx1)  = errors.fbg2cam.Out_Plane;
+
+           prediction_results.results.Pred_Cam_RMSE(indx1)          = errors.pred2cam.RMSE; 
+           prediction_results.results.Pred_Cam_MaxError(indx1)      = errors.pred2cam.Max;
+           prediction_results.results.Pred_Cam_InPlaneError(indx1)  = errors.pred2cam.In_Plane;
+           prediction_results.results.Pred_Cam_OutPlaneError(indx1) = errors.pred2cam.Out_Plane;
+
+           % - index 2
+           indx2_sub = singlebend_doublelayer_data{ ...
+               pred_mask & singlebend_doublelayer_data.layer_num == 2, 'Index' ...
+           };
+           indx2 = find( ...
+               indx2_sub == prediction_results.data.Index, ...
+               1 ...
+           );
+
+           prediction_results.results.FBG_Pred_RMSE(indx2)          = errors.pred2fbg.RMSE;
+           prediction_results.results.FBG_Pred_MaxError(indx2)      = errors.pred2fbg.Max;
+           prediction_results.results.FBG_Pred_InPlaneError(indx2)  = errors.pred2fbg.In_Plane;
+           prediction_results.results.FBG_Pred_OutPlaneError(indx2) = errors.pred2fbg.Out_Plane;
+
+           prediction_results.results.FBG_Cam_RMSE(indx2)           = errors.fbg2cam.RMSE; 
+           prediction_results.results.FBG_Cam_MaxError(indx2)       = errors.fbg2cam.Max;
+           prediction_results.results.FBG_Cam_InPlaneError(indx2)   = errors.fbg2cam.In_Plane;
+           prediction_results.results.FBG_Cam_OutPlaneError(indx2)  = errors.fbg2cam.Out_Plane;
+
+           prediction_results.results.Pred_Cam_RMSE(indx2)          = errors.pred2cam.RMSE; 
+           prediction_results.results.Pred_Cam_MaxError(indx2)      = errors.pred2cam.Max;
+           prediction_results.results.Pred_Cam_InPlaneError(indx2)  = errors.pred2cam.In_Plane;
+           prediction_results.results.Pred_Cam_OutPlaneError(indx2) = errors.pred2cam.Out_Plane;
+       end       
     end
     
     
     
     %% Process double-bend single-layer
     doublebend_singlelayer_mask = ...
-        (~prediction_results.data.singlebend) ...
-        & (prediction_results.data.num_layers == 1) ...
+        (~prediction_results.data{:, singlebend_vn}) ...
+        & (prediction_results.data{:, num_layers_vn} == 1) ...
     ;
     doublebend_singlelayer_data = prediction_results.data(...
         doublebend_singlelayer_mask, : ...
@@ -267,7 +310,7 @@ for i = 1:length(prediction_files)
        L_pred   = doublebend_singlelayer_data.L_pred(expmt_idx);
        
        % unpack predictions
-       kc_pred = doublebend_singlelayer_pred.kc_pred(expmt_idx);
+       kc_pred = doublebend_singlelayer_pred{expmt_idx, kc1_pred_vn};
        w_init_pred = [ 
            doublebend_singlelayer_pred.w_init_pred_1(expmt_idx);
            doublebend_singlelayer_pred.w_init_pred_2(expmt_idx);
@@ -357,7 +400,7 @@ actual_results_f = fullfile(...
 prediction_results_files = dir(fullfile(data_dir, "*_errors.xlsx"));
 experiment_assignments_file = fullfile( ...
     "../../prediction_ml/data", ...
-    "prediction-data_3CH-4AA-0004-custom_expmt-assignments.xlsx" ...
+    "prediction-data-joint_3CH-4AA-0004-custom_expmt-assignments.xlsx" ...
 );
 output_results_dir = "../../prediction_ml/results";
 
@@ -378,7 +421,9 @@ for i = 1:numel(prediction_results_files)
        prediction_results_f, ...
        actual_results_f, ...
        experiment_assignments_file, ...
-       save_dir ...
+       save_dir, ...
+       singlebend_vn, ...
+       num_layers_vn ...   
    );
    disp(" ");
 end

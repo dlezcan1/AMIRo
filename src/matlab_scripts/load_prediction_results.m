@@ -20,6 +20,7 @@ function results = load_prediction_results(prediction_file)
         ["Index"] ...
     );
     
+    trained_on_joint = trained_on_joint_data(pred_tbl);
     
     %% Split the table
     results = struct();
@@ -34,11 +35,38 @@ function results = load_prediction_results(prediction_file)
         "w_init_pred_1", "w_init_pred_2", "w_init_pred_3", ...
         "kc_pred" ...
     ];
+    if trained_on_joint
+         data_vars = [ ...
+            "Index", "Experiment", "Ins_Hole", ...
+            "L_ref", "L_pred", ... 
+            "singlebend_ref", "singlebend_pred", ... 
+            "num_layers_ref", "num_layers_pred",...
+            "w_init_ref_1", "w_init_ref_2", "w_init_ref_3", ...
+            "kc1_ref", "kc2_ref" ...
+        ];
+        pred_vars = [ ...
+            "w_init_pred_1", "w_init_pred_2", "w_init_pred_3", ...
+            "kc1_pred", "kc2_pred" ...
+        ];
+    end
+        
     pred_true_vars = pred_vars + "_true";
     
     % split the table to results
-    results.data             = pred_tbl(:, data_vars);
-    results.predictions      = pred_tbl(:, pred_vars);
-    results.true_predictions = pred_tbl(:, pred_true_vars);
+    results.trained_on_joint_data = trained_on_joint;
+    results.data                  = pred_tbl(:, data_vars);
+    results.predictions           = pred_tbl(:, pred_vars);
+    results.true_predictions      = pred_tbl(:, pred_true_vars);
+    
+end
+
+%% Helper Fucntions
+function is_joint = trained_on_joint_data(tbl)
+    arguments
+        tbl table
+    end
+    
+    is_joint = ~any(strcmp(tbl.Properties.VariableNames, "kc_ref"));
+    
     
 end
