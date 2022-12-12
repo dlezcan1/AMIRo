@@ -30,12 +30,18 @@ needle_mechparam_file = fullfile('../../shape-sensing', ...
     sprintf('shapesensing_needle_properties_%dG.mat', needle_gauge));
 needle_mechparams = load(needle_mechparam_file);
 
+% run options
+overwrite_results = false; % true if you want to overwrite analysis
+
 %% Run prediction results
 for i = 1:length(prediction_files)
     %% Load the prediction results
     prediction_file = fullfile( ...
         prediction_files(i).folder, ...
         prediction_files(i).name ...
+    );
+    prediction_results_error_file = strrep( ...
+        prediction_file, ".xlsx", "_errors.xlsx" ...
     );
     prediction_results = load_prediction_results(prediction_file);
     
@@ -55,6 +61,12 @@ for i = 1:length(prediction_files)
     kc2_ref_vn  = strcat(kc2_vn, "_ref");
     kc1_pred_vn = strcat(kc1_vn, "_pred"); 
     kc2_pred_vn = strcat(kc2_vn, "_pred");
+    
+    %% Don't clobber results
+    if ~overwrite_results && isfile(prediction_results_error_file)
+        fprintf("Results already computed. Skipping...\n");
+        continue
+    end
     
     %% Initialize results table
     results_tbl_varnames = reshape(["FBG_Pred_", "FBG_Cam_", "Pred_Cam_"] + [
@@ -367,10 +379,6 @@ for i = 1:length(prediction_files)
     end
     
     %% Save the results
-    prediction_results_error_file = strrep( ...
-        prediction_file, ".xlsx", "_errors.xlsx" ...
-    );
-    
     % join the tables
     prediction_result_error_tbl = horzcat(...
         prediction_results.data, ...
