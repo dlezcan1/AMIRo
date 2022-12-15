@@ -35,12 +35,13 @@ function configure_env(status)
     % configure the environment
     if strcmp(status, 'on')
         if pyenv().Status ~= matlab.pyclient.Status.Loaded
-            pyenv('Version', '3.8');   
+%             pyenv('Version', '3.8');  
+            pyenv('Version', '~/miniforge3/envs/amiro/bin/python')
         end
         addpath(shapesensing_src);
-%         if count(py.sys.path, pydir) == 0
-%             insert(py.sys.path, int32(0), pydir);
-%         end
+        if count(py.sys.path, pydir) == 0
+            insert(py.sys.path, int32(0), pydir);
+        end
         disp("Shape sensing environment enabled.");
     else
         rmpath(shapesensing_src);

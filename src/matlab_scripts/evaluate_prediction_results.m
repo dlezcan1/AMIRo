@@ -4,7 +4,7 @@
 %
 % - written by: Dimitri Lezcano
 
-configure_env on;
+% configure_env on;
 clear; close all;
 %% Load the data and shape-sensing results
 data_dir = "D:/git/amiro/prediction_ml/results";
