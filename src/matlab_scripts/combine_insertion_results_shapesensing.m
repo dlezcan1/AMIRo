@@ -203,7 +203,7 @@ act_result_summ_stiff2 = act_result_summ_stiff2(act_result_summ_stiff2.TissueSti
 if save_bool
     % .mat file
     save(fullfile(save_dir, combined_result_file), 'act_result_tbl');
-    fprintf("Saved data to: %s\n", fullfile(needle_dir, combined_result_file));
+    fprintf("Saved data to: %s\n", fullfile(save_dir, combined_result_file));
     
 %     % tables
 %     writetable(act_result_tbl, fullfile(save_dir, result_excel_file_base),...

@@ -19,7 +19,7 @@ needle_dir = fullfile("../../data", "3CH-4AA-0004");
 expmt_results = load( fullfile( ...
         needle_dir,...
         "Insertion_Experiment_Results",...
-        "FBG-Camera-Comp_tip-pcr_FBG-weights_combined-results-complete.mat" ...
+        "FBG-Camera-Comp_tip-pcr_FBG-weights_combined-results.mat" ...
     ) ...
 );
 expmt_results_tbl = expmt_results.act_result_tbl;
@@ -31,7 +31,7 @@ needle_mechparam_file = fullfile('../../shape-sensing', ...
 needle_mechparams = load(needle_mechparam_file);
 
 % run options
-overwrite_results = false; % true if you want to overwrite analysis
+overwrite_results = true; % true - if you want to overwrite analysis
 
 %% Run prediction results
 for i = 1:length(prediction_files)
@@ -105,7 +105,7 @@ for i = 1:length(prediction_files)
            singlebend_singlelayer_pred.w_init_pred_1(expmt_idx);
            singlebend_singlelayer_pred.w_init_pred_2(expmt_idx);
            singlebend_singlelayer_pred.w_init_pred_3(expmt_idx);
-      ];
+       ];
   
        % get the curernt experiment results
        expmt_result = expmt_results_tbl(...
@@ -132,6 +132,10 @@ for i = 1:length(prediction_files)
            singlebend_singlelayer_data.Index(expmt_idx) == prediction_results.data.Index, ...
            1 ...
        );
+   
+       if errors.pred2fbg.Max > 10
+           disp("There is a large error here!");
+       end
        
        prediction_results.results.FBG_Pred_RMSE(indx)          = errors.pred2fbg.RMSE;
        prediction_results.results.FBG_Pred_MaxError(indx)      = errors.pred2fbg.Max;
