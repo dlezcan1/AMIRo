@@ -18,8 +18,8 @@ function summarize_prediction_results(...
         actual_results_file     string
         expmt_assignments_file  string
         save_dir                string
-        singlebend_vn           string = "singlebend"
-        num_layers_vn           string = "num_layers";
+        singlebend_vn           string = "singlebend_pred"
+        num_layers_vn           string = "num_layers_pred";
     end
     
     %% Load the results table

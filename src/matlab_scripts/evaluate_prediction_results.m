@@ -19,7 +19,7 @@ needle_dir = fullfile("../../data", "3CH-4AA-0004");
 expmt_results = load( fullfile( ...
         needle_dir,...
         "Insertion_Experiment_Results",...
-        "FBG-Camera-Comp_tip-pcr_FBG-weights_combined-results.mat" ...
+        "FBG-Camera-Comp_tip-pcr_FBG-weights_combined-results_recomputed.mat" ...
     ) ...
 );
 expmt_results_tbl = expmt_results.act_result_tbl;
@@ -55,6 +55,8 @@ for i = 1:length(prediction_files)
         kc2_vn = "kc2";
         singlebend_vn = strcat(singlebend_vn, "_pred");
         num_layers_vn = strcat(num_layers_vn, "_pred");
+    else
+        continue; % skip non-joint data
     end
     
     kc1_ref_vn  = strcat(kc1_vn, "_ref"); 
@@ -116,13 +118,17 @@ for i = 1:length(prediction_files)
        );
        
        pos_cam      = expmt_result.cam_shape{1}';
-       pos_fbg_act  = [zeros(3, 1), expmt_result.fbg_shape{1}'];
+       pos_fbg_act  = expmt_result.fbg_shape{1}';
        pose_fbg_cam = expmt_result.Pose_nc{1}; 
        
        % compute predicted position
        pos_fbg_pred = singlebend_singlelayer_shape( ...
            kc_pred, w_init_pred, L_pred, needle_mechparams ...
        );
+   
+       if size(pos_fbg_act, 2) < size(pos_fbg_pred)
+           pos_fbg_act = [zeros(3, 1), pos_fbg_act]; % append zeros
+       end
    
        % compute errors
        errors = compute_prediction_errors( pos_fbg_pred, pos_cam, pos_fbg_act, pose_fbg_cam );
@@ -193,7 +199,7 @@ for i = 1:length(prediction_files)
            , : ...
        );
        pos_cam      = expmt_result.cam_shape{1}';
-       pos_fbg_act  = [zeros(3, 1), expmt_result.fbg_shape{1}'];
+       pos_fbg_act  = expmt_result.fbg_shape{1}';
        pose_fbg_cam = expmt_result.Pose_nc{1}; 
        
        % unpack predictions
@@ -225,6 +231,10 @@ for i = 1:length(prediction_files)
        pos_fbg_pred = singlebend_doublelayer_shape(...
            kc1_pred, kc2_pred, w_init_pred, L_pred, z_crit, needle_mechparams ...
        );
+   
+       if size(pos_fbg_act, 2) < size(pos_fbg_pred, 2)
+           pos_fbg_act = [zeros(3, 1), pos_fbg_act];
+       end
    
        % compute errors
        errors = compute_prediction_errors( pos_fbg_pred, pos_cam, pos_fbg_act, pose_fbg_cam );
@@ -349,13 +359,17 @@ for i = 1:length(prediction_files)
            , : ...
        );
        pos_cam      = expmt_result.cam_shape{1}';
-       pos_fbg_act  = [zeros(3, 1), expmt_result.fbg_shape{1}'];
+       pos_fbg_act  = expmt_result.fbg_shape{1}';
        pose_fbg_cam = expmt_result.Pose_nc{1}; 
   
        % compute predicted shape
        pos_fbg_pred = doublebend_singlelayer_shape( ...
            kc_pred, w_init_pred, L_pred, s_dbl_bend, needle_mechparams ...
        );
+   
+       if size(pos_fbg_act, 2) < size(pos_fbg_pred)
+           pos_fbg_act = [zeros(3, 1), pos_fbg_act]; % append zeros
+       end
    
        % compute errors
        errors = compute_prediction_errors( pos_fbg_pred, pos_cam, pos_fbg_act, pose_fbg_cam );
@@ -429,14 +443,18 @@ for i = 1:numel(prediction_results_files)
    );
     
    mkdir(save_dir);
-   summarize_prediction_results( ...
-       prediction_results_f, ...
-       actual_results_f, ...
-       experiment_assignments_file, ...
-       save_dir, ...
-       singlebend_vn, ...
-       num_layers_vn ...   
-   );
+   try
+       summarize_prediction_results( ...
+           prediction_results_f, ...
+           actual_results_f, ...
+           experiment_assignments_file, ...
+           save_dir, ...
+           singlebend_vn, ...
+           num_layers_vn ...   
+       );
+   catch 
+       continue;
+   end
    disp(" ");
 end
 
@@ -466,7 +484,8 @@ function errors = compute_shape_errors(shape_ref, shape_pred)
     end
         
     % compute distances
-    devs = shape_ref - shape_pred;
+    M = min(size(shape_ref, 2), size(shape_pred, 2));
+    devs = shape_ref(:, end-M+1:end) - shape_pred(:, end-M+1:end);
     dists_sqr = dot(devs, devs, 1);
     
     errors.Min = sqrt(min(dists_sqr(2:end)));
