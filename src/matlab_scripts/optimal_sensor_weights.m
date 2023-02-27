@@ -18,12 +18,14 @@ if count(py.sys.path, pydir) == 0
 end
 
 % file set-up
-directory = "../../data/3CH-4AA-0004/";
-fbgneedle_param = fullfile(directory, '08-16-2021_Jig-Calibration',...
-    "needle_params_08-16-2021_Jig-Calibration_clinically-relevant-2_weighted.json");   % weighted calibration
+directory = "../../data/3CH-4AA-0005/";
+fbgneedle_param = fullfile( ...
+    directory, ...
+    '2022-01-26_Jig-Calibration',...
+    "needle_params_2022-01-26_Jig-Calibration_clinically-relevant-2_weighted.json");   % weighted calibration
 fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
-datadir = fullfile(directory, "08-16-2021_Jig-Calibration/"); % calibration-validation data
+datadir = fullfile(directory, "2022-01-26_Jig-Calibration"); % calibration-validation data
 data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
 proc_data_sheet = 'Calibration Validation Dataset';
 fig_save_file = "Jig_Shape_fit";
@@ -33,14 +35,14 @@ jig_offset = 26.0; % the jig offset of full insertion
 equal_weighting_lambda = 1; % weighting of how close to equal weighting
 curv_weighting = true;
 
-if contains(fbgneedle_param, '_clinically-relevant')
-    data_mats_file = strcat('clinically-relevant_', data_mats_file);
+if contains(fbgneedle_param, '_clinically-relevant') 
+%     data_mats_file = strcat('clinically-relevant_', data_mats_file);
     fig_save_file = strcat('clinically-relevant_', fig_save_file);
 elseif contains(fbgneedle_param, '_all')
-    data_mats_file = strcat('all_', data_mats_file);
+%     data_mats_file = strcat('all_', data_mats_file);
     fig_save_file = strcat('all_',fig_save_file);
 else
-    data_mats_file = strcat('jig_', data_mats_file);
+%     data_mats_file = strcat('jig_', data_mats_file);
     fig_save_file = strcat('jig_',fig_save_file);
 end
 

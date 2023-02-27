@@ -1,0 +1,15 @@
+{
+    "serial number": "3CH-4AA-0005",
+    "length": 200.0,
+    "diameter": 1.27,
+    "Emod": 200000,
+    "pratio": 0.29,
+    "# channels": 3,
+    "# active areas": 4,
+    "Sensor Locations": {
+        "1": 100.0,
+        "2": 135.0,
+        "3": 170.0,
+        "4": 190.0
+    }
+}

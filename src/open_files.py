@@ -48,7 +48,7 @@ def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> p
             continue
         # if
         new_row = pd.DataFrame( np.hstack( (ts, signals) ).reshape( 1, -1 ), columns=columns )
-        ret_val = ret_val.append( new_row, ignore_index=True )
+        ret_val = pd.concat( (ret_val, new_row), ignore_index=True, axis=0)
 
     # for
 

@@ -246,8 +246,6 @@ class FBGNeedleJigCalibrator:
 
         # instantiate the total dataframe
         total_df = pd.DataFrame( columns=self.total_df.columns )
-        proc_total_df = total_df.copy()
-        proc_Tcomp_total_df = proc_total_df.copy()
 
         # grab all of the data 
         for d, angle, curvature in dataset:
@@ -255,14 +253,14 @@ class FBGNeedleJigCalibrator:
             summary_df, _ = combine_fbgdata_directory( d, self.fbg_needle.num_channels, self.fbg_needle.num_activeAreas,
                                                        save=save )
 
-            new_row = summary_df.mean( numeric_only=True )
+            new_row = summary_df.mean( numeric_only=True ).to_frame().transpose()
             new_row[ 'time' ] = summary_df[ 'time' ].max()
             new_row[ 'angle' ] = 90 - angle  # rotate back into needle coordinate frame
             new_row[ 'Curvature (1/m)' ] = curvature
             new_row[ 'type' ] = type_exp
 
             # append the dataset
-            total_df = total_df.append( new_row, ignore_index=True )
+            total_df = pd.concat((total_df, new_row), ignore_index=True, axis=0)
 
         # for
 
@@ -273,10 +271,11 @@ class FBGNeedleJigCalibrator:
                 np.deg2rad( total_df[ 'angle' ] ) ).round( 10 )
 
         # process the signals
+        proc_total_df, proc_Tcomp_total_df = None, None
         for angle in total_df[ 'angle' ].unique():
             total_angle_df = total_df.loc[ total_df[ 'angle' ] == angle ]
-            proc_total_angle_df = total_angle_df.copy()
-            proc_total_Tcomp_angle_df = proc_total_angle_df.copy()
+            proc_angle_df = total_angle_df.copy()
+            proc_Tcomp_angle_df = proc_angle_df.copy()
             ref_wavelength = total_angle_df.loc[ total_angle_df[ 'Curvature (1/m)' ] == 0, ch_aa_head ].to_numpy()
             signals = total_angle_df[ ch_aa_head ].to_numpy()
 
@@ -285,12 +284,21 @@ class FBGNeedleJigCalibrator:
                                                                                  self.fbg_needle.num_channels,
                                                                                  self.fbg_needle.num_activeAreas )
 
-            proc_total_angle_df[ ch_aa_head ] = proc_signals
-            proc_total_Tcomp_angle_df[ ch_aa_head ] = proc_Tcomp_signals
+            proc_angle_df[ ch_aa_head ] = proc_signals
+            proc_Tcomp_angle_df[ ch_aa_head ] = proc_Tcomp_signals
 
             # add the data to the datasets
-            proc_total_df = proc_total_df.append( proc_total_angle_df, ignore_index=True )
-            proc_Tcomp_total_df = proc_total_df.append( proc_total_Tcomp_angle_df, ignore_index=True )
+            if proc_total_df is None:
+                proc_total_df = proc_angle_df
+
+            else:
+                proc_total_df = pd.concat((proc_total_df, proc_angle_df), axis=0)
+
+            if proc_Tcomp_total_df is None:
+                proc_Tcomp_total_df = proc_Tcomp_angle_df
+
+            else:
+                proc_Tcomp_total_df = pd.concat((proc_Tcomp_total_df, proc_Tcomp_angle_df), axis=0)
 
         # for
 
@@ -878,10 +886,10 @@ def combine_fbgdata_directory( directory: str, num_channels: int, num_active_are
         # if
 
         # add the mean values to the summary_df
-        new_row = df.mean( numeric_only=True )  # mean peak values
+        new_row = df.mean( numeric_only=True ).to_frame().transpose()  # mean peak values
         new_row[ 'time' ] = df[ 'time' ].max()  # latest time
 
-        summary_df = summary_df.append( new_row, ignore_index=True )
+        summary_df = pd.concat((summary_df, new_row), ignore_index=True)
 
     # for
 
