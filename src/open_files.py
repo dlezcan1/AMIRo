@@ -40,7 +40,7 @@ def read_fbgdata( filename: str, num_channels: int, num_active_areas: int ) -> p
     # iterate through each of the lines
     for line in lines:
         ts, signals = line.split( ':' )
-        ts = pd.to_datetime( ts, format="%H-%M-%S.%f" )
+        ts = pd.to_datetime( ts, format="%Y-%m-%d_%H-%M-%S" )
         signals = np.fromstring( signals, sep=',' )
 
         # make sure we have the correct number of signals

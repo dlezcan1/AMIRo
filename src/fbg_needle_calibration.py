@@ -21,7 +21,10 @@ from matplotlib.lines import Line2D
 
 import fbg_signal_processing
 import open_files
-from sensorized_needles import FBGNeedle
+from needle_shape_sensing.sensorized_needles import (
+    FBGNeedle,
+    MCFNeedle,
+)
 
 
 class FBGNeedleJigCalibrator:
@@ -47,8 +50,9 @@ class FBGNeedleJigCalibrator:
             calval_df:           The dataframe used for calibration and validation.
 
     """
-    directory_pattern = r".*{0}([0-9]+)_deg{0}([0-9].?[0-9]*){0}.*".format(
-            os.sep.replace( '\\', '\\\\' ) )  # directory pattern file structure
+    directory_pattern = r"([0-9]+.?[0-9]*)_deg{0}([0-9]+.?[0-9]*)".format(
+            os.sep.replace( '\\', '\\\\' )
+    )  # directory pattern file structure
 
     def __init__( self, fbg_needle: FBGNeedle,
                   calib_directory: str, calib_curvatures: list, calib_angles: list, weight_rule: callable = None,
@@ -79,7 +83,7 @@ class FBGNeedleJigCalibrator:
 
         # set up the total dataframe
         self.__col_header = [ "type", "angle", "Curvature (1/m)", "Curvature_x (1/m)", "Curvature_y (1/m)", "time" ] + \
-                            self.fbg_needle.generate_chaa()[ 0 ]
+                            self.fbg_needle.generate_ch_aa()[ 0 ]
         self.__pred_col_header = [ "AA{} Predicted Curvature_{} (1/m)".format( aa_i, ax ) for aa_i, ax in
                                    itertools.product( range( 1, self.fbg_needle.num_activeAreas + 1 ), [ 'x', 'y' ] ) ]
         self.total_df = pd.DataFrame( columns=self.__col_header )
@@ -197,7 +201,7 @@ class FBGNeedleJigCalibrator:
         # if
 
         # Search for all of the directories
-        directories = glob.glob( os.path.join( directory, '*_deg/*/*/' ) )  # get all of the files
+        directories = glob.glob( os.path.join( directory, '*_deg/*/' ) )  # get all of the files
 
         # iteratre through each to see if it matches the trial directory pattern
         for d in directories:
@@ -242,7 +246,7 @@ class FBGNeedleJigCalibrator:
         # if
 
         # AA headers
-        ch_aa_head, *_ = self.fbg_needle.generate_chaa()
+        ch_aa_head, *_ = self.fbg_needle.generate_ch_aa()
 
         # instantiate the total dataframe
         total_df = pd.DataFrame( columns=self.total_df.columns )
@@ -351,7 +355,7 @@ class FBGNeedleJigCalibrator:
 
         # determine predicted curvatures
         curv_prediction = self.fbg_needle.curvatures_processed(
-                calibration_df[ self.fbg_needle.generate_chaa()[ 0 ] ].to_numpy() )
+                calibration_df[ self.fbg_needle.generate_ch_aa()[0] ].to_numpy() )
         calibration_df[ self.__pred_col_header ] = curv_prediction.swapaxes( 1, 2 ).reshape( -1,
                                                                                              2 * self.fbg_needle.num_activeAreas )
         self.calval_df = self.calval_df.append( calibration_df, ignore_index=True )  # add to the calval_df
@@ -402,7 +406,7 @@ class FBGNeedleJigCalibrator:
         # perform reprojection errors
         print( "Computing errors...", end=' ' )
         curv_prediction = self.fbg_needle.curvatures_processed(
-                validation_df[ self.fbg_needle.generate_chaa()[ 0 ] ].to_numpy() )
+                validation_df[ self.fbg_needle.generate_ch_aa()[ 0 ] ].to_numpy() )
         validation_df.loc[ :, self.__pred_col_header ] = \
             curv_prediction.swapaxes( 1, 2 ).reshape( -1, 2 * self.fbg_needle.num_activeAreas )
 
@@ -434,7 +438,7 @@ class FBGNeedleJigCalibrator:
         # set-up
         color_scheme = [ 'b', 'g', 'r', 'y', 'c', 'm', 'k' ][ :self.fbg_needle.num_activeAreas ]
         pt_style = [ c + '.' for c in color_scheme ]  # point styles/
-        ch_aa_head = self.fbg_needle.generate_chaa()[ 0 ]
+        ch_aa_head = self.fbg_needle.generate_ch_aa()[ 0 ]
 
         # Predicted and actual curvatures
         error_fig, axs = plt.subplots( nrows=2, ncols=self.fbg_needle.num_activeAreas )
@@ -774,8 +778,17 @@ def calibrate_sensors_jig( *args, **kwargs ) -> (dict, dict):
         num_channels = fbg_needle.num_channels
         num_active_areas = fbg_needle.num_activeAreas
 
-        ch_aa_names, *_ = fbg_needle.generate_chaa()
-        aa_assignments = np.array( fbg_needle.assignments_AA() )
+        ch_aa_names, *_ = fbg_needle.generate_ch_aa()
+        aa_assignments = np.array( fbg_needle.assignments_aa() )
+        if isinstance(fbg_needle, MCFNeedle):
+            mask_centralcore = fbg_needle.assignments_centralcore()
+            ch_aa_names = [
+                    ch_aa
+                    for ch_aa, is_central_ch in zip(ch_aa_names, mask_centralcore)
+                    if not is_central_ch
+            ]
+            aa_assignments = aa_assignments[np.logical_not(mask_centralcore)]
+        #
 
     # if
 
@@ -1050,9 +1063,9 @@ def jig_process_signals( directory: str, dirs_degs: dict, fbg_needle: FBGNeedle,
                          outfile_base: str = "" ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     """ Process the FBG signals """
     # set-up
-    aa_assignments = np.array( fbg_needle.assignments_AA() )
-    ch_assignments = np.array( fbg_needle.assignments_CH() )
-    ch_aa_name, *_ = fbg_needle.generate_chaa()
+    aa_assignments = np.array( fbg_needle.assignments_aa() )
+    ch_assignments = np.array( fbg_needle.assignments_ch() )
+    ch_aa_name, *_ = fbg_needle.generate_ch_aa()
 
     # process all of the FBG data files
     for d in sum( dirs_degs.values(), [ ] ):
@@ -1363,7 +1376,7 @@ def main( args=None ):
 
     # load FBGNeedle
     fbg_needle = FBGNeedle.load_json( args.fbgParamFile )
-    print( "Current FBG Needle:" )
+    print( "Current {} Needle:".format("MCF" if isinstance(fbg_needle, MCFNeedle) else "FBG" ) )
     print( fbg_needle )
     print()
 
