@@ -443,6 +443,7 @@ class FBGNeedleJigCalibrator:
         # Predicted and actual curvatures
         error_fig, axs = plt.subplots( nrows=2, ncols=self.fbg_needle.num_activeAreas )
         error_fig.set_size_inches( [ 15, 8 ] )
+        curv_fig, curv_axs = plt.subplots( nrows=2, ncols=self.fbg_needle.num_activeAreas)
         sq_style = [ 's' + c for c in color_scheme ]
         for aa_i in range( 1, self.fbg_needle.num_activeAreas + 1 ):
             self.calval_df[ f'AA{aa_i} Error Curvature_x (1/m)' ] = \
@@ -480,20 +481,74 @@ class FBGNeedleJigCalibrator:
                                                                                  style='s',
                                                                                  xlabel='Curvature y (1/m)',
                                                                                  ylabel='Error in Curvature y (1/m)' )
+            
+            # plot calibration lines
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'calibration' ].plot( x='Curvature_x (1/m)',
+                                                                                  y=f'AA{aa_i} Predicted Curvature_x (1/m)',
+                                                                                  ax=curv_axs[ 0, aa_i - 1 ],
+                                                                                  style='.',
+                                                                                  xlabel='Curvature x (1/m)',
+                                                                                  ylabel='Predicted Curvature x (1/m)',
+                                                                                  title=f'Curvature of AA{aa_i}' )
+
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'calibration' ].plot( x='Curvature_y (1/m)',
+                                                                                  y=f'AA{aa_i} Predicted Curvature_y (1/m)',
+                                                                                  ax=curv_axs[ 1, aa_i - 1 ],
+                                                                                  style='.',
+                                                                                  xlabel='Curvature y (1/m)',
+                                                                                  ylabel='Predicted Curvature y (1/m)' )
+
+            # plot validation lines
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'validation' ].plot( x='Curvature_x (1/m)',
+                                                                                 y=f'AA{aa_i} Predicted Curvature_x (1/m)',
+                                                                                 ax=curv_axs[ 0, aa_i - 1 ],
+                                                                                 style='s',
+                                                                                 xlabel='Curvature x (1/m)',
+                                                                                 ylabel='Predicted Curvature x (1/m)' )
+
+            self.calval_df.loc[ self.calval_df[ 'type' ] == 'validation' ].plot( x='Curvature_y (1/m)',
+                                                                                 y=f'AA{aa_i} Predicted Curvature_y (1/m)',
+                                                                                 ax=curv_axs[ 1, aa_i - 1 ],
+                                                                                 style='s',
+                                                                                 xlabel='Curvature y (1/m)',
+                                                                                 ylabel='Predicted Curvature y (1/m)' )
+            
+            # plot true lines  y=x
+            kx = np.linspace(
+                self.calval_df['Curvature_x'].min(), 
+                self.calval_df['Curvature_x'].max(),
+                100
+            )
+            ky = np.linspace(
+                self.calval_df['Curvature_y'].min(), 
+                self.calval_df['Curvature_y'].max(),
+                100
+            )
+            curv_axs[0, aa_i-1].plot(kx, kx, 'r--', label='true')
+            curv_axs[1, aa_i-1].plot(ky, ky, 'r--', label='true')
 
             # format the axes
             axs[ 0, aa_i - 1 ].legend( [ 'calibration', 'validation' ] )
             axs[ 1, aa_i - 1 ].legend( [ 'calibration', 'validation' ] )
+            curv_axs[ 0, aa_i - 1 ].legend( [ 'calibration', 'validation' ] )
+            curv_axs[ 1, aa_i - 1 ].legend( [ 'calibration', 'validation' ] )
 
         # for
         error_fig.suptitle( "Predicted curvature error" )
         outfile_fig_error = os.path.join( outdir,
                                           f"{outfile_base}all-curvature-error.png" )
+        outfile_fig_curv = os.path.join( outdir,
+                                         f"{outfile_base}all-curvatures.png")
         if self.weighted:
             outfile_fig_error = outfile_fig_error.replace( '.png', '_weighted.png' )
+            outfile_fig_curv  = outfile_fig_curv.replace( '.png', '_weighted.png' )
+        
+        # if
 
         error_fig.savefig( outfile_fig_error )
         print( "Saved figure: {}".format( outfile_fig_error ) )
+        curv_fig.savefig( outfile_fig_curv )
+        print( "Saved figure: {}".format( outfile_fig_curv ) )
 
         # Output the Excel sheets of the data
         data_outfile = f"{outfile_base}Jig-Calibration-Validation-Data.xlsx"
