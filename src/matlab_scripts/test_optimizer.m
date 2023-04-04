@@ -1,9 +1,14 @@
 clear;
-kc_act = 0.002;
-w_init_act = [0.005, 0.003, -0.001]';
+kc_act = 0.001;
+w_init_act = [0.005, 0.003, -0.01]';
 
+<<<<<<< Updated upstream
 L = 35;
 s_meas = [10, 45, 80, 100];
+=======
+L = 200;
+s_meas = [10, 30, 65, 100];
+>>>>>>> Stashed changes
 ds = 0.5;
 s = 0:ds:L;
 s_idx_aa = find(any(s' == s_meas, 2));
@@ -23,6 +28,7 @@ Binv = inv(B);
 curvs_aa = wv(1:2, s_idx_aa);
 weights = ones(1, length(s_idx_aa));
 
+<<<<<<< Updated upstream
 %% 
 curvs_aa = [
     8.927878507420123e-05, ...
@@ -38,6 +44,16 @@ L = 35;
 s_aa = [10, 30, 65, 100];
 mask_in = s_aa <= L;
 
+=======
+curvs_aa = [
+    -0.00010360637616939758, -0.0009423841218937366;
+    2.790138306940568e-05, -0.00028069456751391017;
+    4.1899078345001015e-06, 4.784952322792695e-07;
+    -1.2163316166428914e-05, -3.564428214474146e-05
+]';
+
+curvs_aa = [curvs_aa(2, :); curvs_aa(1, :)]
+>>>>>>> Stashed changes
 
 
 
@@ -51,8 +67,8 @@ scalef = 1/Cval;
 
 % optimization
 x0 = eta; % initial value
-LB = [-0.01*ones(3,1);0]; % lower bound
-UB = [0.01*ones(3,1);0.01]; % upper bound
+LB = [-0.01*ones(2,1); -0.001; 0]; % lower bound
+UB = [0.01*ones(2,1); -LB(3); 0.01]; % upper bound
 
 oldopts = optimset('fmincon');
 options = optimset(oldopts,'Algorithm','interior-point','TolFun',1e-8,'TolX',1e-8,...
@@ -63,10 +79,12 @@ options = optimset(oldopts,'Algorithm','interior-point','TolFun',1e-8,'TolX',1e-
 
 w_init = x(1:3);
 kc = x(4);
+disp("w_init = ")
 disp(w_init');
 fprintf("kc = %.9f\n", kc);
-disp(kc - kc_act);
-disp((w_init - w_init_act)');
+% fprintf("error kc = %.9f\n", kc - kc_act);
+% disp("Error in w_init")
+% disp((w_init - w_init_act)');
 
 %% Helper functions
 function y = costfn_shape_singlebend(eta,data,s_index_meas,ds,N,B,Binv,scalef,weights) 
