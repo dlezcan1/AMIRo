@@ -12,7 +12,7 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/fbg_needle_calibration.py" />
-    <option name="PARAMETERS" value="data/7CH-4AA-0001-MCF-even/needle_params_7CH-4AA-0001-MCF-even.json --calib-directory data/7CH-4AA-0001-MCF-even/2023-03-29_Jig-Calibration --valid-directory data/7CH-4AA-0001-MCF-even/2023-03-29_Jig-Validation --angles 0 90 180 270 --calib-curvatures 0 0.25 0.5 0.8 1.0 2.5 4.0 --valid-curvatures 0 1.25 1.6 2.0 3.125 3.2 --cutoff-weight-rule 1.0 1 0.05 --new-needleparam-file needle_params_{}_clinically-relevant-2.json" />
+    <option name="PARAMETERS" value="data/3CH-4AA-0005/needle_params.json --calib-directory data/3CH-4AA-0005/2022-01-26_Jig-Calibration --valid-directory data/3CH-4AA-0005/2023-03-29_Jig-Validation --angles 0 90 180 270 --calib-curvatures 0 0.25 0.5 0.8 1.0 1.25 1.6 2.0 2.5 4.0 --valid-curvatures 0 3.125 3.2 --cutoff-weight-rule 1.0 1.5 0.05 --new-needleparam-file needle_params_{}_clinically-relevant-k-1.5.json" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

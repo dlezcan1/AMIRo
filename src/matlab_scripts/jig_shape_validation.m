@@ -9,7 +9,7 @@ set(0,'DefaultAxesFontSize',24);
 clear;
 %% Set-up 
 % options
-save_bool = false;
+save_bool = true;
 process_only = false;
 
 % python set-up
@@ -20,11 +20,11 @@ if count(py.sys.path, pydir) == 0
 end
 
 % file set-up
-directory = "../../data/3CH-4AA-0004/";
+directory = "../../data/7CH-4AA-0001-MCF-even/";
 fbgneedle_param = fullfile(directory, ...
-    "needle_params_2021-08-16_Jig-Calibration_best.json"); 
+    "needle_params_7CH-4AA-0001-MCF-even_2023-03-29_Jig-Calibration_clinically-relevant-2_weighted_weights.json"); 
 
-datadir = fullfile(directory, "2021-08-16_Jig-Calibration/"); % calibration-validation data
+datadir = fullfile(directory, "2023-03-29_Jig-Calibration/"); % calibration-validation data
 data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
 proc_data_sheet = 'Calibration Validation Dataset';
 
@@ -33,7 +33,7 @@ jig_offset = 26.0; % the jig offset of full insertion
 % AA_weights = [ 0.613865, 0.386135, 0.000000, 0.000000 ]; [ 0.774319, 0.090095, 0.135586 ]; % [AA1, AA2, AA3, AA4] reliability weighting
 fig_save_file = "Jig_Shape_fit";
 if contains(fbgneedle_param, 'clinically-relevant')
-    data_mats_file = strcat('clinically-relevant_', data_mats_file);
+%     data_mats_file = strcat('clinically-relevant_', data_mats_file);
     fig_save_file = strcat('clinically-relevant_', fig_save_file);
 elseif contains(fbgneedle_param, '_all')
     data_mats_file = strcat('all_', data_mats_file);
@@ -59,6 +59,8 @@ fig_save_file = fullfile(datadir, fig_save_file);
 fbg_needle = py.sensorized_needles.FBGNeedle.load_json(fbgneedle_param);
 disp("FBGNeedle class loaded.")
 
+mcf_channel = 4;
+
 % channel list
 ch_list = 1:double(fbg_needle.num_channels);
 CH_list = "CH" + ch_list;
@@ -77,6 +79,11 @@ if py.len(fbg_needle.weights) > 0
     fig_save_file = fig_save_file + "_weights";
 else
     AA_weights = [];
+end
+
+if mcf_channel > 0
+    mask_centralcore = contains(CH_AA, CH_list(mcf_channel));
+    CH_AA = CH_AA(~mask_centralcore);
 end
 
 %% load the data matrices TODO
@@ -100,7 +107,7 @@ for AA_i = AA_list
     signals = data_mats.(AA_i){:,CH_AA_i};
     pred_curv = signals * cal_mat;
     data_mats.(AA_i).PredCurvX = pred_curv(:,1);
-    data_mats.(AA_i).PredCurvY = -pred_curv(:,2); % TODO update the fix with cal. matrices
+    data_mats.(AA_i).PredCurvY = pred_curv(:,2);
     data_mats.(AA_i).PredCurv = vecnorm([data_mats.(AA_i).PredCurvX, data_mats.(AA_i).PredCurvY], 2, 2);
     disp("Calculated predicted curvature vector from " + AA_i + ".");
 end
@@ -211,7 +218,8 @@ xlim([0, 4 + min(rmse_summ_tbl.Curvature(mask_nonzero_curv))]);
 
 %- add x and y-lines
 xline(1, 'r--', 'Clinically-Relavant', 'LabelHorizontalAlignment', 'left', 'LineWidth', 2, 'FontSize', 18);
-
+saveas(fig_summ, fig_save_file + "_curvature-error-distribution.png");
+disp("Saved figure: " + fig_save_file + "_curvature-error-distribution.png");
 
 %% Termination
 disp("Program Terminated.");

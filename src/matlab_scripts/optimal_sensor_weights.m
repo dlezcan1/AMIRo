@@ -18,14 +18,13 @@ if count(py.sys.path, pydir) == 0
 end
 
 % file set-up
-directory = "../../data/3CH-4AA-0005/";
+directory = "../../data/7CH-4AA-0001-MCF-even";
 fbgneedle_param = fullfile( ...
     directory, ...
-    '2022-01-26_Jig-Calibration',...
-    "needle_params_2022-01-26_Jig-Calibration_clinically-relevant-2_weighted.json");   % weighted calibration
+    "needle_params_7CH-4AA-0001-MCF-even_2023-03-29_Jig-Calibration_clinically-relevant-2_weighted.json");   % weighted calibration
 fbgneedle_param_weight = strrep(fbgneedle_param, '.json', '_weights.json'); % weighted fbg parmeters
 
-datadir = fullfile(directory, "2022-01-26_Jig-Calibration"); % calibration-validation data
+datadir = fullfile(directory, "2023-03-29_Jig-Calibration"); % calibration-validation data
 data_mats_file = "Jig-Calibration-Validation-Data.xlsx"; % all data
 proc_data_sheet = 'Calibration Validation Dataset';
 fig_save_file = "Jig_Shape_fit";
@@ -34,6 +33,8 @@ fig_save_file = "Jig_Shape_fit";
 jig_offset = 26.0; % the jig offset of full insertion
 equal_weighting_lambda = 1; % weighting of how close to equal weighting
 curv_weighting = true;
+handle_mcf = true; % remove central core from signal processing
+mcf_channel = 4;
 
 if contains(fbgneedle_param, '_clinically-relevant') 
 %     data_mats_file = strcat('clinically-relevant_', data_mats_file);
@@ -67,6 +68,17 @@ aa_list = 1:double(fbg_needle.num_aa);
 AA_list = "AA" + aa_list; % the "AAX" string version
 ret     = fbg_needle.generate_chaa();
 CH_AA   = cellfun(@char,cell(ret{1}),'UniformOutput',false);
+if handle_mcf
+    try
+        disp("MCF Needle!");
+        mask_centralcore = contains(CH_AA, CH_list(mcf_channel));
+        CH_AA = CH_AA(~mask_centralcore);
+        
+    catch
+        disp("Not an MCF Needle!");
+    end
+end
+    
 
 %% load the data matrices TODO
 data_mats = struct();
