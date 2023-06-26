@@ -1,0 +1,23 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Needle Ref Insertion Reconstruction - Test" type="PythonConfigurationType" factoryName="Python" folderName="Needle Reconstruction" singleton="true">
+    <module name="amiro" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs>
+      <env name="PYTHONUNBUFFERED" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/amiro-cv" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/amiro-cv/src/needle_reconstruction.py" />
+    <option name="PARAMETERS" value="--force-overwrite --show-processed --left-roi 40 200 -60 -300 --right-roi 30 250 -75 -250 --subtract-thresh 60 --left-contrast-enhance 2 0 --right-contrast-enhance 2 0 --zoom 1.0 --window-size 301 301 calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/calibrationSession_params-error_opencv-struct.mat ../data/3CH-4AA-0004/2021-11-10_Insertion-Expmt-1" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="false" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>
