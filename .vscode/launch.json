@@ -1,0 +1,68 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Needle Reconstruction Setup",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/amiro-cv/src/needle_segmentation_script.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${userHome}/data/Jacynthe-Needle/2023-05-25/results/Insertion6/120.0/right.png"
+            ]
+        },
+        {
+            "name": "Perform Needle Reconstruction",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/amiro-cv/src/needle_reconstruction.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--force-overwrite",
+                "--save",
+                // "--show-processed",
+
+                "--left-roi",
+                "150", "380", "-220", "-100",
+                "--right-roi",
+                "200", "300", "-200", "-350",
+
+                "--left-blackout",
+                "450", "0", "600", "-1",
+                // "0", "343", "-1", "530",
+                "--right-blackout",
+                "450", "0", "620", "-1",
+                // "0", "150", "-1", "330",
+
+                "--subtract-thresh", "35",
+
+                "--left-contrast-enhance",  "2.5", "0",
+                "--right-contrast-enhance", "2.5", "0",
+
+                "--zoom", "2.0",
+                "--window-size", "51", "401",
+
+                "--segmentation-num-connected-components-keep", "2",
+                "--segmentation-bspline-order", "1",
+                "--segmentation-outlier-thresh", "-1",
+                "--segmentation-outlier-scale", "1", "1",
+                "--segmentation-outlier-num-neighbors", "20",
+
+                "--stereomatch-bspline-order", "2",
+                "--stereomatch-tm-score-thresh", "0.5",
+                "--stereomatch-outlier-thresh", "0.05",
+                "--stereomatch-outlier-scale", "100", "0.001",
+                "--stereomatch-outlier-num-neighbors", "35",
+                // "--stereomatch-use-roi",
+
+                "${workspaceFolder}/amiro-cv/calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/calibrationSession_params-error_opencv-struct.mat",
+                "${userHome}/data/Jacynthe-Needle/2023-05-25/results"
+            ]
+        }
+    ]
+}
