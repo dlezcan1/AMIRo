@@ -4,6 +4,7 @@ from abc import (
 )
 import argparse as ap
 import glob
+import itertools
 import os
 import re
 
@@ -224,7 +225,7 @@ class FBGSensorDataPostProcessor(NeedleDataPostProcessor):
 
                 mean_proc_sensor_Tcomp.to_excel(
                     xl_writer,
-                    sheet_name="mean Tcomp procesed wavelengths",
+                    sheet_name="avg Tcomp processed wavelengths",
                 )
 
             # with
@@ -262,9 +263,138 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
     # __init__
 
     def process_trial(self, trial_meta: Dict[str, Any], save: bool = False):
-        raise NotImplementedError("TODO: Implement this Post-processing of the shape data")
+        
+        # get the updated FBG sensor data
+        in_dir         = os.path.split(trial_meta["filename"])[0]
+        fbgsensor_data = self.get_sensor_data(in_dir)
+
+        if fbgsensor_data is None:
+            print(F"[WARNING]: {in_dir} does not have any usable FBG sensor data")
+            return
+        # if
+
+        results = dict()
+
+        # get current shape parameters
+        current_kc    = pd.read_excel(
+            trial_meta["filename"],
+            sheet_name="kappa_c",
+            header=None,
+            index_col=None,
+        ).to_numpy().ravel()
+        current_winit = pd.read_excel(
+            trial_meta["filename"],
+            sheet_name="winit",
+            header=None,
+            index_col=None,
+        ).to_numpy().ravel()
+        insertion_depth = trial_meta["depth"]
+        
+        # process curvature
+        self.fbg_needle.update_wavelengths(
+            np.zeros(self.fbg_needle.num_signals), 
+            reference=True,
+            temp_comp=False,
+        )
+        _, curvatures = self.fbg_needle.update_wavelengths(
+            fbgsensor_data,
+            processed=True,
+            reference=False,
+            temp_comp=False, # Should already be temperature-compensated
+        )
+
+        results["curvatures"] = pd.DataFrame(
+            np.reshape(curvatures, (-1, 2*self.fbg_needle.num_activeAreas), order='F'),
+            columns = [ 
+                f"curvature {ax} | AA {aa_i}" 
+                for aa_i, ax in itertools.product(
+                    range(1, self.fbg_needle.num_activeAreas + 1), 
+                    ["x", "y"]
+                )
+            ]
+        )
+
+        # process shape
+        self.fbg_needle.current_depth = insertion_depth
+        results["shape"], _           = self.fbg_needle.get_needle_shape(*current_kc, current_winit)
+        results["kappa_c"]            = np.asarray(self.fbg_needle.current_kc)
+        results["winit"]              = np.asarray(self.fbg_needle.current_winit)
+
+        if save:
+            out_file = os.path.join(in_dir, self.out_file)
+            with pd.ExcelWriter(out_file, engine='xlsxwriter') as xl_writer:
+                results["curvatures"].transpose().to_excel(
+                    xl_writer,
+                    sheet_name="curvature",
+                    header=False,
+                    index=False,
+                )
+
+                pd.DataFrame(results["kappa_c"]).to_excel(
+                    xl_writer,
+                    sheet_name="kappa_c",
+                    header=False,
+                    index=False,
+                )
+
+                pd.DataFrame(results["winit"]).to_excel(
+                    xl_writer,
+                    sheet_name="winit",
+                    header=False,
+                    index=False,
+                )
+
+                pd.DataFrame(results["shape"]).to_excel(
+                    xl_writer,
+                    sheet_name="shape",
+                    header=False,
+                    index=False,
+                )
+
+            # with
+            print("Saved needle shape data to:", out_file)
+            
+        # if: save
+
+        return results
 
     # process_trial
+
+    def get_sensor_data(self, dir: str):
+        sensor_data_file = self.sensor_data_file
+        if sensor_data_file is None:
+            if os.path.isfile(os.path.join(dir, FBGSensorDataPostProcessor.POST_SENSOR_DATA_FILE)):
+                sensor_data_file = FBGSensorDataPostProcessor.POST_SENSOR_DATA_FILE
+
+            # if
+            elif os.path.isfile(os.path.join(dir, FBGSensorDataPostProcessor.SENSOR_DATA_FILE)):
+                sensor_data_file = FBGSensorDataPostProcessor.SENSOR_DATA_FILE
+
+            # elif
+            else:
+                return None
+
+        # if
+
+        df = None
+        try:
+            df = pd.read_excel(
+                os.path.join(dir,sensor_data_file), 
+                sheet_name="avg Tcomp processed wavelengths",
+                index_col=0,
+                header=0,
+            ).to_numpy().ravel()
+
+        except ValueError as e:
+            pass # Do nothing
+
+        return df
+
+    # get_sensor_data
+
+
+
+            
 
 # class: ShapeDataPostProcessor
 
@@ -311,13 +441,20 @@ def __parse_args(args = None):
         help="Post-process the FBG sensor data"
     )
 
+    toggle_grp.add_argument(
+        "--parse-needle-shape-data",
+        action="store_true",
+        help="Post-process the needle shape data"
+    )
+
 
     return parser.parse_args(args)
 
 # __parse_args
 
 def main(args = None):
-    ARGS = __parse_args(args)
+    ARGS           = __parse_args(args)
+    parser_run_options = dict(filter(lambda x: x[0].startswith("parse_"), ARGS._get_kwargs()))
 
     data_dir = ARGS.data_dir
 
@@ -329,20 +466,33 @@ def main(args = None):
 
     # if
 
-    post_processers: List[DataPostProcessor] = list()
-    if ARGS.parse_fbg_sensor_data:
-        post_processers.append(
-            FBGSensorDataPostProcessor(
+    all_processors = {
+        "parse_fbg_sensor_data": 
+            lambda: FBGSensorDataPostProcessor(
                 data_dir,
                 fbg_needle,
                 data_file=None, # use defaults
                 out_file=None,  # use defaults
-            )
-        )
+            ),
+        "parse_needle_shape_data":
+            lambda: ShapeDataPostProcessor(
+                data_dir,
+                fbg_needle,
+                data_file=None,       # use defaults
+                out_file=None,        # use defaults
+                sensor_data_file=None # use defaults
+            ),
+    }
 
-    # if
+    post_processers: List[DataPostProcessor] = list()
 
-    # TODO: handle needle shape data
+    for parse_name, parser_const in all_processors.items():
+        if not parser_run_options[parse_name]:
+            continue
+
+        post_processers.append(parser_const())
+
+    # for
 
     for processor in post_processers:
         print("Post-processing data with:", type(processor).__qualname__)
