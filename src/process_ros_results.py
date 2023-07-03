@@ -18,6 +18,7 @@ from typing import (
     Any,
 )
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -37,6 +38,7 @@ class DataPostProcessor(ABC):
         # data information
         self.insertion_dirs: List              = None
         self.trial_files: List[Dict[str, Any]] = None
+        self.results                           = list()
 
     # __init__
 
@@ -115,25 +117,28 @@ class DataPostProcessor(ABC):
 
     # match_trial_pattern
 
-    def process_data(self, save: bool = False, multi_thread_count: int = 0):
+    def process_data(self, save: bool = False, multi_thread_count: int = 0, show_plots: bool = False):
         """ Post process the data """
         assert self.is_configured, "Processor is not configured yet! Call the `configure_dataset` method first"
-
-        results = list()
 
         def process_trial_target(trial_meta):
             result = self.process_trial(trial_meta, save=save)
 
+            if show_plots:
+                plt.show()
+
+            plt.close('all')
+
             return result
-        
+
         # process_trial_target
 
-        # TODO: add multithreading (0-1 = single-thread, -1 = all threads, > 1 = # threads to use )
         num_threads = min(
             multiprocessing.cpu_count(),
             multi_thread_count if multi_thread_count >= 0 else multiprocessing.cpu_count()
         )
 
+        results = list()
         if num_threads <= 1:
             for trial_meta in self.trial_files:
                 results.append(process_trial_target(trial_meta))
@@ -147,8 +152,10 @@ class DataPostProcessor(ABC):
             # with
         # else
 
+        self.results = results
+
         return results
-    
+
     # process_data
 
     @abstractmethod
@@ -173,9 +180,9 @@ class FBGSensorDataPostProcessor(NeedleDataPostProcessor):
     POST_SENSOR_DATA_FILE = SENSOR_DATA_FILE.replace(".xlsx", "_post-proc.xlsx")
 
     def __init__(
-            self, 
-            data_dir: str, 
-            fbg_needle: ShapeSensingFBGNeedle, 
+            self,
+            data_dir: str,
+            fbg_needle: ShapeSensingFBGNeedle,
             data_file: str = None,
             out_file: str = None,
         ):
@@ -197,24 +204,127 @@ class FBGSensorDataPostProcessor(NeedleDataPostProcessor):
             index_col=0,
         )
 
-        ch_aa = self.fbg_needle.generate_ch_aa()[0]
+        ch_aa, ch_names, aa_names = self.fbg_needle.generate_ch_aa()
         proc_sensor_df.columns = ch_aa
 
         # perform temperature compensation
         proc_sensor_Tcomp_df        = proc_sensor_df.copy()
         proc_sensor_Tcomp_df[ch_aa] = self.fbg_needle.temperature_compensate(proc_sensor_df[ch_aa].to_numpy())
         mean_proc_sensor_Tcomp      = proc_sensor_Tcomp_df[ch_aa].mean(axis=0)
-        
+
+        # get curvatures
+        self.fbg_needle.update_wavelengths(
+            np.zeros(self.fbg_needle.num_signals),
+            reference=True,
+            processed=True,
+            temp_comp=False
+        )
+        curvatures = np.stack(
+            [
+                self.fbg_needle.curvatures_processed(wl_Tcomp[ch_aa].to_numpy())
+                for idx, wl_Tcomp in proc_sensor_df.iterrows()
+            ],
+            axis=0
+        )
+        curvatures_df = pd.DataFrame(
+            curvatures.reshape(-1, curvatures.shape[1] * curvatures.shape[2], order='F'),
+            columns=[
+                f"{ax} curvature | {aa_name}"
+                for aa_name, ax in itertools.product(aa_names, ["x", "y"])
+            ]
+        )
+        curvatures_df.set_index(proc_sensor_df.index, inplace=True, drop=True)
+        mean_curvatures_df = curvatures_df.mean(axis=0)
+
         results = {
             "Tcomp wavlength shifts"      : proc_sensor_Tcomp_df,
             "mean Tcomp wavelength shifts": mean_proc_sensor_Tcomp,
+            "curvatures"                  : curvatures_df,
+            "mean curvatures"             : mean_curvatures_df,
         }
 
-        if save:
-            out_file = os.path.join(
-                os.path.split(trial_meta["filename"])[0],
-                self.out_file
+        # plot
+        # - signals
+        fig_wls, axs_wls = plt.subplots(
+            nrows=1,
+            ncols=self.fbg_needle.num_activeAreas,
+            sharex=True,
+            sharey=True,
+            figsize=(18, 6),
+        )
+
+        for aa_i in range(self.fbg_needle.num_activeAreas):
+            mask_aa_i = self.fbg_needle.assigment_mask_aa(aa_i+1)
+            proc_sensor_Tcomp_df[ch_aa[mask_aa_i]]\
+                .rename(
+                    columns=lambda x: x.split(" | ")[0]
+                ).plot(
+                subplots=False,
+                ax=axs_wls[aa_i],
+                legend=True,
             )
+
+            axs_wls[aa_i].set_xlabel("Timestamp")
+            axs_wls[aa_i].set_title(aa_names[aa_i])
+
+        # for
+        axs_wls[0].set_ylabel("Temp Comp. Processed Wavelengths (nm)")
+
+        fig_wls.suptitle("Temperature Compensated Wavelength Shifts")
+
+        # - curvatures
+        fig_curv, axs_curv = plt.subplots(
+            nrows=2,
+            ncols=self.fbg_needle.num_activeAreas,
+            sharex=True,
+            sharey=True,
+            figsize=(18,8),
+        )
+        curv_x_mask = np.asarray(["x curvature" in col for col in curvatures_df.columns])
+        curv_y_mask = np.logical_not(curv_x_mask)
+        for aa_i in range(self.fbg_needle.num_activeAreas):
+            mask_aa_i = np.asarray([aa_names[aa_i] in col for col in curvatures_df.columns])
+            axs_curv[0, aa_i].plot(
+                curvatures_df.index,
+                curvatures_df.loc[:, curv_x_mask & mask_aa_i],
+                '.',
+                label="Curvature",
+            )
+            axs_curv[0, aa_i].axhline(
+                mean_curvatures_df[curv_x_mask & mask_aa_i].item(),
+                ls='-',
+                color='r',
+                label="Avg. Curvature",
+            )
+            axs_curv[0, aa_i].legend()
+
+            axs_curv[1, aa_i].plot(
+                curvatures_df.index,
+                curvatures_df.loc[:, curv_y_mask & mask_aa_i],
+                '.',
+                label="Curvature",
+            )
+            axs_curv[1, aa_i].axhline(
+                mean_curvatures_df[curv_y_mask & mask_aa_i].item(),
+                ls='-',
+                color='r',
+                label="Avg. Curvature",
+            )
+            axs_curv[1, aa_i].legend()
+
+            axs_curv[0, aa_i].set_title(aa_names[aa_i])
+            axs_curv[1, aa_i].set_xlabel("Timestamp")
+
+        # for
+
+        axs_curv[0, 0].set_ylabel("X Curvature (1/m)")
+        axs_curv[1, 0].set_ylabel("Y Curvature (1/m)")
+        fig_curv.suptitle("FBG-Sensed Curvatures")
+
+        # saving
+        if save:
+            odir = os.path.split(trial_meta["filename"])[0]
+            out_file = os.path.join( odir, self.out_file )
             with pd.ExcelWriter(out_file, engine='xlsxwriter') as xl_writer:
                 proc_sensor_Tcomp_df.to_excel(
                     xl_writer,
@@ -228,8 +338,24 @@ class FBGSensorDataPostProcessor(NeedleDataPostProcessor):
                     sheet_name="avg Tcomp processed wavelengths",
                 )
 
+                curvatures_df.to_excel(
+                    xl_writer,
+                    sheet_name="curvatures",
+                    index=True,
+                    header=True,
+                )
+
             # with
             print("Wrote processed sensor data file to:", out_file)
+
+            # save plots
+            out_file = os.path.join(odir, "sensor_data_post-proc_Tcomp-wavelengths.png")
+            fig_wls.savefig( out_file )
+            print("Saved wavelength post-processed sensor data figure to:", out_file)
+
+            out_file = os.path.join(odir, "sensor_data_post-proc_curvatures.png")
+            fig_curv.savefig( out_file )
+            print("Saved curvature post-processed sensor data figure to:", out_file)
 
         # if: save
 
@@ -245,9 +371,9 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
     POST_NEEDLE_DATA_FILE = NEEDLE_DATA_FILE.replace(".xlsx", "_post-proc.xlsx")
 
     def __init__(
-            self, 
-            data_dir: str, 
-            fbg_needle: ShapeSensingFBGNeedle, 
+            self,
+            data_dir: str,
+            fbg_needle: ShapeSensingFBGNeedle,
             data_file: str = None,
             out_file: str = None,
             sensor_data_file: str = None,
@@ -263,7 +389,6 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
     # __init__
 
     def process_trial(self, trial_meta: Dict[str, Any], save: bool = False):
-        
         # get the updated FBG sensor data
         in_dir         = os.path.split(trial_meta["filename"])[0]
         fbgsensor_data = self.get_sensor_data(in_dir)
@@ -289,10 +414,10 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
             index_col=None,
         ).to_numpy().ravel()
         insertion_depth = trial_meta["depth"]
-        
+
         # process curvature
         self.fbg_needle.update_wavelengths(
-            np.zeros(self.fbg_needle.num_signals), 
+            np.zeros(self.fbg_needle.num_signals),
             reference=True,
             temp_comp=False,
         )
@@ -305,10 +430,10 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
 
         results["curvatures"] = pd.DataFrame(
             np.reshape(curvatures, (-1, 2*self.fbg_needle.num_activeAreas), order='F'),
-            columns = [ 
-                f"curvature {ax} | AA {aa_i}" 
+            columns = [
+                f"curvature {ax} | AA {aa_i}"
                 for aa_i, ax in itertools.product(
-                    range(1, self.fbg_needle.num_activeAreas + 1), 
+                    range(1, self.fbg_needle.num_activeAreas + 1),
                     ["x", "y"]
                 )
             ]
@@ -353,7 +478,7 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
 
             # with
             print("Saved needle shape data to:", out_file)
-            
+
         # if: save
 
         return results
@@ -379,7 +504,7 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
         df = None
         try:
             df = pd.read_excel(
-                os.path.join(dir,sensor_data_file), 
+                os.path.join(dir,sensor_data_file),
                 sheet_name="avg Tcomp processed wavelengths",
                 index_col=0,
                 header=0,
@@ -394,7 +519,7 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
 
 
 
-            
+
 
 # class: ShapeDataPostProcessor
 
@@ -421,6 +546,12 @@ def __parse_args(args = None):
         "--save",
         action="store_true",
         help="Save the output post-processed data"
+    )
+
+    parser.add_argument(
+        "--show-plots",
+        action="store_true",
+        help="Show the plots (rather than save them)"
     )
 
     parser.add_argument(
@@ -467,7 +598,7 @@ def main(args = None):
     # if
 
     all_processors = {
-        "parse_fbg_sensor_data": 
+        "parse_fbg_sensor_data":
             lambda: FBGSensorDataPostProcessor(
                 data_dir,
                 fbg_needle,
@@ -498,7 +629,11 @@ def main(args = None):
         print("Post-processing data with:", type(processor).__qualname__)
         processor.configure_dataset()
 
-        processor.process_data(save=ARGS.save, multi_thread_count=ARGS.num_threads)
+        processor.process_data(
+            save=ARGS.save,
+            multi_thread_count=ARGS.num_threads,
+            show_plots=ARGS.show_plots,
+        )
 
     # for
 
