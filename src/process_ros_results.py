@@ -369,6 +369,7 @@ class FBGSensorDataPostProcessor(NeedleDataPostProcessor):
 class ShapeDataPostProcessor(NeedleDataPostProcessor):
     NEEDLE_DATA_FILE      = "needle_data.xlsx"
     POST_NEEDLE_DATA_FILE = NEEDLE_DATA_FILE.replace(".xlsx", "_post-proc.xlsx")
+    ROBOT_DATA_FILE       = "robot_pose.csv"
 
     def __init__(
             self,
@@ -377,6 +378,7 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
             data_file: str = None,
             out_file: str = None,
             sensor_data_file: str = None,
+            robot_data_file: str = None
         ):
         super().__init__(
             data_dir,
@@ -385,6 +387,7 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
             out_file=out_file if out_file is not None else ShapeDataPostProcessor.POST_NEEDLE_DATA_FILE,
         )
         self.sensor_data_file = sensor_data_file
+        self.robot_data_file  = robot_data_file
 
     # __init__
 
@@ -392,6 +395,7 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
         # get the updated FBG sensor data
         in_dir         = os.path.split(trial_meta["filename"])[0]
         fbgsensor_data = self.get_sensor_data(in_dir)
+        robot_data     = self.get_robot_data(in_dir)
 
         if fbgsensor_data is None:
             print(F"[WARNING]: {in_dir} does not have any usable FBG sensor data")
@@ -413,6 +417,12 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
             header=None,
             index_col=None,
         ).to_numpy().ravel()
+        current_shape = pd.read_excel(
+            trial_meta["filename"],
+            sheet_name="shape",
+            header=None,
+            index_col=None,
+        ).to_numpy()
         insertion_depth = trial_meta["depth"]
 
         # process curvature
@@ -442,6 +452,10 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
         # process shape
         self.fbg_needle.current_depth = insertion_depth
         results["shape"], _           = self.fbg_needle.get_needle_shape(*current_kc, current_winit)
+        results["shape"]             += (
+            current_shape[0:1] 
+            - np.reshape([0, 0, insertion_depth], (1, -1))
+        ) # FIXME: update with robot pose
         results["kappa_c"]            = np.asarray(self.fbg_needle.current_kc)
         results["winit"]              = np.asarray(self.fbg_needle.current_winit)
 
@@ -485,6 +499,34 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
 
     # process_trial
 
+    def get_robot_data(self, dir: str):
+        robot_data_file = self.robot_data_file
+        if robot_data_file is None:
+            if os.path.isfile(os.path.join(dir, ShapeDataPostProcessor.ROBOT_DATA_FILE)):
+                robot_data_file = ShapeDataPostProcessor.ROBOT_DATA_FILE
+
+            # if
+            else:
+                return None
+            
+            # else
+        # if
+        
+        robot_tf = None
+        try:
+            robot_tf = pd.read_csv(
+                os.path.join(dir, robot_data_file),
+                index_col=None,
+                header=None,
+            ).to_numpy()
+
+        except ValueError as e:
+            pass # do nothing
+
+        return robot_tf
+    
+    # get_robot_data
+
     def get_sensor_data(self, dir: str):
         sensor_data_file = self.sensor_data_file
         if sensor_data_file is None:
@@ -501,10 +543,10 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
 
         # if
 
-        df = None
+        sensor_data = None
         try:
-            df = pd.read_excel(
-                os.path.join(dir,sensor_data_file),
+            sensor_data = pd.read_excel(
+                os.path.join(dir, sensor_data_file),
                 sheet_name="avg Tcomp processed wavelengths",
                 index_col=0,
                 header=0,
@@ -513,13 +555,9 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
         except ValueError as e:
             pass # Do nothing
 
-        return df
+        return sensor_data
 
     # get_sensor_data
-
-
-
-
 
 # class: ShapeDataPostProcessor
 

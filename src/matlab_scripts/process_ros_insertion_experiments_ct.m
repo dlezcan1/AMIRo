@@ -3,6 +3,8 @@
 % This is a script to handle post-processed ROS data 
 %
 % - written by: Dimitri Lezcano
+global EXPMT_TIMEZONE
+EXPMT_TIMEZONE = "America/New_York";
 
 %% Data Directory and File Setup
 % data directories
@@ -13,7 +15,7 @@ data_dir = fullfile( ...
     "2023-06-15_2023-06-16_Beef-Insertion-Experiment" ...
 );
 
-exp_date = "2023-06-16";
+exp_date = "2023-06-15";
 ct_data_dir = fullfile( ...
     data_dir, ...
     "ct_images", ...
@@ -27,6 +29,9 @@ needle_data_dir = fullfile( ...
     "processed_bags", ...
     exp_date ...
 );
+
+% options
+recopy_ct_results = false;
 
 % file names
 ct_results_filename     = "ct_scan_results.xlsx";
@@ -75,6 +80,7 @@ buffer_dt = seconds(20); % buffer time for matching
 columns_types = {
     'insertion_number', 'double';
     'insertion_depth', 'double';
+    'timestamp', 'datetime';
     'needle_shape','cell';
     'ct_shape', 'cell';
     'curvature', 'cell';
@@ -88,13 +94,24 @@ results_tbl = table( ...
     'VariableNames', columns_types(:, 1), ...
     'VariableTypes', columns_types(:, 2) ...
 );
+results_tbl.timestamp.TimeZone = EXPMT_TIMEZONE;
+
+
 
 % iterate over needle insertion files
 skip_file_idxs = [];
 for ndl_file_idx = 1:numel(needle_insertion_files)
+    % file handling
     needle_file_i = needle_insertion_files(ndl_file_idx);
+    needle_file_i_psplit = pathsplit(needle_file_i.folder);
+    insertion_dir = pathjoin(needle_file_i_psplit(1:end-1));
     
+    % load data
     needle_data = load_needle_data(fullfile(needle_file_i.folder, needle_file_i.name));
+    robot_data  = load_robot_data(fullfile(insertion_dir, robot_data_filename));
+    robot_data_trial = table2struct(...
+        robot_data(robot_data.InsertionDepth == needle_data.insertion_depth, :)...
+    );
     
     % load the CT data on hand
     ct_results_indir = dir(fullfile( ...
@@ -102,7 +119,7 @@ for ndl_file_idx = 1:numel(needle_insertion_files)
         strcat("*", ct_results_filename)...
     ));
 
-    if numel(ct_results_indir) == 1
+    if numel(ct_results_indir) == 1 && ~recopy_ct_results
         ct_data = load_ct_data(fullfile(ct_results_indir(1).folder, ct_results_indir(1).name));
 
     else
@@ -167,6 +184,7 @@ for ndl_file_idx = 1:numel(needle_insertion_files)
     results_tbl{ndl_file_idx, 'ct_shape'}           = {ct_data.shape};
     results_tbl{ndl_file_idx, 'fiducial_locations'} = {ct_data.fiducial_locations};
     results_tbl{ndl_file_idx, 'fiducial_pose'}      = {ct_data.fiducial_pose};
+    results_tbl{ndl_file_idx, 'timestamp'}          = ct_data.timestamp;
 
     % prompt
     fprintf("Processed Insertion Dir: %s\n", needle_file_i.folder)
@@ -189,6 +207,8 @@ fprintf("Saved results table to: %s\n", out_results_tbl_file);
 %% Helper Functions
 % load the needle data
 function data = load_needle_data(filename)
+    global EXPMT_TIMEZONE
+
     data.shape     = readmatrix(filename, 'Sheet', 'shape');
     data.curvature = reshape(readmatrix(filename, 'Sheet', 'curvature'), 2, []);
     data.kappa_c   = readmatrix(filename, 'Sheet', 'kappa_c');
@@ -215,7 +235,7 @@ function data = load_needle_data(filename)
         timestamps ...
     );
     timestamps = rowfun( ...
-        @(ts) setfield(ts, 'TimeZone', 'America/New_York'), ...
+        @(ts) setfield(ts, 'TimeZone', EXPMT_TIMEZONE), ...
         timestamps ...
     ); % Convert UTC -> EST
     timestamps = rows2vars(timestamps);
@@ -234,12 +254,50 @@ function data = load_needle_data(filename)
 end
 
 function data = load_robot_data(filename)
+    global EXPMT_TIMEZONE
+
+    tbl_varname_warnid = 'MATLAB:table:ModifiedAndSavedVarnames';
+
+    warning('off', tbl_varname_warnid);
+    data = readtable(...
+        filename, ...
+        'VariableNamingRule', 'modify', ...
+        'ReadRowNames', false, ...
+        'ReadVariableNames', true ...
+    );
+    warning('on', tbl_varname_warnid);
     
+    data = renamevars(...
+        data, ...
+        {'InsertionDepth_mm_'}, ...
+        {'InsertionDepth'}...
+    );
+    
+    % convert to datetimes
+    data.ts_min = datetime( ...
+        data.ts_min, ...
+        'convertfrom', 'EpochTime', ...
+        'tickspersecond', 1e9, ...
+        'TimeZone', 'UTC' ...
+    );
+    data.ts_max = datetime( ...
+        data.ts_max, ...
+        'convertfrom', 'EpochTime', ...
+        'tickspersecond', 1e9, ...
+        'TimeZone', 'UTC' ...
+    );
+
+    % timezone change
+    data.ts_min.TimeZone = EXPMT_TIMEZONE;
+    data.ts_max.TimeZone = EXPMT_TIMEZONE;
+
 
 end
 
 % load the CT data
 function data = load_ct_data(filename)
+    global EXPMT_TIMEZONE
+    
     data.shape              = readmatrix(filename, 'Sheet', 'needle shape');
     data.fiducial_locations = readmatrix(filename, 'Sheet', 'fiducial locations');
     data.fiducial_pose      = readmatrix(filename, 'Sheet', 'fiducial pose');
@@ -250,7 +308,7 @@ function data = load_ct_data(filename)
         data.timestamp = datetime( ...
             filename_split{end-1}, ...
             'InputFormat', 'yyyy-MM-dd_HH-mm-ss', ...
-            'TimeZone', 'America/New_York' ...
+            'TimeZone', EXPMT_TIMEZONE ...
         );
     catch
         ts_str = filename_split{end};
@@ -258,7 +316,7 @@ function data = load_ct_data(filename)
         data.timestamp = datetime( ...
             ts_str, ...
             'InputFormat', 'yyyy-MM-dd_HH-mm-ss', ...
-            'TimeZone', 'America/New_York' ...
+            'TimeZone', EXPMT_TIMEZONE ...
         );
     end
 end
