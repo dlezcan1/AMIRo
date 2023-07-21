@@ -14,16 +14,19 @@ data_dir = fullfile( ...
 );
 
 experiment_result_filename = "all_experiment_results.mat";
+analyzed_result_filename   = strrep(experiment_result_filename, ".mat", "_analyzed.mat");
 
 % options (CAN CHANGE)
 recalculate_transform_box2needle = false;
-recompile_experiment_results     = true;
+recompile_experiment_results     = false;
+plot_shapes                      = false;
 
 %% Stack the results tables
 if recompile_experiment_results
     disp("Recompiling experiment results...");
 
     expmt_result_files = dir(fullfile(data_dir, "experiment_results", "*_experiment_results.mat"));
+    expmt_result_files = expmt_result_files(~startsWith({expmt_result_files.name}, '._'));
 
     results_tbl = [];
     for i = 1:numel(expmt_result_files)
@@ -67,8 +70,9 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
             expmt_day, ...
             expmt_day + days(1)...
         );
+        mask_depth = expmt_results.insertion_depth > 100;
 
-        expmt_results_day = expmt_results(mask_day, :);
+        expmt_results_day = expmt_results(mask_day & mask_depth, :);
 
         % transform the CT points using the fiducial_pose (fiducial pose: box -> CT)
         ct_shape_tf = rowfun( ...
@@ -105,13 +109,15 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
         agg_points_ndl = cat(1, points_sampled.needle_shape_interp_sample{:});
 
         % compute point cloud registration
-        [R_box2needle, p_box2needle] = point_cloud_reg(agg_points_ct, agg_points_ndl);
+        [R_box2needle, ~] = point_cloud_reg(agg_points_ct, agg_points_ndl);
+        R_box2needle = round(R_box2needle, 0);
+        p_box2needle = mean(agg_points_ndl - agg_points_ct * R_box2needle', 1);
         F_box2needle = makeSE3(R_box2needle, p_box2needle, 'Check', true);
 
         % add the results to the day
         expmt_results{mask_day, 'transform_box2needle'} = repmat(...
             {F_box2needle}, ...
-            size(expmt_results_day, 1), ...
+            sum(mask_day), ...
             1 ...
         );
     end
@@ -131,6 +137,7 @@ disp("Experiment Results Table:")
 disp(expmt_results)
 
 %% Compute errors
+warning('off', 'MATLAB:table:RowsAddedNewVars');
 for row_i = 1:size(expmt_results, 1)
     % compute transform from CT -> Needle frame
     tf_ct2ndl = ( ...
@@ -146,36 +153,114 @@ for row_i = 1:size(expmt_results, 1)
         tf_ct2ndl...
     );
 
-    % plot the results
-    needle_shape = expmt_results.needle_shape{row_i};
-    ct_shape_tf  = transformPointsSE3( ...
-        expmt_results.ct_shape{row_i},...
-        tf_ct2ndl, ...
-        2 ...
-    );
-        
-    fig_shapes = figure(1);
-    ax1 = subplot(2, 1, 1); hold off;
-    plot(ax1, needle_shape(:, 3), needle_shape(:, 1), 'linewidth', 4);hold on;
-    plot(ax1, ct_shape_tf(:, 3), ct_shape_tf(:, 1), 'linewidth', 4); hold on;
-    ylabel("x [mm]")
-    axis equal;
-        
-    ax2 = subplot(2, 1, 2); hold off;
-    plot(ax2, needle_shape(:, 3), needle_shape(:, 2), 'linewidth', 4); hold on;
-    plot(ax2, ct_shape_tf(:, 3), ct_shape_tf(:, 2), 'linewidth', 4); hold on;
-
-    xlabel("z [mm]")
-    ylabel("y [mm]")
-
-    linkaxes([ax1, ax2]);
-    axis equal;
-    sgtitle("CT Reconstruction vs. Needle Shape");
-    legend({'MCF', 'CT'}, 'Location','best');
+    % append the errors
     
-    pause(1);
+    expmt_results{row_i, "Min_Error"}      = errors.Min;
+    expmt_results{row_i, "Max_Error"}      = errors.Max;
+    expmt_results{row_i, "Tip_Error"}      = errors.Tip;
+    expmt_results{row_i, "RMSE"}           = errors.RMSE;
+    expmt_results{row_i, "In-Plane_Error"}  = errors.In_Plane;
+    expmt_results{row_i, "Out-Plane_Error"} = errors.Out_Plane;
+
+
+    % plot the results
+    if plot_shapes
+        needle_shape = expmt_results.needle_shape{row_i};
+        ct_shape_tf  = transformPointsSE3( ...
+            expmt_results.ct_shape{row_i},...
+            tf_ct2ndl, ...
+            2 ...
+        );
+            
+        fig_shapes = figure(1);
+        fig_shapes.Position = [100 100 1000 700];
+        ax1 = subplot(2, 1, 1); hold off;
+        plot(ax1, needle_shape(:, 3), needle_shape(:, 1), 'linewidth', 4);hold on;
+        plot(ax1, ct_shape_tf(:, 3), ct_shape_tf(:, 1), 'linewidth', 4); hold on;
+    
+        ylabel("x [mm]")
+        axis equal;
+            
+        ax2 = subplot(2, 1, 2); hold off;
+        plot(ax2, needle_shape(:, 3), needle_shape(:, 2), 'linewidth', 4); hold on;
+        plot(ax2, ct_shape_tf(:, 3), ct_shape_tf(:, 2), 'linewidth', 4); hold on;
+        
+        xlabel("z [mm]")
+        ylabel("y [mm]")
+    
+        axis equal;
+        sgtitle(sprintf(...
+            "CT Reconstruction vs. Needle Shape: Insertion %d - Depth %.1f",...
+            expmt_results.insertion_number(row_i), ...
+            expmt_results.insertion_depth(row_i) ...
+        ));
+        legend({'MCF', 'CT'}, 'Location','best');
+        % linkaxes([ax1, ax2]);
+        
+        pause(2);
+    end
+end
+warning('on', 'MATLAB:table:RowsAddedNewVars');
+
+disp("Experiment Results w/ errors")
+disp(expmt_results)
+
+save(fullfile(data_dir, "experiment_results", analyzed_result_filename));
+fprintf(...
+    "Saved experiment result table w/ errors to: %s\n",...
+    fullfile(data_dir, "experiment_results", analyzed_result_filename)...
+)
+
+%% Plot the group statistics
+error_columns = expmt_results.Properties.VariableNames( ...
+    strcmp(expmt_results.Properties.VariableNames, "RMSE") ...
+    | endsWith(expmt_results.Properties.VariableNames, "_Error") ...
+);
+
+groupsummary(...
+    expmt_results,...
+    "insertion_depth",...
+    {'min', 'max', 'std', 'mean'}, ...
+    error_columns...
+);
+
+% plot
+fig_error_stats = figure(2);
+fig_error_stats.Position = [100, 100, 1200, 800];
+
+tl = tiledlayout('flow');
+for plot_i = 1:numel(error_columns)
+    nexttile
+    
+    bp = boxplot(...
+        expmt_results.(error_columns{plot_i}), ...
+        expmt_results.insertion_depth...
+    );
+    set(bp, 'LineWidth', 2);
+    title(strrep(error_columns{plot_i}, "_", " "))
+
+end
+linkaxes(fig_error_stats.Children.Children)
+sgtitle(fig_error_stats, "Error Statistics for CT-Reconstruction vs. MCF Needle Shape")
+
+for plot_i = 1:prod(tl.GridSize)
+    nexttile(plot_i);
+    [col, row] = ind2sub(flip(tl.GridSize), plot_i);
+
+    if col == 1
+        ylabel("Error [mm]")
+    end
+
+    if row == tl.GridSize(1)
+        xlabel("Insertion Depth [mm]")
+    end
 end
 
+savefigas( ...
+    fig_error_stats, ...
+    fullfile(data_dir, "experiment_results", "ct_needle_shape_results"), ...
+    'Verbose', true ...
+)
 
 
 %% Helper functions

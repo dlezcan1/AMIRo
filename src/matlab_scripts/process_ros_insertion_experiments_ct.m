@@ -15,7 +15,7 @@ data_dir = fullfile( ...
     "2023-06-15_2023-06-16_Beef-Insertion-Experiment" ...
 );
 
-exp_date = "2023-06-15";
+exp_date = "2023-06-16";
 ct_data_dir = fullfile( ...
     data_dir, ...
     "ct_images", ...
@@ -298,7 +298,7 @@ end
 function data = load_ct_data(filename)
     global EXPMT_TIMEZONE
     
-    data.shape              = readmatrix(filename, 'Sheet', 'needle shape');
+    data.shape              = flip(readmatrix(filename, 'Sheet', 'needle shape'), 1);
     data.fiducial_locations = readmatrix(filename, 'Sheet', 'fiducial locations');
     data.fiducial_pose      = readmatrix(filename, 'Sheet', 'fiducial pose');
     
