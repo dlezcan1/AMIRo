@@ -19,7 +19,7 @@ analyzed_result_filename   = strrep(experiment_result_filename, ".mat", "_analyz
 % options (CAN CHANGE)
 recalculate_transform_box2needle = false;
 recompile_experiment_results     = false;
-plot_shapes                      = false;
+plot_shapes                      = true;
 
 %% Stack the results tables
 if recompile_experiment_results
@@ -62,6 +62,16 @@ expmt_results = l.results_tbl;
 expmt_days = unique(dateshift(expmt_results.timestamp, 'start', 'day'));
 
 %% Compute the CT registration
+ds_interp = 0.5;
+
+min_insertion_depth_reg = 100;
+
+s_match_max = 100;
+N_match_max = round(s_match_max / ds_interp);
+
+max_reg_s = nan;
+min_reg_s = 20;
+R1_box2needle = nan;
 if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_box2needle
     for expmt_day = expmt_days'
         % get the experiments from each day
@@ -70,7 +80,7 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
             expmt_day, ...
             expmt_day + days(1)...
         );
-        mask_depth = expmt_results.insertion_depth > 100;
+        mask_depth = expmt_results.insertion_depth > min_insertion_depth_reg;
 
         expmt_results_day = expmt_results(mask_day & mask_depth, :);
 
@@ -83,14 +93,13 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
         );
 
         % interpolate and match each needle and CT points
-        ds_interp = 0.5;
         ct_shape_interp_tf = rowfun( ...
-            @(shape) {interpolate_shape_uniform(shape{1}, ds_interp, true)}, ...
+            @(shape) {interpolate_shape_uniform(shape{1}, ds_interp, true, max_reg_s, min_reg_s)}, ...
             ct_shape_tf, ...
             'OutputVariableNames', {'ct_shape_interp_tf_box'}...
         );
         needle_shape_interp = rowfun( ...
-            @(shape) {interpolate_shape_uniform(shape{1}, ds_interp, false)}, ...
+            @(shape) {interpolate_shape_uniform(shape{1}, ds_interp, false, max_reg_s, min_reg_s)}, ...
             expmt_results_day, ...
             'InputVariables', {'needle_shape'},...
             'OutputVariableNames', {'needle_shape_interp'}...
@@ -99,7 +108,7 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
 
         % aggregate points from all the experiments
         points_sampled = rowfun( ...
-            @(ct, ndl) match_points(ct{1}, ndl{1}, true), ...
+            @(ct, ndl) match_points(ct{1}, ndl{1}, true, 1, N_match_max), ...
             points_interp, ...
             "NumOutputs", 2, ...
             "InputVariables",{'ct_shape_interp_tf_box', 'needle_shape_interp'}, ...
@@ -109,9 +118,15 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
         agg_points_ndl = cat(1, points_sampled.needle_shape_interp_sample{:});
 
         % compute point cloud registration
-        [R_box2needle, ~] = point_cloud_reg(agg_points_ct, agg_points_ndl);
-        R_box2needle = round(R_box2needle, 0);
-        p_box2needle = mean(agg_points_ndl - agg_points_ct * R_box2needle', 1);
+        [R_box2needle, p_box2needle] = point_cloud_reg(agg_points_ct, agg_points_ndl);
+        % if all(~isnan(R1_box2needle))
+        %     R_box2needle = R1_box2needle;
+        % else
+        %     R1_box2needle = R_box2needle;
+        % end
+        % R_box2needle = round(R_box2needle, 0);
+        % p_box2needle = mean(agg_points_ndl - agg_points_ct * R_box2needle', 1);
+
         F_box2needle = makeSE3(R_box2needle, p_box2needle, 'Check', true);
 
         % add the results to the day
@@ -146,10 +161,11 @@ for row_i = 1:size(expmt_results, 1)
     );
     
     % compute the errors with the transform
-    errors = compute_reg_errors( ...
+    ds = 0.5;
+    [errors, s_compare] = compute_reg_errors( ...
         expmt_results.ct_shape{row_i}, ...
         expmt_results.needle_shape{row_i}, ...
-        0.5, ...
+        ds, ...
         tf_ct2ndl...
     );
 
@@ -173,30 +189,73 @@ for row_i = 1:size(expmt_results, 1)
         );
             
         fig_shapes = figure(1);
-        fig_shapes.Position = [100 100 1000 700];
-        ax1 = subplot(2, 1, 1); hold off;
-        plot(ax1, needle_shape(:, 3), needle_shape(:, 1), 'linewidth', 4);hold on;
+        fig_shapes.Position = [50 50 1500 1000];
+        ax1 = subplot(4, 1, 1); hold off;
+        plot(ax1, needle_shape(:, 3), needle_shape(:, 1), 'linewidth', 4); hold on;
         plot(ax1, ct_shape_tf(:, 3), ct_shape_tf(:, 1), 'linewidth', 4); hold on;
+        yline(needle_shape(1, 1), 'k--', 'linewidth', 3)
     
         ylabel("x [mm]")
         axis equal;
             
-        ax2 = subplot(2, 1, 2); hold off;
+        ax2 = subplot(4, 1, 2); hold off;
         plot(ax2, needle_shape(:, 3), needle_shape(:, 2), 'linewidth', 4); hold on;
         plot(ax2, ct_shape_tf(:, 3), ct_shape_tf(:, 2), 'linewidth', 4); hold on;
+        yline(needle_shape(1, 2), 'k--', 'linewidth', 3)
         
+        legend({'MCF', 'CT'}, 'Location','best');
+        axis equal;
         xlabel("z [mm]")
         ylabel("y [mm]")
+
+        ax3 = subplot(4, 1, 3); hold off;
+        plot(ax3, s_compare, errors.deviations(1, :), 'LineWidth',4); hold on;
+        plot(ax3, s_compare, errors.deviations(2, :), 'LineWidth',4); hold on;
+        plot(ax3, s_compare, errors.deviations(3, :), 'LineWidth',4); hold on;
+        yline(0, 'k--', 'linewidth', 3)
+        
+        title("Error plots")
+        legend({"X error", "Y error", "Z error"});
+        
+        xlabel("Arclength [mm]")
+        ylabel("Deviation [mm]")
+
+        ax4 = subplot(4, 1, 4); hold off;
+        curvatures = expmt_results.curvature{row_i};
+        AA_list = 1:size(curvatures, 2);
+        plot(ax4, AA_list, curvatures(1, :), '.', 'MarkerSize', 24); hold on;
+        plot(ax4, AA_list, curvatures(2, :), '.', 'MarkerSize', 24); hold on;
+        yline(0, 'k--', 'linewidth', 3)
+
+        legend({"X", "Y"});
+        ylabel("Curvature [1/m]")
+        xlabel("Active Area #")
     
-        axis equal;
+        
         sgtitle(sprintf(...
             "CT Reconstruction vs. Needle Shape: Insertion %d - Depth %.1f",...
             expmt_results.insertion_number(row_i), ...
             expmt_results.insertion_depth(row_i) ...
         ));
-        legend({'MCF', 'CT'}, 'Location','best');
         % linkaxes([ax1, ax2]);
         
+        % saving
+        odir = fullfile( ...
+            data_dir, ...
+            "experiment_results", ...
+            "figures", ...
+            sprintf("Insertion%d", expmt_results.insertion_number(row_i)), ...
+            string(expmt_results.insertion_depth(row_i)) ...
+        );
+        warning("off", "MATLAB:MKDIR:DirectoryExists")
+        mkdir(odir);
+        warning("on", "MATLAB:MKDIR:DirectoryExists")
+        savefigas(...
+            fig_shapes,...
+            fullfile(odir, "shape_ct_comparison"), ...
+            'Verbose', true ...
+        )
+
         pause(2);
     end
 end
@@ -226,7 +285,7 @@ groupsummary(...
 
 % plot
 fig_error_stats = figure(2);
-fig_error_stats.Position = [100, 100, 1200, 800];
+fig_error_stats.Position = [100, 100, 1600, 900];
 
 tl = tiledlayout('flow');
 for plot_i = 1:numel(error_columns)
@@ -234,7 +293,7 @@ for plot_i = 1:numel(error_columns)
     
     bp = boxplot(...
         expmt_results.(error_columns{plot_i}), ...
-        expmt_results.insertion_depth...
+        {string(dateshift(expmt_results.timestamp, 'start', 'day')), expmt_results.insertion_depth } ...
     );
     set(bp, 'LineWidth', 2);
     title(strrep(error_columns{plot_i}, "_", " "))
@@ -256,19 +315,25 @@ for plot_i = 1:prod(tl.GridSize)
     end
 end
 
+odir = fullfile(data_dir, "experiment_results", "figures");
+warning("off", "MATLAB:MKDIR:DirectoryExists")
+mkdir(odir);
+warning("on", "MATLAB:MKDIR:DirectoryExists")
 savefigas( ...
     fig_error_stats, ...
-    fullfile(data_dir, "experiment_results", "ct_needle_shape_results"), ...
+    fullfile(odir, "ct_needle_shape_results"), ...
     'Verbose', true ...
 )
 
 
 %% Helper functions
-function [shape_interp, s_interp] = interpolate_shape_uniform(shape, ds, reversed)
+function [shape_interp, s_interp] = interpolate_shape_uniform(shape, ds, reversed, max_s, min_s)
     arguments
         shape (:, 3)
         ds double
         reversed logical = false
+        max_s double = nan;
+        min_s double = nan;
     end
 
     arclen = arclength(shape);
@@ -277,26 +342,46 @@ function [shape_interp, s_interp] = interpolate_shape_uniform(shape, ds, reverse
     if reversed
         s_interp = flip(arclen:-ds:0);
     end
+    if ~isnan(max_s)
+        s_interp = s_interp(s_interp <= max_s);
+    end
+
+
+    if ~isnan(min_s) 
+        if min_s < 0
+            min_s = max(s_interp) + min_s;
+        end
+        s_interp = s_interp(min_s <= s_interp);
+    end
+    
 
     shape_interp = interp_pts(shape, s_interp);
 
 end
 
-function [pts1, pts2] = match_points(shape1, shape2, from_end)
+function [pts1, pts2] = match_points(shape1, shape2, from_end, idx_min, idx_max)
     arguments
         shape1 (:, 3)
         shape2 (:, 3)
         from_end logical = false
+        idx_min = 1
+        idx_max = inf
     end
     
     N = min(size(shape1, 1), size(shape2, 1));
 
+    idx_lo = max(1, idx_min);    
+    idx_hi = min(N, idx_max);
     if from_end
         pts1 = shape1(end-N+1:end, :);
+        pts1 = pts1(idx_lo:idx_hi, :);
+
         pts2 = shape2(end-N+1:end, :);
+        pts2 = pts2(idx_lo:idx_hi, :);
     else
-        pts1 = shape1(1:N, :);
-        pts2 = shape2(1:N, :);
+        
+        pts1 = shape1(idx_lo:idx_hi, :);
+        pts2 = shape2(idx_lo:idx_hi, :);
     end
 
     pts1 = {pts1};
@@ -316,6 +401,8 @@ function errors = compute_shape_errors(shape_ref, shape_pred)
     devs = shape_ref(:, end-M+1:end) - shape_pred(:, end-M+1:end);
     dists_sqr = dot(devs, devs, 1);
     
+    errors.deviations = devs;
+    errors.l2_dist = sqrt(dists_sqr);
     errors.Min = sqrt(min(dists_sqr(2:end)));
     errors.Max = sqrt(max(dists_sqr(2:end)));
     errors.RMSE = sqrt(mean(dists_sqr(1:end)));
@@ -339,15 +426,13 @@ function [errors, varargout] = compute_reg_errors(shape_cam, shape_fbg, ds, pose
     arclen_fbg = arclength(shape_fbg);
     
     % generate the arclengths
-%     s_cam = 0:ds:arclen_cam;
     s_cam = flip(arclen_cam:-ds:0);
     s_fbg = 0:ds:arclen_fbg;
-    
-    N = min(numel(s_cam(s_cam>40)), numel(s_fbg(s_fbg > 40)));
     
     % interpolate the shapes
     shape_cam_interp = interp_pts(shape_cam, s_cam);
     shape_fbg_interp = interp_pts(shape_fbg, s_fbg);
+   
     
     % register camera -> FBG
     if all(~isnan(pose_fbg_cam), 'all')
@@ -362,11 +447,19 @@ function [errors, varargout] = compute_reg_errors(shape_cam, shape_fbg, ds, pose
     
     % transform camera -> FBG
     shape_cam_interp_tf = shape_cam_interp * R' + p';
-    varargout{1} = shape_cam_interp_tf';
     
+    % % use z-axis interpolation (BAD IDEA)
+    % shape_cam_tf        = transformPointsSE3(shape_cam, R, p, 2);
+    % shape_cam_interp_tf = interp_pts_col(shape_cam_tf, 2, shape_fbg(:, 2));
+    % shape_fbg_interp    = interp_pts_col(shape_fbg, 2, shape_fbg(:, 2));
+
     % compute the errors
     N = min(numel(s_cam), numel(s_fbg));
+    varargout{1} = s_fbg(end-N+1:end);
     errors = compute_shape_errors(shape_cam_interp_tf(end-N+1:end,:)', ...
                             shape_fbg_interp(end-N+1:end,:)');
+
+    % VARIABLE ARGUMENT OUTS
+    varargout{4} = shape_cam_interp_tf';
     
 end
