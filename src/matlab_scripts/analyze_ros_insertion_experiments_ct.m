@@ -17,8 +17,8 @@ experiment_result_filename = "all_experiment_results.mat";
 analyzed_result_filename   = strrep(experiment_result_filename, ".mat", "_analyzed.mat");
 
 % options (CAN CHANGE)
-recalculate_transform_box2needle = false;
-recompile_experiment_results     = false;
+recalculate_transform_box2needle = true;
+recompile_experiment_results     = true;
 plot_shapes                      = true;
 
 %% Stack the results tables
@@ -64,7 +64,8 @@ expmt_days = unique(dateshift(expmt_results.timestamp, 'start', 'day'));
 %% Compute the CT registration
 ds_interp = 0.5;
 
-min_insertion_depth_reg = 100;
+min_insertion_depth_reg = 0;
+max_insertion_depth_reg = inf;
 
 s_match_max = 100;
 N_match_max = round(s_match_max / ds_interp);
@@ -80,8 +81,11 @@ if ~isvariable(expmt_results, 'transform_box2needle') || recalculate_transform_b
             expmt_day, ...
             expmt_day + days(1)...
         );
-        mask_depth = expmt_results.insertion_depth > min_insertion_depth_reg;
-
+        mask_depth = (... 
+            (expmt_results.insertion_depth >= min_insertion_depth_reg) ...
+            & (expmt_results.insertion_depth <= max_insertion_depth_reg) ...
+        );
+        
         expmt_results_day = expmt_results(mask_day & mask_depth, :);
 
         % transform the CT points using the fiducial_pose (fiducial pose: box -> CT)
@@ -324,6 +328,69 @@ savefigas( ...
     fullfile(odir, "ct_needle_shape_results"), ...
     'Verbose', true ...
 )
+
+%% Plot all needle shapes in separate figures
+fig_ndl_shapes = figure(4); hold off;
+fig_ndl_shapes.Position = [100, 100, 1600, 900];
+
+fig_ct_shapes = figure(5); hold off;
+fig_ct_shapes.Position = [150, 100, 1600, 900];
+
+for expmt_day = expmt_days'
+    expmt_day_mask = isbetween(...
+        expmt_results.timestamp,...
+        expmt_day, ...
+        expmt_day + days(1) ...
+    );
+
+    ndl_shapes = cat(1, expmt_results.needle_shape{expmt_day_mask});
+    ct_shapes  = cat(1, expmt_results.ct_shape{expmt_day_mask});
+    
+    % plot needle shapes
+    figure(fig_ndl_shapes);
+    plot3(...
+        ndl_shapes(:, 1), ndl_shapes(:, 2), ndl_shapes(:, 3), ...
+        '.', 'MarkerSize',24 ...
+    ); hold on;
+
+    % Plot CT shapes
+    figure(fig_ct_shapes);
+    plot3(...
+        ct_shapes(:, 1), ct_shapes(:, 2), ct_shapes(:, 3), ...
+        '.', 'MarkerSize',24 ...
+    ); hold on;
+
+end
+    
+figure(fig_ndl_shapes);
+legend(string(expmt_days));
+xlabel("x [mm]");
+ylabel("y [mm]");
+zlabel("z [mm]");
+title("MCF-Sensed Needle Shapes");
+% axis equal; 
+grid on;
+
+figure(fig_ct_shapes);
+legend(string(expmt_days));   
+xlabel("x [mm]");
+ylabel("y [mm]");
+zlabel("z [mm]");
+title("CT-Reconstructed Needle Shapes");
+% axis equal; 
+grid on;
+
+% saving
+savefigas( ...
+    fig_ndl_shapes, ...
+    fullfile(data_dir, "experiment_results", "figures", "aggregated_mcf-needle_shapes"), ...
+    "Verbose", true...
+);
+savefigas( ...
+    fig_ct_shapes, ...
+    fullfile(data_dir, "experiment_results", "figures", "aggregated_ct-needle_shapes"), ...
+    "Verbose", true...
+);
 
 
 %% Helper functions
