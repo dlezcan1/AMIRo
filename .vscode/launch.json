@@ -13,8 +13,8 @@
             "justMyCode": true,
             "args": [
                 "--needle-param-file", 
-                "${workspaceFolder}/data/7CH-4AA-0001-MCF-even/needle_params_7CH-4AA-0001-MCF-even_needle_params_2023-03-29_Jig-Calibration_best-noaa4.json",
-                "--data-dir", "${userHome}/data/7CH-4AA-0001-MCF-even/2023-06-15_2023-06-16_Beef-Insertion-Experiment/processed_bags/2023-06-16",
+                "${workspaceFolder}/data/7CH-4AA-0001-MCF-even/needle_params_7CH-4AA-0001-MCF-even_needle_params_2023-03-29_Jig-Calibration_best-noaa1.json",
+                "--data-dir", "${workspaceFolder}/data/7CH-4AA-0001-MCF-even/2023-04-19_Phantom-Insertion-Experiment/processed_bags/2023-04-19",
                 "--save",
                 // "--show-plots",
                 "--num-threads", "0",
@@ -30,7 +30,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "${userHome}/data/Jacynthe-Needle/2023-05-25/results/Insertion6/120.0/right.png"
+                "${workspaceFolder}/data/7CH-4AA-0001-MCF-even/2023-04-19_Phantom-Insertion-Experiment/processed_bags/2023-04-19/Insertion9/30.0/right.png"
             ]
         },
         {
@@ -42,16 +42,18 @@
             "justMyCode": true,
             "args": [
                 "--force-overwrite",
-                "--save",
-                // "--show-processed",
+                // "--save",
+                "--show-processed",
+                // "--insertion-number", "9",
+                // "--insertion-depth", "60", "90",
                 "--left-roi",
-                "200",
+                "130",
                 "450",
-                "-220",
+                "-200",
                 "-100",
                 "--right-roi",
-                "200",
-                "300",
+                "130",
+                "250",
                 "-200",
                 "-350",
                 // "--left-blackout",
@@ -71,14 +73,14 @@
                 "--zoom",
                 "2.0",
                 "--window-size",
-                "51",
-                "401",
+                "101",
+                "301",
                 "--segmentation-num-connected-components-keep",
                 "1",
                 "--segmentation-bspline-order",
                 "1",
                 "--segmentation-outlier-thresh",
-                "0.1",
+                "-1",
                 "--segmentation-outlier-scale",
                 "1",
                 "1",
@@ -87,7 +89,7 @@
                 "--stereomatch-bspline-order",
                 "2",
                 "--stereomatch-tm-score-thresh",
-                "0.6",
+                "-1",
                 "--stereomatch-outlier-thresh",
                 "0.05",
                 "--stereomatch-outlier-scale",
@@ -97,7 +99,7 @@
                 "35",
                 // "--stereomatch-use-roi",
                 "${workspaceFolder}/amiro-cv/calibration/Stereo_Camera_Calibration_02-08-2021/6x7_5mm/calibrationSession_params-error_opencv-struct.mat",
-                "${userHome}/data/Jacynthe-Needle/2023-05-11/results"
+                "${workspaceFolder}/data/7CH-4AA-0001-MCF-even/2023-04-19_Phantom-Insertion-Experiment/processed_bags/2023-04-19"
             ]
         },
         {
