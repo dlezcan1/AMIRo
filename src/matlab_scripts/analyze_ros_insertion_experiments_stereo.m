@@ -32,8 +32,8 @@ end
 
 mkdir(fullfile(data_dir, "experiment_results"));
 
-recompile_experiment_results     = true;
-plot_shapes                      = true;
+recompile_experiment_results     = false;
+plot_shapes                      = false;
 
 %% Stack the results tables
 if recompile_experiment_results
@@ -264,6 +264,8 @@ error_columns = error_columns( ...
     ~strcmp(error_columns, "Min_Error") ...
     & ~strcmp(error_columns, "Tip_Error") ...
 );
+error_columns = sort(error_columns);
+error_columns = {'In-Plane_Error', 'Out-Plane_Error', 'RMSE', 'Max_Error'};
 
 groupsummary(...
     expmt_results,...
@@ -274,7 +276,7 @@ groupsummary(...
 
 % plot
 fig_error_stats = figure(2);
-fig_error_stats.Position = [100, 100, 1200, 800];
+fig_error_stats.Position = [100, 100, 900, 600];
 
 tl = tiledlayout('flow');
 for plot_i = 1:numel(error_columns)
