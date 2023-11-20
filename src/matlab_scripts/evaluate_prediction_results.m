@@ -7,10 +7,11 @@
 % configure_env on;
 clear; close all;
 %% Load the data and shape-sensing results
-data_dir = "D:/git/amiro/prediction_ml/results";
+data_dir = "../../prediction_ml/results";
 prediction_files = dir(fullfile(data_dir, "*.xlsx"));
 mask_exclude = ...
     endsWith({prediction_files.name}, "_errors.xlsx") ...
+    | strcmp({prediction_files.name}, "cumulative_prediction_errors.xlsx") ...
 ;
 prediction_files = prediction_files(~mask_exclude);
 
@@ -31,7 +32,7 @@ needle_mechparam_file = fullfile('../../shape-sensing', ...
 needle_mechparams = load(needle_mechparam_file);
 
 % run options
-overwrite_results = true; % true - if you want to overwrite analysis
+overwrite_results = false; % true - if you want to overwrite analysis
 
 %% Run prediction results
 for i = 1:length(prediction_files)
@@ -71,14 +72,20 @@ for i = 1:length(prediction_files)
     end
     
     %% Initialize results table
-    results_tbl_varnames = reshape(["FBG_Pred_", "FBG_Cam_", "Pred_Cam_"] + [
-            "RMSE"; "MaxError"; "InPlaneError"; "OutPlaneError"
-        ], ...
-    1, []);
+    results_tbl_varnames = reshape( ...
+        ["FBG_Pred_", "FBG_Cam_", "Pred_Cam_"] ...
+        + ["RMSE"; "MaxError"; "InPlaneError"; "OutPlaneError"], ...
+        1, []...
+    );
+    results_tbl_vartypes = repmat("double", size(results_tbl_varnames));
+
+    results_tbl_varnames = [results_tbl_varnames, "fbg_shape_act", "cam_shape_act", "fbg_shape_pred", "pose_fbg_cam"];
+    results_tbl_vartypes = [results_tbl_vartypes, "cell",          "cell",          "cell",           "cell"];
+
     prediction_results.results = table(...
         'Size', [size(prediction_results.data, 1), numel(results_tbl_varnames)], ...
         'VariableNames', results_tbl_varnames,...
-        'VariableTypes', repmat("double", size(results_tbl_varnames))...
+        'VariableTypes', results_tbl_vartypes...
     );
     
     %% Process single-bend single-layer
@@ -143,6 +150,11 @@ for i = 1:length(prediction_files)
            disp("There is a large error here!");
        end
        
+       prediction_results.results.fbg_shape_act{indx}          = pos_fbg_act;
+       prediction_results.results.cam_shape_act{indx}          = pos_cam;
+       prediction_results.results.fbg_shape_pred{indx}         = pos_fbg_pred;
+       prediction_results.results.pose_fbg_cam{indx}           = pose_fbg_cam;
+
        prediction_results.results.FBG_Pred_RMSE(indx)          = errors.pred2fbg.RMSE;
        prediction_results.results.FBG_Pred_MaxError(indx)      = errors.pred2fbg.Max;
        prediction_results.results.FBG_Pred_InPlaneError(indx)  = errors.pred2fbg.In_Plane;
@@ -246,6 +258,11 @@ for i = 1:length(prediction_files)
                1 ...
            );
            
+           prediction_results.results.fbg_shape_act{indx}          = pos_fbg_act;
+           prediction_results.results.cam_shape_act{indx}          = pos_cam;
+           prediction_results.results.fbg_shape_pred{indx}         = pos_fbg_pred;
+           prediction_results.results.pose_fbg_cam{indx}           = pose_fbg_cam;
+
            prediction_results.results.FBG_Pred_RMSE(indx)          = errors.pred2fbg.RMSE;
            prediction_results.results.FBG_Pred_MaxError(indx)      = errors.pred2fbg.Max;
            prediction_results.results.FBG_Pred_InPlaneError(indx)  = errors.pred2fbg.In_Plane;
@@ -271,6 +288,11 @@ for i = 1:length(prediction_files)
                1 ...
            );
 
+           prediction_results.results.fbg_shape_act{indx1}          = pos_fbg_act;
+           prediction_results.results.cam_shape_act{indx1}          = pos_cam;
+           prediction_results.results.fbg_shape_pred{indx1}         = pos_fbg_pred;
+           prediction_results.results.pose_fbg_cam{indx1}           = pose_fbg_cam;
+
            prediction_results.results.FBG_Pred_RMSE(indx1)          = errors.pred2fbg.RMSE;
            prediction_results.results.FBG_Pred_MaxError(indx1)      = errors.pred2fbg.Max;
            prediction_results.results.FBG_Pred_InPlaneError(indx1)  = errors.pred2fbg.In_Plane;
@@ -294,6 +316,11 @@ for i = 1:length(prediction_files)
                indx2_sub == prediction_results.data.Index, ...
                1 ...
            );
+
+           prediction_results.results.fbg_shape_act{indx2}          = pos_fbg_act;
+           prediction_results.results.cam_shape_act{indx2}          = pos_cam;
+           prediction_results.results.fbg_shape_pred{indx2}         = pos_fbg_pred;
+           prediction_results.results.pose_fbg_cam{indx1}           = pose_fbg_cam;
 
            prediction_results.results.FBG_Pred_RMSE(indx2)          = errors.pred2fbg.RMSE;
            prediction_results.results.FBG_Pred_MaxError(indx2)      = errors.pred2fbg.Max;
@@ -379,6 +406,11 @@ for i = 1:length(prediction_files)
            doublebend_singlelayer_data.Index(expmt_idx) == prediction_results.data.Index, ...
            1 ...
        );
+
+       prediction_results.results.fbg_shape_act{indx}          = pos_fbg_act;
+       prediction_results.results.cam_shape_act{indx}          = pos_cam;
+       prediction_results.results.fbg_shape_pred{indx}         = pos_fbg_pred;
+       prediction_results.results.pose_fbg_cam{indx}           = pose_fbg_cam;
        
        prediction_results.results.FBG_Pred_RMSE(indx)          = errors.pred2fbg.RMSE;
        prediction_results.results.FBG_Pred_MaxError(indx)      = errors.pred2fbg.Max;
@@ -406,8 +438,17 @@ for i = 1:length(prediction_files)
     );
 
     % save the joint table
+    save( ...
+        strrep(prediction_results_error_file, '.xlsx', '.mat'), ...
+        'prediction_result_error_tbl'...
+    );
+    fprintf("Saved results file to: %s\n", strrep(prediction_results_error_file, '.xlsx', '.mat')); 
+    
+    tbl_dtypes = varfun(@class, prediction_result_error_tbl, 'OutputFormat', 'cell');
+    mask_cell  = strcmp(tbl_dtypes, "cell");
     writetable( ...
-        prediction_result_error_tbl, prediction_results_error_file, ...
+        prediction_result_error_tbl(:, ~mask_cell), ...
+        prediction_results_error_file, ...
         'WriteVariableNames', true ...
     );
     fprintf("Saved results file to: %s\n", prediction_results_error_file); 
@@ -424,6 +465,9 @@ actual_results_f = fullfile(...
     "FBG-Camera-Comp_tip-pcr_FBG-weights_combined-results-complete.mat" ...
 );
 prediction_results_files = dir(fullfile(data_dir, "*_errors.xlsx"));
+prediction_results_files = prediction_results_files( ...
+    ~strcmp({prediction_results_files.name}, "cumulative_prediction_errors.xlsx")...
+);
 experiment_assignments_file = fullfile( ...
     "../../prediction_ml/data", ...
     "prediction-data-joint_3CH-4AA-0004-custom_expmt-assignments.xlsx" ...

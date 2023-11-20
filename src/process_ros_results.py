@@ -367,9 +367,10 @@ class FBGSensorDataPostProcessor(NeedleDataPostProcessor):
 # class: FBGSensorDataPostProcessor
 
 class ShapeDataPostProcessor(NeedleDataPostProcessor):
-    NEEDLE_DATA_FILE      = "needle_data.xlsx"
-    POST_NEEDLE_DATA_FILE = NEEDLE_DATA_FILE.replace(".xlsx", "_post-proc.xlsx")
-    ROBOT_DATA_FILE       = "robot_pose.csv"
+    ROBOT_DATA_FILE           = "robot_pose.csv"
+    INSERTION_POINT_DATA_FILE = "insertion_point_data.xlsx"
+    NEEDLE_DATA_FILE          = "needle_data.xlsx"
+    POST_NEEDLE_DATA_FILE     = NEEDLE_DATA_FILE.replace(".xlsx", "_post-proc.xlsx")
 
     def __init__(
             self,
@@ -378,7 +379,8 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
             data_file: str = None,
             out_file: str = None,
             sensor_data_file: str = None,
-            robot_data_file: str = None
+            robot_data_file: str = None,
+            insertion_point_data_file: str = None,
         ):
         super().__init__(
             data_dir,
@@ -386,20 +388,32 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
             data_file=data_file if data_file is not None else ShapeDataPostProcessor.NEEDLE_DATA_FILE,
             out_file=out_file if out_file is not None else ShapeDataPostProcessor.POST_NEEDLE_DATA_FILE,
         )
-        self.sensor_data_file = sensor_data_file
-        self.robot_data_file  = robot_data_file
+        self.sensor_data_file          = sensor_data_file
+        self.robot_data_file           = robot_data_file
+        self.insertion_point_data_file = insertion_point_data_file
 
     # __init__
 
     def process_trial(self, trial_meta: Dict[str, Any], save: bool = False):
         # get the updated FBG sensor data
-        in_dir         = os.path.split(trial_meta["filename"])[0]
-        fbgsensor_data = self.get_sensor_data(in_dir)
-        robot_data     = self.get_robot_data(in_dir)
+        in_dir          = os.path.split(trial_meta["filename"])[0]
+        fbgsensor_data  = self.get_sensor_data(in_dir)
+        robot_data      = self.get_robot_data(in_dir)
+        insertion_point = self.get_insertion_point_data(in_dir)
 
         if fbgsensor_data is None:
             print(F"[WARNING]: {in_dir} does not have any usable FBG sensor data")
             return
+        # if
+
+        if insertion_point is not None:
+            # update insertion point to be relative to base of needle
+            if robot_data is not None: 
+                insertion_point -= robot_data[:3, -1] * [1, 1, 0]
+
+            # if
+            self.fbg_needle.insertion_point = insertion_point
+
         # if
 
         results = dict()
@@ -450,12 +464,12 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
         )
 
         # process shape
-        self.fbg_needle.current_depth = insertion_depth
+        self.fbg_needle.current_depth = insertion_depth - self.fbg_needle.insertion_point[2]
         results["shape"], _           = self.fbg_needle.get_needle_shape(*current_kc, current_winit)
-        results["shape"]             += (
-            current_shape[0:1] 
-            - np.reshape([0, 0, insertion_depth], (1, -1))
-        ) # FIXME: update with robot pose
+        # results["shape"]             += (
+        #     current_shape[0:1] 
+        #     - np.reshape([0, 0, insertion_depth], (1, -1))
+        # )
         results["kappa_c"]            = np.asarray(self.fbg_needle.current_kc)
         results["winit"]              = np.asarray(self.fbg_needle.current_winit)
 
@@ -558,6 +572,34 @@ class ShapeDataPostProcessor(NeedleDataPostProcessor):
         return sensor_data
 
     # get_sensor_data
+
+    def get_insertion_point_data(self, dir: str):
+        insertion_point_data_file = self.insertion_point_data_file
+        if insertion_point_data_file is None:
+            if os.path.isfile(os.path.join(dir, ShapeDataPostProcessor.INSERTION_POINT_DATA_FILE)):
+                insertion_point_data_file = ShapeDataPostProcessor.INSERTION_POINT_DATA_FILE
+
+            # if
+            else:
+                return None
+            
+            # else
+        # if
+
+        insertion_point_data = None
+        try:
+            insertion_point_data = pd.read_excel(
+                os.path.join(dir, insertion_point_data_file),
+                sheet_name="insertion_point",
+                index_col=0,
+                header=None,
+            ).to_numpy().ravel().astype(np.float64)
+
+        except ValueError as e:
+            pass # do nothing
+
+        return insertion_point_data
+
 
 # class: ShapeDataPostProcessor
 

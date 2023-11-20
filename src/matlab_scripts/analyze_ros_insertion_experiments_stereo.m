@@ -11,9 +11,11 @@ EXPMT_TIMEZONE = "America/New_York";
 data_dir = fullfile( ...
     "../../data", ...
     "7CH-4AA-0001-MCF-even", ...
-    "2023-04-19_Phantom-Insertion-Experiment" ...
+    "2023-08-21_Phantom-Insertion-Deflection-Experiment", ...
+    "processed_bags", ...
+    "out-bevel-direction" ...
 );
-expmt_date = "2023-04-19";
+
 
 % options
 use_post_proc = true;
@@ -32,8 +34,8 @@ end
 
 mkdir(fullfile(data_dir, "experiment_results"));
 
-recompile_experiment_results     = false;
-plot_shapes                      = false;
+recompile_experiment_results     = true;
+plot_shapes                      = true;
 
 %% Stack the results tables
 if recompile_experiment_results
@@ -62,11 +64,8 @@ if recompile_experiment_results
     % insertion directories
     insertion_dirs = dir(fullfile( ...
         data_dir, ...
-        "processed_bags", ...
-        expmt_date, ...
         "Insertion*"...
     ));
-
 
     % iterate over the insertion directories
     for ins_idx_i = 1:numel(insertion_dirs)
@@ -188,7 +187,7 @@ for row_i = 1:size(expmt_results, 1)
         
         legend({'MCF', 'Stereo'}, 'Location','best');
         axis equal;
-        bp_categories("z [mm]")
+        xlabel("z [mm]")
         ylabel("y [mm]")
 
         ax3 = subplot(4, 1, 3); hold off;
@@ -200,7 +199,7 @@ for row_i = 1:size(expmt_results, 1)
         title("Error plots")
         legend({"X error", "Y error", "Z error"});
         
-        bp_categories("Arclength [mm]")
+        xlabel("Arclength [mm]")
         ylabel("Deviation [mm]")
 
         ax4 = subplot(4, 1, 4); hold off;
@@ -212,7 +211,7 @@ for row_i = 1:size(expmt_results, 1)
 
         legend({"X", "Y"});
         ylabel("Curvature [1/m]")
-        bp_categories("Active Area #")
+        xlabel("Active Area #")
     
         
         sgtitle(sprintf(...
@@ -355,7 +354,7 @@ end
     
 figure(fig_ndl_shapes);
 legend(string(expmt_days));
-bp_categories("x [mm]");
+xlabel("x [mm]");
 ylabel("y [mm]");
 zlabel("z [mm]");
 title("MCF-Sensed Needle Shapes");
@@ -364,7 +363,7 @@ grid on;
 
 figure(fig_cam_shapes);
 legend(string(expmt_days));   
-bp_categories("x [mm]");
+xlabel("x [mm]");
 ylabel("y [mm]");
 zlabel("z [mm]");
 title("Stereo-Reconstructed Needle Shapes");
